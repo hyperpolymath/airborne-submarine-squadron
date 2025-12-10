@@ -1,0 +1,7 @@
+;; airborne-submarine-squadron - Guix Channel
+;; Add to ~/.config/guix/channels.scm
+
+(channel
+ (version 0)
+ (url "https://github.com/hyperpolymath/airborne-submarine-squadron")
+ (branch "main"))

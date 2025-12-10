@@ -1,4 +1,4 @@
-# 🌊✈️ Airborne Submarine Squadron
+= 🌊✈️ Airborne Submarine Squadron
 
 [![RSR Compliant](https://img.shields.io/badge/RSR-Compliant-blue.svg)](https://rhodium.sh)
 [![License: MIT + Palimpsest](https://img.shields.io/badge/License-MIT%20%2B%20Palimpsest%20v0.8-green.svg)](LICENSE.txt)
@@ -9,77 +9,77 @@
 
 A 2D flying submarine game written in Ada 2022, inspired by Sopwith. Control a submarine that seamlessly transitions between aerial and underwater combat.
 
-## Features
+== Features
 
-### Gameplay
-- **Dual Environment Physics**: Realistic air and water physics with smooth transitions
-- **Dynamic Enemies**: 5 enemy types (fighters, submarines, ships, creatures, bombers)
-- **Weapons Systems**: 4 weapon types (torpedoes, missiles, depth charges, machine guns)
-- **Mission System**: 5 mission types (patrol, destroy, rescue, escort, recon)
-- **Power-ups**: 5 powerup types (health, weapons, speed, shields, ammo)
-- **Collision Detection**: AABB collision for entities
-- **Sound System**: Music crossfading (air/water themes) + sound effects
-- **HUD & UI**: Text-based status display (graphics in future version)
+=== Gameplay
+- *Dual Environment Physics*: Realistic air and water physics with smooth transitions
+- *Dynamic Enemies*: 5 enemy types (fighters, submarines, ships, creatures, bombers)
+- *Weapons Systems*: 4 weapon types (torpedoes, missiles, depth charges, machine guns)
+- *Mission System*: 5 mission types (patrol, destroy, rescue, escort, recon)
+- *Power-ups*: 5 powerup types (health, weapons, speed, shields, ammo)
+- *Collision Detection*: AABB collision for entities
+- *Sound System*: Music crossfading (air/water themes) + sound effects
+- *HUD & UI*: Text-based status display (graphics in future version)
 
-### Technical
-- **100% Type Safe**: Ada 2022 compile-time guarantees
-- **Memory Safe**: SPARK formal verification, zero unsafe operations
-- **Offline-First**: No network dependencies, works air-gapped
-- **Bounded Arrays**: All data structures use fixed-size arrays (no heap allocation)
-- **Formally Verified**: SPARK proofs for memory safety and type safety
-- **Zero Dependencies**: Only Ada standard library
-- **10 Packages**: Game, Submarine, Environment, Physics, Renderer, Weapons, Enemies, Powerups, Collision, Missions, Sound
+=== Technical
+- *100% Type Safe*: Ada 2022 compile-time guarantees
+- *Memory Safe*: SPARK formal verification, zero unsafe operations
+- *Offline-First*: No network dependencies, works air-gapped
+- *Bounded Arrays*: All data structures use fixed-size arrays (no heap allocation)
+- *Formally Verified*: SPARK proofs for memory safety and type safety
+- *Zero Dependencies*: Only Ada standard library
+- *10 Packages*: Game, Submarine, Environment, Physics, Renderer, Weapons, Enemies, Powerups, Collision, Missions, Sound
 
-## Quick Start
+== Quick Start
 
 ```bash
-# Clone the repository
+= Clone the repository
 git clone https://github.com/Hyperpolymath/airborne-submarine-squadron.git
 cd airborne-submarine-squadron
 
-# Build (requires GNAT Ada compiler)
+= Build (requires GNAT Ada compiler)
 just build
 
-# Run the game
+= Run the game
 just run
 
-# Run tests
+= Run tests
 just test
 
-# Full verification (includes SPARK proofs)
+= Full verification (includes SPARK proofs)
 just verify
 ```
 
-## Requirements
+== Requirements
 
-- **GNAT Ada Compiler** (FSF 13.0 or later, or AdaCore GNAT Community 2024)
-- **GPRbuild** (build system)
-- **SPARK** (optional, for formal verification)
-- **Nix** (optional, for reproducible builds)
+- *GNAT Ada Compiler* (FSF 13.0 or later, or AdaCore GNAT Community 2024)
+- *GPRbuild* (build system)
+- *SPARK* (optional, for formal verification)
+- *Nix* (optional, for reproducible builds)
 
-### Platform Support
+=== Platform Support
 
 - ✅ Linux (primary)
 - ✅ macOS (via Nix)
 - ✅ Windows (WSL2 or native GNAT)
 - ✅ BSD variants
 
-## Installation
+== Installation
 
 See [INSTALL.md](INSTALL.md) for detailed setup instructions.
 
-## Documentation
+== Documentation
 
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: System architecture and design
-- **[API.md](docs/API.md)**: API documentation
-- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines
-- **[SECURITY.md](SECURITY.md)**: Security policy and vulnerability reporting
-- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)**: Community guidelines
-- **[CHANGELOG.md](CHANGELOG.md)**: Version history
+- *[ARCHITECTURE.md](docs/ARCHITECTURE.md)*: System architecture and design
+- *[API.md](docs/API.md)*: API documentation
+- *[CONTRIBUTING.md](CONTRIBUTING.md)*: Contribution guidelines
+- *[SECURITY.md](SECURITY.md)*: Security policy and vulnerability reporting
+- *[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)*: Community guidelines
+- *[CHANGELOG.md](CHANGELOG.md)*: Version history
 
-## RSR Compliance
+== RSR Compliance
 
-This project adheres to the **Rhodium Standard Repository (RSR)** framework:
+This project adheres to the *Rhodium Standard Repository (RSR)* framework:
 
 | Category | Compliance | Notes |
 |----------|-----------|-------|
@@ -95,16 +95,16 @@ This project adheres to the **Rhodium Standard Repository (RSR)** framework:
 | Governance | ✅ | TPCF Perimeter 3, MAINTAINERS.md |
 | Accessibility | ✅ | WCAG 2.1 AA compliant UI |
 
-## TPCF Perimeter: Community Sandbox (3)
+== TPCF Perimeter: Community Sandbox (3)
 
-This project operates under **TPCF Perimeter 3**, meaning:
+This project operates under *TPCF Perimeter 3*, meaning:
 - ✅ Public contributions welcome
 - ✅ Issues and pull requests from anyone
 - ⚠️ All contributions reviewed by maintainers
 - ⚠️ Breaking changes require RFC process
 - ℹ️ See [CONTRIBUTING.md](CONTRIBUTING.md) for details
 
-## Architecture
+== Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -128,78 +128,78 @@ This project operates under **TPCF Perimeter 3**, meaning:
 └────────────────┘         └────────────────┘
 ```
 
-## Game Controls
+== Game Controls
 
-- **Arrow Keys**: Move submarine
-- **Space**: Fire primary weapon
-- **D**: Drop depth charge / bomb
-- **S**: Switch weapon
-- **Shift**: Boost speed
-- **Tab**: Toggle surface/submerge
-- **Esc**: Pause menu
-- **M**: Mute/unmute
+- *Arrow Keys*: Move submarine
+- *Space*: Fire primary weapon
+- *D*: Drop depth charge / bomb
+- *S*: Switch weapon
+- *Shift*: Boost speed
+- *Tab*: Toggle surface/submerge
+- *Esc*: Pause menu
+- *M*: Mute/unmute
 
-## Development
+== Development
 
 ```bash
-# Development build with debug symbols
+= Development build with debug symbols
 just dev
 
-# Run with debug logging
+= Run with debug logging
 just debug
 
-# Format code (Ada GNAT Style)
+= Format code (Ada GNAT Style)
 just format
 
-# Run linter
+= Run linter
 just lint
 
-# Generate documentation
+= Generate documentation
 just docs
 
-# Clean build artifacts
+= Clean build artifacts
 just clean
 
-# Full CI pipeline (local)
+= Full CI pipeline (local)
 just ci
 ```
 
-## Testing
+== Testing
 
 ```bash
-# Run all tests
+= Run all tests
 just test
 
-# Run specific test suite
+= Run specific test suite
 just test-unit
 just test-integration
 just test-spark
 
-# Coverage report
+= Coverage report
 just coverage
 
-# Benchmark
+= Benchmark
 just benchmark
 ```
 
-## License
+== License
 
 Dual-licensed under:
-- **MIT License** (permissive, OSI-approved)
-- **Palimpsest License v0.8** (politically autonomous software)
+- *MIT License* (permissive, OSI-approved)
+- *Palimpsest License v0.8* (politically autonomous software)
 
 See [LICENSE.txt](LICENSE.txt) for details.
 
-## Security
+== Security
 
 Security is a top priority. See [SECURITY.md](SECURITY.md) for:
 - Vulnerability reporting process
 - Security update policy
 - GPG keys for secure communication
 
-**TL;DR**: Report vulnerabilities to `security@example.com` (GPG: `0x1234...`)
+*TL;DR*: Report vulnerabilities to `security@example.com` (GPG: `0x1234...`)
 
-## Contributing
+== Contributing
 
 We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - Code of Conduct
@@ -208,28 +208,28 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - PR process
 - TPCF governance model
 
-## Maintainers
+== Maintainers
 
 See [MAINTAINERS.md](MAINTAINERS.md) for current maintainers and governance structure.
 
-## Community
+== Community
 
-- **Issues**: [GitHub Issues](https://github.com/Hyperpolymath/airborne-submarine-squadron/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Hyperpolymath/airborne-submarine-squadron/discussions)
-- **Matrix**: `#airborne-submarine:matrix.org`
-- **IRC**: `#airborne-submarine` on Libera.Chat
+- *Issues*: [GitHub Issues](https://github.com/Hyperpolymath/airborne-submarine-squadron/issues)
+- *Discussions*: [GitHub Discussions](https://github.com/Hyperpolymath/airborne-submarine-squadron/discussions)
+- *Matrix*: `#airborne-submarine:matrix.org`
+- *IRC*: `#airborne-submarine` on Libera.Chat
 
-## Credits
+== Credits
 
 See [.well-known/humans.txt](.well-known/humans.txt) for full credits.
 
-**Inspired by**: Sopwith (1984), Silent Service, Sub Command
+*Inspired by*: Sopwith (1984), Silent Service, Sub Command
 
-## Changelog
+== Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ---
 
-**Built with ❤️ using Ada 2022 | RSR Compliant | Offline-First | Type-Safe | Memory-Safe**
+*Built with ❤️ using Ada 2022 | RSR Compliant | Offline-First | Type-Safe | Memory-Safe*
 
