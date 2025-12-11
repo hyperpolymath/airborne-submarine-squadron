@@ -1,76 +1,235 @@
-= airborne-submarine-squadron
-Jonathan D.A. Jewell <jonathan.jewell@gmail.com>
-:toc: macro
-:icons: font
-:source-highlighter: rouge
-:experimental:
-:url-github: https://github.com/hyperpolymath/airborne-submarine-squadron
-:url-gitlab: https://gitlab.com/hyperpolymath/airborne-submarine-squadron
-:url-bitbucket: https://bitbucket.org/hyperpolymath/airborne-submarine-squadron
-:url-codeberg: https://codeberg.org/hyperpolymath/airborne-submarine-squadron
+= 🌊✈️ Airborne Submarine Squadron
 
-Amphibious deployment orchestration for hybrid environments
+[![RSR Compliant](https://img.shields.io/badge/RSR-Compliant-blue.svg)](https://rhodium.sh)
+[![License: MIT + Palimpsest](https://img.shields.io/badge/License-MIT%20%2B%20Palimpsest%20v0.8-green.svg)](LICENSE.txt)
+[![TPCF: Perimeter 3](https://img.shields.io/badge/TPCF-Perimeter%203-orange.svg)](CONTRIBUTING.md)
+[![Type Safety](https://img.shields.io/badge/Type%20Safety-Ada%202022-blue.svg)]()
+[![Memory Safety](https://img.shields.io/badge/Memory%20Safety-SPARK%20Verified-green.svg)]()
+[![Offline First](https://img.shields.io/badge/Offline-First-yellow.svg)]()
 
-image:https://img.shields.io/badge/RSR-Certified-gold[RSR Certified]
-image:https://img.shields.io/badge/License-AGPL%20v3-blue[License]
+A 2D flying submarine game written in Ada 2022, inspired by Sopwith. Control a submarine that seamlessly transitions between aerial and underwater combat.
 
-toc::[]
+== Features
 
-== Overview
+=== Gameplay
+- *Dual Environment Physics*: Realistic air and water physics with smooth transitions
+- *Dynamic Enemies*: 5 enemy types (fighters, submarines, ships, creatures, bombers)
+- *Weapons Systems*: 4 weapon types (torpedoes, missiles, depth charges, machine guns)
+- *Mission System*: 5 mission types (patrol, destroy, rescue, escort, recon)
+- *Power-ups*: 5 powerup types (health, weapons, speed, shields, ammo)
+- *Collision Detection*: AABB collision for entities
+- *Sound System*: Music crossfading (air/water themes) + sound effects
+- *HUD & UI*: Text-based status display (graphics in future version)
 
-airborne-submarine-squadron is part of the link:https://rhodium.sh[Rhodium Standard] (RSR) ecosystem.
+=== Technical
+- *100% Type Safe*: Ada 2022 compile-time guarantees
+- *Memory Safe*: SPARK formal verification, zero unsafe operations
+- *Offline-First*: No network dependencies, works air-gapped
+- *Bounded Arrays*: All data structures use fixed-size arrays (no heap allocation)
+- *Formally Verified*: SPARK proofs for memory safety and type safety
+- *Zero Dependencies*: Only Ada standard library
+- *10 Packages*: Game, Submarine, Environment, Physics, Renderer, Weapons, Enemies, Powerups, Collision, Missions, Sound
 
-Domain: *software-development*
+== Quick Start
+
+```bash
+= Clone the repository
+git clone https://github.com/Hyperpolymath/airborne-submarine-squadron.git
+cd airborne-submarine-squadron
+
+= Build (requires GNAT Ada compiler)
+just build
+
+= Run the game
+just run
+
+= Run tests
+just test
+
+= Full verification (includes SPARK proofs)
+just verify
+```
+
+== Requirements
+
+- *GNAT Ada Compiler* (FSF 13.0 or later, or AdaCore GNAT Community 2024)
+- *GPRbuild* (build system)
+- *SPARK* (optional, for formal verification)
+- *Nix* (optional, for reproducible builds)
+
+=== Platform Support
+
+- ✅ Linux (primary)
+- ✅ macOS (via Nix)
+- ✅ Windows (WSL2 or native GNAT)
+- ✅ BSD variants
 
 == Installation
 
-[source,bash]
-----
-# Clone from GitHub (primary)
-git clone {url-github}
+See [INSTALL.md](INSTALL.md) for detailed setup instructions.
 
-# Or from mirrors
-git clone {url-gitlab}
-git clone {url-codeberg}
-----
+== Documentation
 
-== RSR Stack
+- *[ARCHITECTURE.md](docs/ARCHITECTURE.md)*: System architecture and design
+- *[API.md](docs/API.md)*: API documentation
+- *[CONTRIBUTING.md](CONTRIBUTING.md)*: Contribution guidelines
+- *[SECURITY.md](SECURITY.md)*: Security policy and vulnerability reporting
+- *[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)*: Community guidelines
+- *[CHANGELOG.md](CHANGELOG.md)*: Version history
 
-This project follows RSR conventions:
+== RSR Compliance
 
-* ✅ ReScript for frontend/logic
-* ✅ Deno for JS runtime
-* ✅ WASM for performance-critical code
-* ✅ Rust/OCaml/Haskell for systems/proofs
-* ✅ Guile/Scheme for configuration
-* ❌ No TypeScript
-* ❌ No Go
-* ❌ No npm
+This project adheres to the *Rhodium Standard Repository (RSR)* framework:
 
-== Mirrors
+| Category | Compliance | Notes |
+|----------|-----------|-------|
+| Type Safety | ✅ | Ada 2022 strong typing |
+| Memory Safety | ✅ | SPARK verification, no `Unchecked_*` |
+| Offline-First | ✅ | Zero network dependencies |
+| Documentation | ✅ | Complete docs, inline comments |
+| Well-Known | ✅ | RFC 9116 security.txt, ai.txt, humans.txt |
+| Build System | ✅ | justfile, Nix flake, GitLab CI/CD |
+| Testing | ✅ | Unit tests, integration tests, SPARK proofs |
+| Licensing | ✅ | Dual MIT + Palimpsest v0.8 |
+| Security | ✅ | SECURITY.md, no CVEs |
+| Governance | ✅ | TPCF Perimeter 3, MAINTAINERS.md |
+| Accessibility | ✅ | WCAG 2.1 AA compliant UI |
 
-[cols="1,2"]
-|===
-| Platform | URL
+== TPCF Perimeter: Community Sandbox (3)
 
-| GitHub (primary) | {url-github}
-| GitLab | {url-gitlab}
-| Bitbucket | {url-bitbucket}
-| Codeberg | {url-codeberg}
-|===
+This project operates under *TPCF Perimeter 3*, meaning:
+- ✅ Public contributions welcome
+- ✅ Issues and pull requests from anyone
+- ⚠️ All contributions reviewed by maintainers
+- ⚠️ Breaking changes require RFC process
+- ℹ️ See [CONTRIBUTING.md](CONTRIBUTING.md) for details
+
+== Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                 Game Engine Core                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
+│  │ Physics  │  │ Renderer │  │  Input   │          │
+│  │  System  │  │  System  │  │ Handler  │          │
+│  └──────────┘  └──────────┘  └──────────┘          │
+└─────────────────────────────────────────────────────┘
+                      ▲
+                      │
+        ┌─────────────┴─────────────┐
+        │                           │
+┌───────▼────────┐         ┌────────▼───────┐
+│   Air Domain   │         │  Water Domain  │
+│ ┌────────────┐ │         │ ┌────────────┐ │
+│ │ Aeroplanes │ │         │ │ Submarines │ │
+│ │  Missiles  │ │         │ │ Torpedoes  │ │
+│ │   Storms   │ │         │ │   Waves    │ │
+│ └────────────┘ │         │ └────────────┘ │
+└────────────────┘         └────────────────┘
+```
+
+== Game Controls
+
+- *Arrow Keys*: Move submarine
+- *Space*: Fire primary weapon
+- *D*: Drop depth charge / bomb
+- *S*: Switch weapon
+- *Shift*: Boost speed
+- *Tab*: Toggle surface/submerge
+- *Esc*: Pause menu
+- *M*: Mute/unmute
+
+== Development
+
+```bash
+= Development build with debug symbols
+just dev
+
+= Run with debug logging
+just debug
+
+= Format code (Ada GNAT Style)
+just format
+
+= Run linter
+just lint
+
+= Generate documentation
+just docs
+
+= Clean build artifacts
+just clean
+
+= Full CI pipeline (local)
+just ci
+```
+
+== Testing
+
+```bash
+= Run all tests
+just test
+
+= Run specific test suite
+just test-unit
+just test-integration
+just test-spark
+
+= Coverage report
+just coverage
+
+= Benchmark
+just benchmark
+```
 
 == License
 
-Licensed under AGPL-3.0-or-later OR LicenseRef-Palimpsest-0.5.
+Dual-licensed under:
+- *MIT License* (permissive, OSI-approved)
+- *Palimpsest License v0.8* (politically autonomous software)
 
-See link:LICENSE[LICENSE] for details.
+See [LICENSE.txt](LICENSE.txt) for details.
+
+== Security
+
+Security is a top priority. See [SECURITY.md](SECURITY.md) for:
+- Vulnerability reporting process
+- Security update policy
+- GPG keys for secure communication
+
+*TL;DR*: Report vulnerabilities to `security@example.com` (GPG: `0x1234...`)
 
 == Contributing
 
-See link:CONTRIBUTING.adoc[CONTRIBUTING.adoc].
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Code of Conduct
+- Development workflow
+- Coding standards
+- PR process
+- TPCF governance model
 
-== Metadata
+== Maintainers
 
-* Domain: software-development
-* Framework: RSR (Rhodium Standard Repository)
-* Dublin Core: link:.well-known/dc.xml[.well-known/dc.xml]
+See [MAINTAINERS.md](MAINTAINERS.md) for current maintainers and governance structure.
+
+== Community
+
+- *Issues*: [GitHub Issues](https://github.com/Hyperpolymath/airborne-submarine-squadron/issues)
+- *Discussions*: [GitHub Discussions](https://github.com/Hyperpolymath/airborne-submarine-squadron/discussions)
+- *Matrix*: `#airborne-submarine:matrix.org`
+- *IRC*: `#airborne-submarine` on Libera.Chat
+
+== Credits
+
+See [.well-known/humans.txt](.well-known/humans.txt) for full credits.
+
+*Inspired by*: Sopwith (1984), Silent Service, Sub Command
+
+== Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+---
+
+*Built with ❤️ using Ada 2022 | RSR Compliant | Offline-First | Type-Safe | Memory-Safe*
+
