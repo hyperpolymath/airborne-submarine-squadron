@@ -1,22 +1,19 @@
-SPDX-License-Identifier: AGPL-3.0-or-later OR LicenseRef-Palimpsest-0.5
-
-This software is dual-licensed under:
-  1. GNU Affero General Public License v3.0 or later
-  2. Palimpsest License v0.5
-
-See https://spdx.org/licenses/ for license details.
-================================================================================
-
-Dual License: MIT + Palimpsest v0.8
-
-This software is dual-licensed under both the MIT License and the Palimpsest License v0.8.
-You may choose to use, modify, and distribute this software under either license.
+SPDX-License-Identifier: MIT OR AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2024-2025 hyperpolymath
 
 ================================================================================
+DUAL LICENSE: MIT OR AGPL-3.0-or-later
+================================================================================
+
+This project is dual-licensed under the MIT License OR the GNU Affero General
+Public License v3.0 or later. You may choose to use, copy, modify, and
+distribute this work under the terms of EITHER license (your choice).
+
+--------------------------------------------------------------------------------
 MIT LICENSE
-================================================================================
+--------------------------------------------------------------------------------
 
-Copyright (c) 2025 Airborne Submarine Squadron Contributors
+Copyright (c) 2024-2025 hyperpolymath
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -36,161 +33,59 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+--------------------------------------------------------------------------------
+GNU AFFERO GENERAL PUBLIC LICENSE v3.0 OR LATER
+--------------------------------------------------------------------------------
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program. If not, see <https://www.gnu.org/licenses/>.
+
+The full text of the AGPL-3.0 is available at:
+  https://www.gnu.org/licenses/agpl-3.0.txt
+
+--------------------------------------------------------------------------------
+CHOOSING YOUR LICENSE
+--------------------------------------------------------------------------------
+
+You may choose to use this work under:
+  1. MIT License - Standard permissive open source license
+  2. AGPL-3.0-or-later - Copyleft license requiring source disclosure for
+     network services
+
+For most uses, MIT License provides maximum flexibility.
+For ensuring open source remains open (especially for SaaS/network services),
+AGPL-3.0-or-later provides stronger protections.
+
 ================================================================================
-PALIMPSEST LICENSE v0.8
+PALIMPSEST PHILOSOPHICAL OVERLAY (NON-BINDING)
 ================================================================================
 
-Politically Autonomous Software License
+This project encourages (but does not legally require) adherence to the
+principles of the Palimpsest License - a framework for consent-based digital
+interaction and the future web.
 
-Copyright (c) 2025 Airborne Submarine Squadron Contributors
+Core Principles (Encouraged):
+  - Respect for emotional and creative lineage
+  - Transparent AI training practices with explicit consent
+  - Preservation of metadata and attribution
+  - Protection of narrative intent and cultural context
 
-PREAMBLE
+The Palimpsest principles represent our vision for a consent-based internet.
+While not legally binding for use of this software, we encourage all users
+and contributors to familiarize themselves with these principles.
 
-Software freedom requires more than technical liberty—it requires political
-autonomy. This license ensures that software remains free from state coercion,
-corporate capture, and political instrumentalization.
+Learn more: https://github.com/hyperpolymath/palimpsest-license
 
-DEFINITIONS
-
-1. "Software" means the source code, object code, documentation, and related
-   materials covered by this license.
-
-2. "Political Autonomy" means freedom from compelled modification, disclosure,
-   or restriction by state actors, regardless of jurisdiction.
-
-3. "Contributor" means any person or entity that creates or contributes to
-   the Software.
-
-4. "Jurisdiction" means any governmental, quasi-governmental, or
-   state-affiliated entity claiming legal authority.
-
-TERMS AND CONDITIONS
-
-1. GRANT OF RIGHTS
-
-   Subject to the terms of this license, you are granted:
-
-   a) The right to use, copy, modify, and distribute the Software
-   b) The right to create derivative works
-   c) The right to use the Software for any purpose, including commercial
-   d) The right to refuse state-compelled modifications
-   e) The right to resist surveillance integration
-
-2. POLITICAL AUTONOMY PROTECTIONS
-
-   a) NO COMPELLED MODIFICATION: No Contributor may be compelled by any
-      Jurisdiction to modify the Software to introduce backdoors, surveillance
-      capabilities, or weakened security.
-
-   b) NO COMPELLED DISCLOSURE: No Contributor may be compelled to disclose
-      encryption keys, signing keys, or security-relevant implementation
-      details beyond what is publicly available.
-
-   c) WARRANT CANARY: Contributors are encouraged (but not required) to
-      maintain warrant canaries. Removal of a canary constitutes protected
-      speech.
-
-   d) RIGHT TO FORK: If a Contributor is compelled to modify the Software,
-      any other Contributor may fork the Software and continue development
-      under this license.
-
-   e) NO EXPORT RESTRICTIONS: This Software may be used, modified, and
-      distributed globally without restriction. Export control laws are
-      incompatible with software freedom.
-
-3. ANTI-CAPTURE PROVISIONS
-
-   a) NO EXCLUSIVE CONTROL: No single entity (governmental, corporate, or
-      individual) may claim exclusive control over the Software's direction.
-
-   b) NO TRADEMARK MONOPOLIZATION: While trademarks may exist, they cannot
-      be used to prevent forks or alternative distributions.
-
-   c) NO PATENT RETALIATION: Any patent claims against users of this Software
-      result in automatic termination of the claimant's license.
-
-4. OBLIGATIONS
-
-   a) ATTRIBUTION: Retain copyright notices and license text in all copies.
-
-   b) COPYLEFT (Optional): Derivative works may (at the original author's
-      option) be required to use this license or a compatible license.
-
-   c) SOURCE AVAILABILITY: If you distribute binaries, you must make source
-      code available under the same terms.
-
-   d) NO WARRANTY: This Software is provided "as is" without warranty.
-
-5. ENFORCEMENT
-
-   a) COMMUNITY ENFORCEMENT: This license is enforced primarily through
-      community norms, not legal action.
-
-   b) JURISDICTION RESISTANCE: Contributors are encouraged to resist
-      jurisdiction-based enforcement that conflicts with Political Autonomy.
-
-   c) REMEDIES: Violation remedies include public disclosure, fork
-      encouragement, and community censure.
-
-6. COMPATIBILITY
-
-   This license is compatible with:
-   - MIT License (this dual-licensing)
-   - Apache 2.0 (for upstream dependencies)
-   - GPL v3 (with explicit compatibility statement)
-   - Creative Commons BY-SA (for documentation)
-
-7. TERMINATION
-
-   Your rights under this license terminate automatically if you:
-   a) Violate the Political Autonomy provisions
-   b) Bring patent litigation against any Contributor
-   c) Attempt to restrict others' rights under this license
-
-8. INTERPRETATION
-
-   a) This license shall be interpreted to maximize software freedom and
-      political autonomy.
-
-   b) Ambiguities shall be resolved in favor of the Contributor and against
-      state coercion.
-
-   c) If any provision is held invalid, the remaining provisions continue
-      in effect.
-
-9. NO SURRENDER
-
-   No Contributor surrenders the rights granted here by failing to enforce
-   them. Selective enforcement is permitted.
-
-10. INTERNATIONAL SCOPE
-
-    This license applies worldwide. Claims of "unlawful" licensing terms
-    by any Jurisdiction are rejected as incompatible with software freedom.
-
-VERSION HISTORY
-
-- v0.8 (2025): Political autonomy protections, anti-capture provisions
-- v0.7 (2024): Export control resistance, warrant canary support
-- v0.6 (2024): Initial public release
-
-PHILOSOPHICAL FOUNDATION
-
-Software is speech. Encryption is a human right. Surveillance is illegitimate.
-States that demand backdoors, weakened encryption, or compelled disclosure
-are engaged in digital authoritarianism. This license exists to resist.
-
+================================================================================
 END OF LICENSE
-
-================================================================================
-HOW TO CHOOSE
-
-If you need maximum compatibility with existing open source licenses, use
-the MIT License terms above.
-
-If you want to assert political autonomy and resist state coercion, use the
-Palimpsest License v0.8 terms above.
-
-You may use both simultaneously (dual licensing).
-
 ================================================================================
