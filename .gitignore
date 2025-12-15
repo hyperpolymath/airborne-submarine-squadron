@@ -1,80 +1,79 @@
-# =================================================================
-# Git Ignore File - Airborne Submarine Squadron
-# =================================================================
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# RSR-compliant .gitignore
 
-# Build artifacts
-obj/
-bin/
-*.o
-*.ali
-*.exe
-*.so
-*.a
-*.dll
-*.dylib
-
-# GNAT specific
-b~*.ad[sb]
-b__*.ad[sb]
-*.bexch
-*.cswi
-
-# SPARK verification
-gnatprove/
-*.spark
-*.mlw
-*.why
-
-# Editor/IDE
-.vscode/
-.idea/
+# OS & Editor
+.DS_Store
+Thumbs.db
 *.swp
 *.swo
 *~
-.DS_Store
-.project
-.cproject
-.settings/
-*.sublime-*
+.idea/
+.vscode/
 
-# Nix
-result
-result-*
-.direnv/
+# Build
+/target/
+/_build/
+/build/
+/dist/
+/out/
 
-# Logs and databases
+# Dependencies
+/node_modules/
+/vendor/
+/deps/
+/.elixir_ls/
+
+# Rust
+# Cargo.lock  # Keep for binaries
+
+# Elixir
+/cover/
+/doc/
+*.ez
+erl_crash.dump
+
+# Julia
+*.jl.cov
+*.jl.mem
+/Manifest.toml
+
+# ReScript
+/lib/bs/
+/.bsb.lock
+
+# Python (SaltStack only)
+__pycache__/
+*.py[cod]
+.venv/
+
+# Ada/SPARK
+*.ali
+/obj/
+/bin/
+
+# Haskell
+/.stack-work/
+/dist-newstyle/
+
+# Chapel
+*.chpl.tmp.*
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# Test/Coverage
+/coverage/
+htmlcov/
+
+# Logs
 *.log
-*.db
-*.sqlite
+/logs/
 
-# Test results
-test-results/
-coverage/
-*.gcov
-*.gcda
-*.gcno
-
-# Documentation generated
-docs/generated/
-*.html
-*.pdf
-
-# Temporary files
-tmp/
-temp/
+# Temp
+/tmp/
 *.tmp
 *.bak
-
-# OS specific
-Thumbs.db
-.directory
-
-# Package managers
-*.zip
-*.tar.gz
-*.tgz
-*.tar.bz2
-
-# Distribution artifacts (tracked separately)
-dist/
-
