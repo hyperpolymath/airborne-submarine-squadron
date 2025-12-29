@@ -1,4 +1,5 @@
 name: Mirror to GitLab and Bitbucket
+permissions: read-all
 
 on:
   push:
