@@ -5,6 +5,7 @@
 # Allows: ReScript, Deno, WASM, Rust, OCaml, Haskell, Guile/Scheme
 
 name: RSR Anti-Pattern Check
+permissions: read-all
 
 on:
   push:
