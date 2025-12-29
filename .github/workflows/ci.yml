@@ -3,6 +3,7 @@
 # =================================================================
 
 name: CI
+permissions: read-all
 
 on:
   push:
@@ -144,4 +145,3 @@ jobs:
 
       - name: Check with Nix
         run: nix flake check
-
