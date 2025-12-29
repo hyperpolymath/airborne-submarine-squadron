@@ -1,4 +1,5 @@
 name: Guix/Nix Package Policy
+permissions: read-all
 on: [push, pull_request]
 jobs:
   check:
