@@ -185,7 +185,8 @@ style:
 # Security scan
 security-scan: verify
     @echo "Running security scans..."
-    @echo "  ✅ SPARK verification (memory safety)"
+    @command -v gnatprove >/dev/null 2>&1 && echo "  ✅ SPARK verification (memory safety)" || \
+        echo "  ⚠️  SPARK verification skipped (gnatprove missing)"
     @echo "  ✅ No Unchecked_* operations"
     @echo "  ✅ No network dependencies"
     @just find-unsafe
@@ -315,7 +316,8 @@ check-deps:
 rsr-verify:
     @echo "Verifying RSR compliance..."
     @echo "  ✅ Type Safety: Ada 2022 strong typing"
-    @echo "  ✅ Memory Safety: SPARK verification"
+    @command -v gnatprove >/dev/null 2>&1 && echo "  ✅ Memory Safety: SPARK verification" || \
+        echo "  ⚠️  Memory Safety: SPARK verification unavailable (gnatprove missing)"
     @just verify-offline-first
     @just verify-docs
     @just verify-well-known
@@ -331,13 +333,13 @@ verify-offline-first:
 # Verify documentation completeness
 verify-docs:
     @echo "Checking documentation..."
-    @test -f README.md && echo "  ✅ README.md" || echo "  ❌ README.md missing"
+    @test -f README.md -o -f README.adoc && echo "  ✅ README present" || echo "  ❌ README missing"
     @test -f LICENSE.txt && echo "  ✅ LICENSE.txt" || echo "  ❌ LICENSE.txt missing"
     @test -f SECURITY.md && echo "  ✅ SECURITY.md" || echo "  ❌ SECURITY.md missing"
-    @test -f CONTRIBUTING.md && echo "  ✅ CONTRIBUTING.md" || echo "  ❌ CONTRIBUTING.md missing"
+    @test -f CONTRIBUTING.md -o -f CONTRIBUTING.adoc && echo "  ✅ CONTRIBUTING present" || echo "  ❌ CONTRIBUTING missing"
     @test -f CODE_OF_CONDUCT.md && echo "  ✅ CODE_OF_CONDUCT.md" || echo "  ❌ CODE_OF_CONDUCT.md missing"
     @test -f MAINTAINERS.md && echo "  ✅ MAINTAINERS.md" || echo "  ❌ MAINTAINERS.md missing"
-    @test -f CHANGELOG.md && echo "  ✅ CHANGELOG.md" || echo "  ❌ CHANGELOG.md missing"
+    @test -f CHANGELOG.md -o -f CHANGELOG.adoc && echo "  ✅ CHANGELOG present" || echo "  ❌ CHANGELOG missing"
 
 # Verify .well-known directory
 verify-well-known:
@@ -418,4 +420,3 @@ stats:
 # Show help
 help:
     @just --list
-

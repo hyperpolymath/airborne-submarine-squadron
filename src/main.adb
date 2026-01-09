@@ -26,7 +26,7 @@ begin
    Game.Run;
 
 exception
-   when E : others =>
+   when others =>
       Put_Line ("Fatal error occurred. See logs for details.");
       raise;
 end Main;

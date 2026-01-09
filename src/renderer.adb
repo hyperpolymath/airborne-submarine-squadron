@@ -15,9 +15,9 @@ is
    is
       use Ada.Text_IO;
    begin
-      Put_Line ("╔═══════════════════════════════════════════════╗");
-      Put_Line ("║  Airborne Submarine Squadron - Status HUD    ║");
-      Put_Line ("╠═══════════════════════════════════════════════╣");
+      Put_Line ("+------------------------------------------+");
+      Put_Line ("| Airborne Submarine Squadron - Status HUD |");
+      Put_Line ("+------------------------------------------+");
       Put ("║  Time: ");
       Put (Natural'Image (Seconds));
       Put_Line ("s");
@@ -40,7 +40,7 @@ is
       Put ("║  Environment: ");
       Put (Environment.To_String (Env));
       New_Line;
-      Put_Line ("╚═══════════════════════════════════════════════╝");
+      Put_Line ("+------------------------------------------+");
       New_Line;
    end Render_Status;
 

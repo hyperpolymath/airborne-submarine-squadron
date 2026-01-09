@@ -1,0 +1,2 @@
+This project permits AI assistance for code and documentation.
+See repository guidelines in README.adoc and CONTRIBUTING.adoc.

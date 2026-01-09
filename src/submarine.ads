@@ -72,7 +72,7 @@ private
       VX         : Velocity := 0;
       VY         : Velocity := 0;
       Health     : Health_Points := 100;
-      Name       : Name_Buffer := (others => ' ');
+      Name       : Name_Buffer := [others => ' '];
       Name_Len   : Natural := 0;
    end record
    with

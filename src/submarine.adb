@@ -39,8 +39,12 @@ is
       DT_Scale : constant Float := Float (Delta_T) / 16.0;
 
       --  Calculate new positions
-      New_X : constant Integer := Sub.X + Integer (Float (Sub.VX) * DT_Scale);
-      New_Y : constant Integer := Sub.Y + Integer (Float (Sub.VY) * DT_Scale);
+      New_X : constant Integer :=
+         Sub.X +
+         Integer (Float (Sub.VX) * DT_Scale);
+      New_Y : constant Integer :=
+         Sub.Y +
+         Integer (Float (Sub.VY) * DT_Scale);
    begin
       --  Update position with bounds checking
       if New_X in Coordinate'Range then
@@ -66,7 +70,8 @@ is
    function Get_VY (Sub : Submarine_Type) return Velocity is (Sub.VY);
 
    --  Health
-   function Get_Health (Sub : Submarine_Type) return Health_Points is (Sub.Health);
+   function Get_Health (Sub : Submarine_Type) return Health_Points is
+      (Sub.Health);
 
    procedure Take_Damage
       (Sub    : in out Submarine_Type;

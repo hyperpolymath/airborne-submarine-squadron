@@ -5,7 +5,6 @@
 with Ada.Text_IO;
 with Submarine;
 with Environment;
-with Physics;
 with Renderer;
 
 package body Game with
@@ -15,6 +14,7 @@ is
    --  Game loop implementation
    procedure Run is
       use Ada.Text_IO;
+      use type Environment.Environment_Type;
 
       Current_State : Game_State := Menu;
       Frame_Count   : Natural := 0;
@@ -79,7 +79,11 @@ is
 
                   --  Render (text-based for now)
                   if Frame_Count mod 60 = 0 then  --  Every second
-                     Renderer.Render_Status (Player_Sub, Current_Env, Frame_Count / 60);
+                     Renderer.Render_Status (
+                        Player_Sub,
+                        Current_Env,
+                        Frame_Count / 60
+                     );
                   end if;
 
                   --  Check game over conditions

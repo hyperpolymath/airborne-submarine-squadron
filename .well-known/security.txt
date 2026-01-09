@@ -1,0 +1,4 @@
+Contact: mailto:security@hyperpolymath.org
+Expires: 2026-01-01T00:00:00Z
+Policy: https://github.com/hyperpolymath/airborne-submarine-squadron/blob/main/SECURITY.md
+Preferred-Languages: en

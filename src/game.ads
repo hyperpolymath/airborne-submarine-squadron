@@ -24,7 +24,7 @@ is
    --  Initialize and run the game
    procedure Run with
       Global => null,
-      Depends => (null => null);
+      Depends => null;
 
 private
 
