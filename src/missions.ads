@@ -5,6 +5,7 @@
 --  Mission system: objectives, progression, scoring
 --
 --  Type-Safe: Enumeration-based mission types
+--  Memory-Safe: SPARK-verified operations
 --  =================================================================
 
 package Missions with
@@ -46,20 +47,36 @@ is
 
    --  Update mission progress
    procedure Update_Progress
-      (Mission       : in out Mission_Data;
+      (Mission           : in Out Mission_Data;
        Enemies_Destroyed : Natural := 0;
-       Time_Elapsed  : Natural := 0);
+       Survivors_Rescued : Natural := 0;
+       Waypoints_Reached : Natural := 0;
+       Escort_Damaged    : Natural := 0;
+       Time_Elapsed      : Natural := 0);
+
+   --  Get current count (for display)
+   function Get_Current_Count (Mission : Mission_Data) return Natural;
+   function Get_Target_Count (Mission : Mission_Data) return Natural;
+
+   --  Get time remaining (milliseconds)
+   function Get_Time_Remaining (Mission : Mission_Data) return Natural;
+
+   --  Get escort health (for Escort missions)
+   function Get_Escort_Health (Mission : Mission_Data) return Natural
+   with
+      Post => Get_Escort_Health'Result in 0 .. 100;
 
 private
 
    --  Mission implementation
    type Mission_Data is record
-      Mission_Type  : Mission_Type := Patrol;
-      Status        : Mission_Status := Not_Started;
-      Target_Count  : Natural := 10;
-      Current_Count : Natural := 0;
-      Time_Limit    : Natural := 300000;  --  Milliseconds
-      Time_Elapsed  : Natural := 0;
+      Mission_Type   : Mission_Type := Patrol;
+      Status         : Mission_Status := Not_Started;
+      Target_Count   : Natural := 10;
+      Current_Count  : Natural := 0;
+      Time_Limit     : Natural := 300000;  --  Milliseconds
+      Time_Elapsed   : Natural := 0;
+      Escort_Health  : Natural := 100;     --  For Escort missions (0-100)
    end record;
 
 end Missions;

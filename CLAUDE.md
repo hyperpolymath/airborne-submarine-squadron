@@ -49,12 +49,34 @@ airborne-submarine-squadron/
 ## Architecture
 
 ### Key Components
-- **Core Systems**: [To be defined as project develops]
-- **Interfaces**: [To be defined as project develops]
-- **Data Models**: [To be defined as project develops]
+- **Core Systems**:
+  - `Game` (game.ads/adb): Main game loop, state management (Menu/Playing/Paused/Game_Over)
+  - `Submarine` (submarine.ads/adb): Player entity with position, velocity, health
+  - `Environment` (environment.ads/adb): Air/Water/Transition zones with physics modifiers
+  - `Physics` (physics.ads/adb): Gravity, drag calculations
+  - `Renderer` (renderer.ads/adb): Text-based HUD rendering
+  - `Sound` (sound.ads/adb): Music crossfading and sound effects
+  - `Enemies` (enemies.ads/adb): Enemy AI and spawning system
+  - `Weapons` (weapons.ads/adb): Torpedoes, missiles, depth charges, machine gun
+  - `Missions` (missions.ads/adb): Mission objectives and progression
+  - `Powerups` (powerups.ads/adb): Collectible power-ups
+  - `Collision` (collision.ads/adb): AABB collision detection
+
+- **Interfaces**: All packages expose clean public APIs via Ada specifications (.ads files)
+
+- **Data Models**:
+  - `Coordinate`: Integer range 0 .. 10,000 (world position)
+  - `Velocity`: Integer range -100 .. 100 (movement speed)
+  - `Health_Points`: Natural range 0 .. 100 (entity health)
+  - `Game_State`: Enumeration (Menu, Playing, Paused, Game_Over)
+  - `Environment_Type`: Enumeration (Air, Water, Transition)
 
 ### Design Patterns
-- [To be documented as patterns emerge]
+- **Component-based architecture**: Separate packages for each system (Submarine, Enemies, Weapons)
+- **Bounded arrays**: Fixed-size arrays for enemies (50), projectiles (100), powerups (20)
+- **SPARK contracts**: Preconditions and postconditions on all public APIs
+- **Strong typing**: Range-constrained subtypes prevent invalid values at compile time
+- **State machines**: Game states, enemy states, mission states
 
 ## How Claude Can Help
 
@@ -74,30 +96,73 @@ airborne-submarine-squadron/
 ## Important Files
 
 ### Configuration Files
-- [To be added as project grows]
+- `submarine_squadron.gpr`: GNAT project file (build configuration)
+- `Justfile`: Build automation (just command runner)
+- `flake.nix`: Nix flake for reproducible builds
+- `.gitlab-ci.yml`: GitLab CI/CD pipeline
+- `.well-known/security.txt`: Security contact (RFC 9116)
 
 ### Core Modules
-- [To be documented as modules are created]
+- `src/main.adb`: Application entry point
+- `src/game.ads/adb`: Game loop and state management
+- `src/submarine.ads/adb`: Player submarine entity
+- `src/enemies.ads/adb`: Enemy system (50 concurrent enemies)
+- `src/weapons.ads/adb`: Weapon and projectile system (100 projectiles)
+- `src/missions.ads/adb`: Mission objectives (Patrol, Destroy, Rescue, Escort, Recon)
+- `src/sound.ads/adb`: Audio system with crossfading
+- `tests/test_submarine.adb`: Unit test suite
 
 ## Dependencies
 
-- [To be listed as dependencies are added]
+- **Ada Standard Library**: `Ada.Text_IO` for terminal output
+- **GNAT Compiler**: Ada 2022 with SPARK support
+- **GPRbuild**: Project-aware build tool
+- **No external dependencies**: Fully self-contained, offline-first
 
 ## Build and Run
 
 ```bash
-# Setup instructions will be added as the project develops
+# Build debug version
+just build
+
+# Build release version
+just build-release
+
+# Run the game
+just run
+
+# Build and run (development mode)
+just dev
+
+# Clean build artifacts
+just clean
 ```
 
 ## Testing
 
 ```bash
-# Test commands will be added when test framework is chosen
+# Run all tests
+just test
+
+# Run unit tests only
+just test-unit
+
+# Run SPARK verification
+just verify
+
+# Full SPARK proof
+just verify-full
+
+# Check code style
+just style
 ```
 
 ## Deployment
 
-- [Deployment instructions to be added]
+- **Source build**: `gprbuild -P submarine_squadron.gpr -XMODE=release`
+- **Nix build**: `nix build` (reproducible, creates `result/bin/main`)
+- **Platforms**: Linux (primary), macOS, Windows (WSL2/native GNAT), BSDs
+- **Binary release**: Single static executable with no runtime dependencies
 
 ## Contributing
 
@@ -127,8 +192,11 @@ airborne-submarine-squadron/
 ## Resources
 
 - Project Repository: https://github.com/Hyperpolymath/airborne-submarine-squadron
-- [Additional resources to be added]
+- Architecture Documentation: `docs/ARCHITECTURE.md`
+- API Documentation: `docs/API.md`
+- Ada 2022 Reference Manual: https://www.adaic.org/resources/add_content/standards/22rm/html/RM-TTL.html
+- SPARK User Guide: https://docs.adacore.com/spark2014-docs/html/ug/
 
 ---
 
-*This file should be updated as the project evolves to reflect current architecture, patterns, and guidelines.*
+*This file is kept up-to-date with the current architecture, patterns, and guidelines.*

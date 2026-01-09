@@ -96,8 +96,19 @@ is
    --  Apply aerodynamics (air environment)
    procedure Apply_Aerodynamics (Sub : in out Submarine_Type) is
    begin
-      --  Normal gravity applies (faster fall)
-      null;  --  Already handled in Update
+      --  Apply air drag to horizontal velocity (reduces speed over time)
+      --  Air has less drag than water, so the effect is subtle
+      if Sub.VX > 1 then
+         Sub.VX := Sub.VX - 1;  --  Gradual slowdown
+      elsif Sub.VX < -1 then
+         Sub.VX := Sub.VX + 1;  --  Gradual slowdown
+      end if;
+
+      --  In air, gravity accelerates faster than in water
+      --  Add extra gravity effect (complements Update's gravity)
+      if Sub.VY < Velocity'Last - 1 then
+         Sub.VY := Sub.VY + 1;  --  Extra gravity in air
+      end if;
    end Apply_Aerodynamics;
 
 end Submarine;
