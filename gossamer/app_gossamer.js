@@ -119,6 +119,24 @@ const SOLAR_SYSTEM_BODIES = [
   { id: 'uranus', label: 'Uranus', orbitRadius: 355, radius: 11, color: '#8ecae6', period: 520, phase: 2.9, gm: 12 },
   { id: 'neptune', label: 'Neptune', orbitRadius: 395, radius: 11, color: '#4361ee', period: 620, phase: 3.6, gm: 12 },
 ];
+const SETTINGS_KEY = 'airborne-submarine-squadron:gossamer:settings';
+const LEADERBOARD_KEY = 'airborne-submarine-squadron:gossamer:leaderboard';
+const SAFE_DIVER_SPEED = 0.55;
+const DIVER_RANGE = 140;
+const DIVER_SPEED = 2.4;
+const SUB_SKINS = [
+  { id: 'ocean', label: 'Ocean Blue', hull: '#4a6baf', hullStroke: '#1a5276', wings: '#e74c3c', tower: '#34495e', nose: '#2c3e50', porthole: '#85c1e9' },
+  { id: 'red', label: 'Retro Red', hull: '#c0392b', hullStroke: '#7b241c', wings: '#f6b93b', tower: '#641e16', nose: '#3d0c02', porthole: '#fdebd0' },
+  { id: 'amber', label: 'Amber Gold', hull: '#d68910', hullStroke: '#9c640c', wings: '#f8c471', tower: '#7e5109', nose: '#5d4037', porthole: '#fff2cc' },
+  { id: 'emerald', label: 'Emerald', hull: '#1e8449', hullStroke: '#145a32', wings: '#58d68d', tower: '#0b5345', nose: '#0e6251', porthole: '#d5f5e3' },
+  { id: 'violet', label: 'Violet', hull: '#7d3c98', hullStroke: '#512e5f', wings: '#c39bd3', tower: '#4a235a', nose: '#2e1a47', porthole: '#ebdef0' },
+  { id: 'rainbow', label: 'Rainbow', rainbow: true, porthole: '#ffffff', wings: '#ffffff', nose: '#1d3557', tower: '#111827' },
+  { id: 'pride', label: 'Pride Submarine', pride: true, porthole: '#ffffff', wings: '#ffffff', nose: '#111827', tower: '#111827' },
+];
+const DEFAULT_SETTINGS = {
+  subSkin: 'ocean',
+  showLegend: true,
+};
 
 // --- Sub component definitions ---
 // Each part has max HP, a weight for random hit distribution, and a
@@ -519,7 +537,7 @@ function velocityToMph(vx, vy, mode) {
 
 function loadLeaderboard() {
   try {
-    const raw = window.localStorage.getItem('airborne-submarine-squadron:gossamer:leaderboard');
+    const raw = window.localStorage.getItem(LEADERBOARD_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed.slice(0, 5) : [];
   } catch {
@@ -529,13 +547,47 @@ function loadLeaderboard() {
 
 function saveLeaderboard(entries) {
   try {
-    window.localStorage.setItem(
-      'airborne-submarine-squadron:gossamer:leaderboard',
-      JSON.stringify(entries.slice(0, 5))
-    );
+    window.localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries.slice(0, 5)));
   } catch {
     // Ignore storage failures; the in-memory leaderboard still works.
   }
+}
+
+function loadSettings() {
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+    };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function saveSettings(settings) {
+  try {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // Ignore storage failures and keep running.
+  }
+}
+
+function currentSubSkin(settings) {
+  return SUB_SKINS.find((skin) => skin.id === settings.subSkin) || SUB_SKINS[0];
+}
+
+function cycleSubSkin(settings, direction) {
+  const index = SUB_SKINS.findIndex((skin) => skin.id === settings.subSkin);
+  const nextIndex = (index + direction + SUB_SKINS.length) % SUB_SKINS.length;
+  settings.subSkin = SUB_SKINS[nextIndex].id;
+  saveSettings(settings);
+  return currentSubSkin(settings);
+}
+
+function isSubStationaryForDiver(sub) {
+  return Math.hypot(sub.vx, sub.vy) <= SAFE_DIVER_SPEED && !sub.liftingOff && !sub.periscopeMode;
 }
 
 function recordLeaderboardEntry(result) {
@@ -741,12 +793,14 @@ function updateDepthCharges(dt) {
 // --- World init ---
 function initWorld() {
   const terrain = generateTerrain(TERRAIN_LENGTH);
+  const settings = loadSettings();
   return {
     tick: 0,
     mode: 'atmosphere',
     cameraX: 0,        // World X at left screen edge
     cameraY: 0,        // World Y at top screen edge (0 = sky view)
     levelComplete: false,
+    settings,
     leaderboard: loadLeaderboard(),
     leaderboardRecorded: false,
     telemetry: {
@@ -773,6 +827,7 @@ function initWorld() {
       liftingOff: false,
       disembarked: false,
       disembarkIsland: null,
+      diverMode: false,
       pilotX: 0, pilotY: 0,
       pilotVx: 0,
       pilotVy: 0,
@@ -826,6 +881,7 @@ function gameLoop(ts) {
   const dt = Math.min(ts - lastTime, 32);
   lastTime = ts;
   if (!world.gameOver && !world.paused) update(dt / 16);
+  else if (world.paused) updatePauseMenu();
   draw();
   for (const k in keyJustPressed) delete keyJustPressed[k];
   requestAnimationFrame(gameLoop);
@@ -916,12 +972,185 @@ function drawPeriscopeRod(sub) {
   ctx.restore();
 }
 
+function updatePauseMenu() {
+  if (!world) return;
+  if (keyJustPressed['[']) cycleSubSkin(world.settings, -1);
+  if (keyJustPressed[']']) cycleSubSkin(world.settings, 1);
+  if (keyJustPressed['l'] || keyJustPressed['L']) {
+    world.settings.showLegend = !world.settings.showLegend;
+    saveSettings(world.settings);
+  }
+}
+
+function embarkSub(sub) {
+  sub.disembarked = false;
+  sub.disembarkIsland = null;
+  sub.diverMode = false;
+  sub.pilotVx = 0;
+  sub.pilotVy = 0;
+  sub.pilotOnGround = false;
+  SFX.embark();
+}
+
+function deployDiver(sub) {
+  sub.disembarked = true;
+  sub.disembarkIsland = null;
+  sub.diverMode = true;
+  sub.pilotX = sub.worldX;
+  sub.pilotY = clamp(sub.y + 24, WATER_LINE + 18, getGroundY(sub.worldX) - 16);
+  sub.pilotVx = 0;
+  sub.pilotVy = 0;
+  sub.pilotOnGround = false;
+  SFX.disembark();
+}
+
+function deployDockPilot(sub, dock) {
+  sub.disembarked = true;
+  sub.disembarkIsland = dock;
+  sub.diverMode = false;
+  const side = (sub.worldX < dock.x) ? -1 : 1;
+  sub.pilotX = dock.x + side * (dock.topW / 2 - 8);
+  sub.pilotY = WATER_LINE - dock.h - 4;
+  sub.pilotVx = 0;
+  sub.pilotVy = 0;
+  sub.pilotOnGround = true;
+  SFX.disembark();
+}
+
+function attemptEject(sub) {
+  const wantsEject = keyJustPressed['Tab'] || keyJustPressed['e'] || keyJustPressed['E'];
+  if (!wantsEject) return;
+
+  if (sub.disembarked) {
+    embarkSub(sub);
+    return;
+  }
+
+  if (!isSubStationaryForDiver(sub)) {
+    world.caveMessage = { text: 'STABILISE THE SUB TO DEPLOY THE DIVER', timer: 100 };
+    return;
+  }
+
+  const dock = nearbyIslandForDocking(sub.worldX, sub.y);
+  if (dock && sub.floating) {
+    deployDockPilot(sub, dock);
+    return;
+  }
+
+  if (sub.y > WATER_LINE + 8) {
+    deployDiver(sub);
+    return;
+  }
+
+  world.caveMessage = { text: 'DIVER DEPLOYMENT REQUIRES WATER COVER', timer: 100 };
+}
+
+function updateDiverMode(sub, dt) {
+  const moveX = (keys['ArrowRight'] || keys['l'] || keys['L'] ? 1 : 0) - (keys['ArrowLeft'] || keys['j'] || keys['J'] ? 1 : 0);
+  const moveY = (keys['ArrowDown'] ? 1 : 0) - (keys['ArrowUp'] ? 1 : 0);
+  sub.pilotX += moveX * DIVER_SPEED * dt;
+  sub.pilotY += moveY * DIVER_SPEED * dt;
+
+  const dx = sub.pilotX - sub.worldX;
+  const dy = sub.pilotY - sub.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > DIVER_RANGE) {
+    const scale = DIVER_RANGE / dist;
+    sub.pilotX = sub.worldX + dx * scale;
+    sub.pilotY = sub.y + dy * scale;
+  }
+
+  sub.pilotY = clamp(sub.pilotY, WATER_LINE + 14, getGroundY(sub.pilotX) - 10);
+}
+
+function updateOrbitMode(dt) {
+  const sub = world.sub;
+  const space = world.space;
+  space.time += dt;
+
+  const bodies = getSolarBodies(space.time);
+  if (world.tick % 2 === 0) {
+    space.trail.push({ x: space.shipX, y: space.shipY, age: 0 });
+    if (space.trail.length > 120) space.trail.shift();
+  }
+  space.trail.forEach((point) => { point.age += dt; });
+
+  if (keys['ArrowLeft']) space.shipAngle -= ORBITAL_TURN_RATE * dt * 4;
+  if (keys['ArrowRight']) space.shipAngle += ORBITAL_TURN_RATE * dt * 4;
+
+  let thrust = 0;
+  if (keys['ArrowUp']) thrust += ORBITAL_THRUST;
+  if (keys['ArrowDown']) thrust -= ORBITAL_RETRO_THRUST;
+
+  const usingAfterburner = (keys['a'] || keys['A']) && sub.afterburnerCharge > 0;
+  if (usingAfterburner) {
+    sub.afterburnerActive = true;
+    sub.afterburnerCharge = Math.max(0, sub.afterburnerCharge - AFTERBURNER_DRAIN * dt);
+    thrust += ORBITAL_AFTERBURNER_THRUST;
+  } else {
+    sub.afterburnerActive = false;
+    sub.afterburnerCharge = Math.min(AFTERBURNER_MAX_CHARGE, sub.afterburnerCharge + AFTERBURNER_RECHARGE * dt);
+  }
+
+  if (thrust !== 0) {
+    space.shipVx += Math.cos(space.shipAngle) * thrust * dt * 4;
+    space.shipVy += Math.sin(space.shipAngle) * thrust * dt * 4;
+  }
+
+  for (const body of bodies) {
+    const dx = body.x - space.shipX;
+    const dy = body.y - space.shipY;
+    const distSq = Math.max(dx * dx + dy * dy, (body.radius + 6) ** 2);
+    const dist = Math.sqrt(distSq);
+    const accel = (body.gm || 0) / distSq;
+    space.shipVx += (dx / dist) * accel * dt;
+    space.shipVy += (dy / dist) * accel * dt;
+  }
+
+  space.shipX += space.shipVx * dt * 4;
+  space.shipY += space.shipVy * dt * 4;
+  space.cameraX += (space.shipX - space.cameraX) * SPACE_CAMERA_SMOOTH * dt * 4;
+  space.cameraY += (space.shipY - space.cameraY) * SPACE_CAMERA_SMOOTH * dt * 4;
+
+  const nearest = nearestSolarBody(space, bodies);
+  space.nearestBody = nearest;
+  if (nearest && nearest.distance < nearest.body.radius + ORBITAL_COLLISION_RADIUS) {
+    const dx = space.shipX - nearest.body.x;
+    const dy = space.shipY - nearest.body.y;
+    const dist = Math.max(1, Math.hypot(dx, dy));
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const edge = nearest.body.radius + ORBITAL_COLLISION_RADIUS + 2;
+    space.shipX = nearest.body.x + nx * edge;
+    space.shipY = nearest.body.y + ny * edge;
+    const dot = space.shipVx * nx + space.shipVy * ny;
+    if (dot < 0) {
+      space.shipVx -= dot * 1.8 * nx;
+      space.shipVy -= dot * 1.8 * ny;
+    }
+    world.caveMessage = { text: `ORBIT SKIM: ${nearest.body.label.toUpperCase()}`, timer: 90 };
+  }
+
+  sub.worldX = space.shipX;
+  sub.y = space.shipY;
+  sub.vx = space.shipVx;
+  sub.vy = space.shipVy;
+  sub.angle = space.shipAngle;
+  sub.facing = Math.cos(space.shipAngle) >= 0 ? 1 : -1;
+  updateTelemetry(dt, space.shipVx, space.shipVy, 'orbit');
+}
+
 // ============================================================
 // UPDATE
 // ============================================================
 function update(dt) {
   const sub = world.sub;
   world.tick++;
+
+  if (world.mode === 'orbit') {
+    updateOrbitMode(dt);
+    return;
+  }
 
   // --- Camera: smooth follow sub (X and Y) ---
   const targetCamX = sub.worldX - W * 0.4;
@@ -935,12 +1164,12 @@ function update(dt) {
 
   // --- Disembarked ---
   if (sub.disembarked) {
-    if (keyJustPressed['e'] || keyJustPressed['E']) {
-      sub.disembarked = false; sub.disembarkIsland = null;
-      sub.pilotVx = 0; sub.pilotVy = 0; sub.pilotOnGround = false;
-      SFX.embark();
+    if (keyJustPressed['Tab'] || keyJustPressed['e'] || keyJustPressed['E']) {
+      embarkSub(sub);
     }
-    if (sub.disembarkIsland) {
+    if (sub.diverMode) {
+      updateDiverMode(sub, dt);
+    } else if (sub.disembarkIsland) {
       const dock = sub.disembarkIsland;
       const leftLimit = dock.x - dock.baseW / 2 + 4;
       const rightLimit = dock.x + dock.baseW / 2 - 4;
@@ -972,6 +1201,7 @@ function update(dt) {
     updateEnemies(dt);
     updateProjectiles(dt);
     updateEffects(dt);
+    updateTelemetry(dt, sub.vx, sub.vy, 'atmosphere');
     return;
   }
 
@@ -997,6 +1227,7 @@ function update(dt) {
     const thrMult = getThrustMult(sub.parts);
     const turnMult = getTurnMult(sub.parts);
     const diveInput = keys['ArrowDown'];
+    const afterburnerHeld = (keys['a'] || keys['A']) && sub.afterburnerCharge > 0 && sub.y < WATER_LINE - 6;
 
     if (keys['ArrowUp']) {
       sub.vy -= THRUST * thrMult * dt;
@@ -1059,6 +1290,18 @@ function update(dt) {
       if (world.thrustSoundTimer > 8) { SFX.thrustPulse(); world.thrustSoundTimer = 0; }
     }
 
+    if (afterburnerHeld) {
+      sub.afterburnerActive = true;
+      sub.afterburnerCharge = Math.max(0, sub.afterburnerCharge - AFTERBURNER_DRAIN * dt);
+      const burnerLimit = MAX_SPEED * AFTERBURNER_SPEED_MULT * spdMult;
+      sub.vx = clamp(sub.vx + sub.facing * AFTERBURNER_ACCEL * spdMult * dt, -burnerLimit, burnerLimit);
+      if (keys['ArrowUp']) sub.vy -= AFTERBURNER_LIFT * dt;
+      if (world.tick % 3 === 0) addParticles(sub.worldX - sub.facing * 18, sub.y, 2, AFTERBURNER_COLOR);
+    } else {
+      sub.afterburnerActive = false;
+      sub.afterburnerCharge = Math.min(AFTERBURNER_MAX_CHARGE, sub.afterburnerCharge + AFTERBURNER_RECHARGE * dt);
+    }
+
     // Gravity
     if (!sub.floating) sub.vy += GRAVITY * dt;
     sub.vy = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, sub.vy));
@@ -1081,11 +1324,12 @@ function update(dt) {
     sub.floating = false;
     sub.liftingOff = false;
     sub.y = WATER_LINE - 7 + sub.periscopeDepth;
+    sub.afterburnerActive = false;
+    sub.afterburnerCharge = Math.min(AFTERBURNER_MAX_CHARGE, sub.afterburnerCharge + AFTERBURNER_RECHARGE * dt);
   }
 
   // World bounds
   sub.worldX = Math.max(30, Math.min(TERRAIN_LENGTH - 30, sub.worldX));
-  if (sub.y < 20) { sub.y = 20; sub.vy = 0; }
 
   // --- Water physics ---
   const inWater = sub.y + 9 > WATER_LINE;
@@ -1168,6 +1412,27 @@ function update(dt) {
     sub.vx *= 0.97;
   }
 
+  attemptEject(sub);
+
+  const currentSpeedMph = velocityToMph(sub.vx, sub.vy, 'atmosphere');
+  const sharpAscent = currentSpeedMph >= ORBIT_TRIGGER_SPEED_MPH
+    && keys['ArrowUp']
+    && sub.angle <= SHARP_ASCENT_ANGLE
+    && sub.vy <= SHARP_ASCENT_VY
+    && !sub.floating
+    && !sub.periscopeMode;
+  if (sharpAscent) {
+    sub.vy -= STARLIFT_ACCEL * dt;
+    if (sub.y <= SPACE_ENTRY_ALTITUDE) {
+      enterOrbitMode(currentSpeedMph);
+      updateTelemetry(dt, world.space.shipVx, world.space.shipVy, 'orbit');
+      return;
+    }
+  } else if (sub.y < ATMOSPHERE_CEILING) {
+    sub.y = ATMOSPHERE_CEILING;
+    sub.vy = Math.max(0, sub.vy);
+  }
+
   // Ground collision
   const gy = getGroundY(sub.worldX);
   if (sub.y > gy - 12) {
@@ -1222,6 +1487,20 @@ function update(dt) {
       surfaceLaunch: true,
     });
     world.missileCooldown = FIRE_COOLDOWN * 1.5; SFX.missileLaunch();
+  }
+
+  if (keyJustPressed['Control'] && world.depthChargeCooldown <= 0 && sub.depthChargeAmmo > 0) {
+    sub.depthChargeAmmo--;
+    world.depthCharges.push({
+      worldX: sub.worldX - sub.facing * 4,
+      y: sub.y + 10,
+      vx: sub.vx * 0.35,
+      vy: Math.max(sub.vy, 0) + 1.2,
+      life: DEPTH_CHARGE_LIFE,
+      trail: [],
+    });
+    world.depthChargeCooldown = DEPTH_CHARGE_COOLDOWN;
+    addParticles(sub.worldX, sub.y + 10, 6, DEPTH_CHARGE_COLOR);
   }
 
   // --- Update torpedoes (world coords) ---
@@ -1524,18 +1803,22 @@ function update(dt) {
     world.levelComplete = true;
     world.score += 1000;
     SFX.disembark();
+    ensureLeaderboardRecorded('MISSION COMPLETE');
   }
 
   // Game over: hull destroyed
   if (sub.parts.hull <= 0) {
     world.gameOver = true;
     addExplosion(sub.worldX, sub.y, 'big'); SFX.gameOver();
+    ensureLeaderboardRecorded('HULL BREACH');
   }
 
   updateEffects(dt);
   updateAmmoStations(world, dt);
   updateChaffs(world, dt);
   updateMines(world, dt);
+  updateDepthCharges(dt);
+  updateTelemetry(dt, sub.vx, sub.vy, 'atmosphere');
 }
 
 function updateEnemies(dt) {
@@ -1642,10 +1925,283 @@ function addParticles(wx, y, count, color) {
     world.particles.push({ worldX: wx, y, vx:(Math.random()-0.5)*4, vy:(Math.random()-0.8)*3, color, age:0, life:15+Math.random()*20, size:1+Math.random()*2.5 });
 }
 
+function stripedGradient(x0, y0, x1, y1, colors) {
+  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+  const last = colors.length - 1;
+  colors.forEach((color, idx) => {
+    const start = idx / colors.length;
+    const end = (idx + 1) / colors.length;
+    gradient.addColorStop(start, color);
+    gradient.addColorStop(Math.min(1, end - 0.001), color);
+  });
+  if (last >= 0) gradient.addColorStop(1, colors[last]);
+  return gradient;
+}
+
+function drawCompactLegend() {
+  if (!world.settings.showLegend || world.paused) return;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  ctx.fillRect(12, H - 56, 430, 40);
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.strokeRect(12, H - 56, 430, 40);
+  ctx.fillStyle = 'rgba(255,255,255,0.78)';
+  ctx.font = '11px Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText('Esc: controls  |  Tab: eject/diver  |  A: afterburner  |  Ctrl: depth charge', 22, H - 33);
+  ctx.fillText('Space: torpedo  |  Shift: missile  |  P: periscope  |  [, ]: skin in pause', 22, H - 19);
+}
+
+function drawLeaderboardPanel(x, y, title) {
+  const board = world.leaderboard || [];
+  ctx.fillStyle = 'rgba(0,0,0,0.62)';
+  ctx.fillRect(x, y, 320, 152);
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+  ctx.strokeRect(x, y, 320, 152);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 18px Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText(title, x + 14, y + 24);
+  ctx.font = '12px Arial';
+  if (board.length === 0) {
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText('No runs recorded yet.', x + 14, y + 52);
+    return;
+  }
+  board.forEach((entry, index) => {
+    const rowY = y + 48 + index * 20;
+    ctx.fillStyle = index === 0 ? '#fcd34d' : '#e2e8f0';
+    ctx.fillText(`${index + 1}. ${entry.score} pts`, x + 14, rowY);
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`${entry.kills} kills`, x + 118, rowY);
+    ctx.fillText(entry.status || 'Run', x + 180, rowY);
+  });
+}
+
+function drawFlightInstruments() {
+  const telemetry = world.telemetry;
+  const speed = clamp(telemetry.speedMph, 0, SPEEDOMETER_MAX_MPH);
+  const accel = clamp(telemetry.accelG, 0, ACCELEROMETER_MAX_G);
+
+  const panelX = W - 196;
+  const panelY = 12;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(panelX, panelY, 182, 120);
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+  ctx.strokeRect(panelX, panelY, 182, 120);
+
+  const cx = panelX + 52;
+  const cy = panelY + 66;
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 34, Math.PI * 0.75, Math.PI * 2.25);
+  ctx.stroke();
+
+  const speedAngle = Math.PI * 0.75 + (speed / SPEEDOMETER_MAX_MPH) * Math.PI * 1.5;
+  ctx.strokeStyle = speed >= ORBIT_TRIGGER_SPEED_MPH ? '#f97316' : '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(speedAngle) * 28, cy + Math.sin(speedAngle) * 28);
+  ctx.stroke();
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 11px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('MPH', cx, panelY + 26);
+  ctx.font = 'bold 18px Arial';
+  ctx.fillText(`${Math.round(speed)}`, cx, panelY + 95);
+
+  const barX = panelX + 116;
+  const barY = panelY + 26;
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(barX, barY, 22, 76);
+  ctx.strokeStyle = '#64748b';
+  ctx.strokeRect(barX, barY, 22, 76);
+  ctx.fillStyle = accel > 2 ? '#ef4444' : accel > 1 ? '#f59e0b' : '#22c55e';
+  ctx.fillRect(barX + 3, barY + 73 - (accel / ACCELEROMETER_MAX_G) * 70, 16, (accel / ACCELEROMETER_MAX_G) * 70);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 11px Arial';
+  ctx.fillText('G', barX + 11, panelY + 16);
+  ctx.font = '12px Arial';
+  ctx.fillText(`${accel.toFixed(2)}`, barX + 11, panelY + 114);
+
+  ctx.fillStyle = telemetry.launchReady ? '#f59e0b' : '#94a3b8';
+  ctx.font = '11px Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText(telemetry.launchReady ? '88 MPH WINDOW LIVE' : 'Build for 88 MPH', panelX + 12, panelY + 114);
+}
+
+function drawPauseOverlay() {
+  const skin = currentSubSkin(world.settings);
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 40px Arial';
+  ctx.fillText('PAUSED', W / 2, 70);
+  ctx.font = '16px Arial';
+  ctx.fillText('Esc resumes', W / 2, 98);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(8,15,30,0.82)';
+  ctx.fillRect(58, 128, 684, 248);
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.strokeRect(58, 128, 684, 248);
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 18px Arial';
+  ctx.fillText('Controls', 84, 160);
+  ctx.font = '14px Arial';
+  const controls = [
+    'Arrows: steer, climb, dive',
+    'Space: torpedo',
+    'Shift: missile',
+    'Ctrl: depth charge',
+    'A: afterburner',
+    'P: periscope mode',
+    'Tab: eject diver / re-enter',
+    'Esc: pause and settings',
+  ];
+  controls.forEach((line, idx) => ctx.fillText(line, 84, 192 + idx * 22));
+
+  ctx.font = 'bold 18px Arial';
+  ctx.fillText('Settings', 420, 160);
+  ctx.font = '14px Arial';
+  ctx.fillText(`Sub skin: ${skin.label}`, 420, 194);
+  ctx.fillText('Use [ and ] to cycle skins', 420, 218);
+  ctx.fillText(`Legend always visible: ${world.settings.showLegend ? 'ON' : 'OFF'}`, 420, 242);
+  ctx.fillText('Press L to toggle the on-screen legend', 420, 266);
+  ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 290);
+
+  drawLeaderboardPanel(240, 392, 'Top Runs');
+}
+
+function drawOrbitScene() {
+  const space = world.space;
+  const bodies = getSolarBodies(space.time);
+  ctx.fillStyle = '#020617';
+  ctx.fillRect(0, 0, W, H);
+
+  for (let i = 0; i < 90; i++) {
+    const sx = (i * 83 + world.tick * 0.7) % W;
+    const sy = (i * 47) % H;
+    ctx.globalAlpha = 0.2 + (Math.sin(world.tick * 0.015 + i) + 1) * 0.18;
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(sx, sy, 1.5, 1.5);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.save();
+  ctx.translate(W / 2 - space.cameraX, H / 2 - space.cameraY);
+
+  ctx.strokeStyle = 'rgba(148,163,184,0.18)';
+  ctx.lineWidth = 1;
+  for (const body of bodies) {
+    if (body.id === 'sun') continue;
+    ctx.beginPath();
+    ctx.arc(0, 0, body.orbitRadius, 0, TWO_PI);
+    ctx.stroke();
+  }
+
+  for (const point of space.trail) {
+    ctx.globalAlpha = Math.max(0.08, 0.5 - point.age * 0.01);
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 1.8, 0, TWO_PI);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  for (const body of bodies) {
+    ctx.save();
+    ctx.translate(body.x, body.y);
+    if (body.ring) {
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, body.radius + 8, body.radius * 0.55, 0.3, 0, TWO_PI);
+      ctx.stroke();
+    }
+    ctx.fillStyle = body.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, body.radius, 0, TWO_PI);
+    ctx.fill();
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(body.label, 0, body.radius + 16);
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.translate(space.shipX, space.shipY);
+  ctx.rotate(space.shipAngle);
+  const skin = currentSubSkin(world.settings);
+  ctx.fillStyle = skin.pride ? stripedGradient(-18, 0, 18, 0, ['#e40303', '#ff8c00', '#ffed00', '#008026', '#24408e', '#732982'])
+    : skin.rainbow ? stripedGradient(-18, 0, 18, 0, ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#6a4c93'])
+    : skin.hull;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 18, 8, 0, 0, TWO_PI);
+  ctx.fill();
+  ctx.fillStyle = skin.tower || '#1f2937';
+  ctx.fillRect(-2, -12, 5, 6);
+  ctx.fillStyle = '#e5e7eb';
+  ctx.beginPath();
+  ctx.moveTo(18, 0);
+  ctx.lineTo(-12, -7);
+  ctx.lineTo(-7, 0);
+  ctx.lineTo(-12, 7);
+  ctx.closePath();
+  ctx.fill();
+  if (world.sub.afterburnerActive) {
+    ctx.fillStyle = AFTERBURNER_COLOR;
+    ctx.beginPath();
+    ctx.moveTo(-17, -3);
+    ctx.lineTo(-28 - Math.random() * 6, 0);
+    ctx.lineTo(-17, 3);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.restore();
+
+  drawHUD();
+  drawDamageDiagram();
+  drawFlightInstruments();
+  drawCompactLegend();
+
+  if (space.nearestBody) {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(14, H - 94, 250, 52);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Nearest body: ${space.nearestBody.body.label}`, 24, H - 66);
+    ctx.fillText(`Range: ${Math.round(space.nearestBody.distance)} Mm`, 24, H - 46);
+  }
+
+  if (world.caveMessage && world.caveMessage.timer > 0) {
+    world.caveMessage.timer--;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(W / 2 - 210, 24, 420, 34);
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(world.caveMessage.text, W / 2, 47);
+  }
+
+  if (world.paused) drawPauseOverlay();
+}
+
 // ============================================================
 // DRAWING — all world coords converted via toScreen()
 // ============================================================
 function draw() {
+  if (world.mode === 'orbit') {
+    drawOrbitScene();
+    return;
+  }
+
   const cam = world.cameraX;
   const camY = world.cameraY;
 
@@ -1811,6 +2367,28 @@ function draw() {
     drawMines(world);
     drawChaffs(world);
 
+  // --- Depth charges ---
+  for (const charge of world.depthCharges) {
+    for (const p of charge.trail) {
+      ctx.globalAlpha = Math.max(0, 0.35 - p.age * 0.02);
+      ctx.fillStyle = DEPTH_CHARGE_COLOR;
+      ctx.beginPath();
+      ctx.arc(toScreen(p.wx), p.y, 2, 0, TWO_PI);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = DEPTH_CHARGE_COLOR;
+    ctx.beginPath();
+    ctx.arc(toScreen(charge.worldX), charge.y, 5, 0, TWO_PI);
+    ctx.fill();
+    ctx.strokeStyle = '#f8fafc';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(toScreen(charge.worldX), charge.y - 6);
+    ctx.lineTo(toScreen(charge.worldX), charge.y - 10);
+    ctx.stroke();
+  }
+
   // --- Torpedoes ---
   for (const t of world.torpedoes) {
     for (const p of t.trail) {
@@ -1857,6 +2435,25 @@ function draw() {
 
   // Sub
   drawSub(sub);
+
+  if (sub.disembarked && sub.diverMode) {
+    const diverX = toScreen(sub.pilotX);
+    const diverY = sub.pilotY;
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath(); ctx.arc(diverX, diverY - 9, 3, 0, TWO_PI); ctx.fill();
+    ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(diverX, diverY - 6); ctx.lineTo(diverX, diverY + 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(diverX - 5, diverY - 1); ctx.lineTo(diverX + 5, diverY - 1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(diverX, diverY + 4); ctx.lineTo(diverX - 3, diverY + 10); ctx.moveTo(diverX, diverY + 4); ctx.lineTo(diverX + 3, diverY + 10); ctx.stroke();
+    ctx.strokeStyle = 'rgba(133,193,233,0.45)';
+    ctx.beginPath(); ctx.moveTo(diverX, diverY - 12); ctx.lineTo(diverX, diverY - 18); ctx.stroke();
+    ctx.fillStyle = 'rgba(133,193,233,0.35)';
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.arc(diverX + (Math.random() - 0.5) * 6, diverY - 20 - i * 8, 1.5 + i * 0.4, 0, TWO_PI);
+      ctx.fill();
+    }
+  }
 
   // Particles
   for (const p of world.particles) {
@@ -2087,6 +2684,8 @@ function draw() {
   // HUD (screen-space, not affected by camera)
   drawHUD();
   drawDamageDiagram();
+  drawFlightInstruments();
+  drawCompactLegend();
 
   // Cave message notification
   if (world.caveMessage && world.caveMessage.timer > 0) {
@@ -2168,6 +2767,7 @@ function draw() {
     ctx.fillText(`Score: ${world.score}  |  Kills: ${world.kills}`, W/2, H/2+20);
     ctx.fillStyle='#bdc3c7'; ctx.font='18px Arial';
     ctx.fillText('Press R to restart', W/2, H/2+60);
+    drawLeaderboardPanel(W / 2 - 160, H / 2 + 92, 'Leaderboard');
     if (keys['r']||keys['R']) world = initWorld();
   }
 
@@ -2182,16 +2782,13 @@ function draw() {
     ctx.fillText(`Hull integrity: ${Math.ceil(hp)}%`, W/2, H/2+35);
     ctx.fillStyle='#bdc3c7'; ctx.font='18px Arial';
     ctx.fillText('Press R to play again', W/2, H/2+70);
+    drawLeaderboardPanel(W / 2 - 160, H / 2 + 96, 'Leaderboard');
     if (keys['r']||keys['R']) world = initWorld();
   }
 
   // Pause
   if (world && world.paused && !world.gameOver) {
-    ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#4a6baf'; ctx.font='bold 42px Arial'; ctx.textAlign='center';
-    ctx.fillText('PAUSED', W/2, H/2-10);
-    ctx.fillStyle='#bdc3c7'; ctx.font='18px Arial';
-    ctx.fillText('Press Esc to resume', W/2, H/2+30);
+    drawPauseOverlay();
   }
 }
 
@@ -2200,6 +2797,7 @@ function drawSub(sub) {
   const periscopeActive = sub.periscopeMode;
   const sx = toScreen(sub.worldX);
   const f = sub.facing; // 1=right, -1=left
+  const skin = currentSubSkin(world.settings);
 
   // Wake ripples when floating
   if (sub.floating && !sub.disembarked) {
@@ -2221,16 +2819,33 @@ function drawSub(sub) {
 
   // Hull — colour shifts with damage
   const hullPct = parts.hull / 120;
-  ctx.fillStyle = inWater
-    ? `rgb(${41+Math.floor((1-hullPct)*80)}, ${128-Math.floor((1-hullPct)*40)}, ${185-Math.floor((1-hullPct)*60)})`
-    : `rgb(${74+Math.floor((1-hullPct)*80)}, ${107-Math.floor((1-hullPct)*30)}, ${175-Math.floor((1-hullPct)*60)})`;
+  if (skin.pride) {
+    ctx.fillStyle = stripedGradient(-22, 0, 22, 0, ['#e40303', '#ff8c00', '#ffed00', '#008026', '#24408e', '#732982']);
+  } else if (skin.rainbow) {
+    const hueShift = (world.tick * 2) % 360;
+    ctx.fillStyle = stripedGradient(
+      -22,
+      0,
+      22,
+      0,
+      Array.from({ length: 6 }, (_, idx) => `hsl(${(hueShift + idx * 60) % 360} 80% 60%)`)
+    );
+  } else {
+    ctx.fillStyle = skin.hull;
+  }
   ctx.beginPath(); ctx.ellipse(0,0,22,9,0,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#1a5276'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.strokeStyle = skin.hullStroke || '#1a5276'; ctx.lineWidth=1.5; ctx.stroke();
+  if (hullPct < 1 && !skin.pride && !skin.rainbow) {
+    ctx.globalAlpha = 1 - hullPct;
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(0,0,22,9,0,0,TWO_PI); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 
   // Wings (only in air, dim if damaged)
   if (!inWater && parts.wings > 0) {
     ctx.globalAlpha = parts.wings / 60;
-    ctx.fillStyle='#e74c3c';
+    ctx.fillStyle = skin.wings || '#e74c3c';
     ctx.beginPath(); ctx.moveTo(-5,-4); ctx.lineTo(-15,-18); ctx.lineTo(-2,-6); ctx.fill();
     ctx.beginPath(); ctx.moveTo(-5,4); ctx.lineTo(-15,18); ctx.lineTo(-2,6); ctx.fill();
     ctx.globalAlpha = 1;
@@ -2239,16 +2854,16 @@ function drawSub(sub) {
   // Tower (dims with damage)
   if (parts.tower > 0) {
     ctx.globalAlpha = 0.3 + 0.7 * (parts.tower / 70);
-    ctx.fillStyle='#34495e'; ctx.fillRect(-3,-15,6,7);
+    ctx.fillStyle = skin.tower || '#34495e'; ctx.fillRect(-3,-15,6,7);
     // Periscope
-    ctx.strokeStyle='#7f8c8d'; ctx.lineWidth=2;
+    ctx.strokeStyle = skin.pride || skin.rainbow ? '#f8fafc' : '#7f8c8d'; ctx.lineWidth=2;
     ctx.beginPath(); ctx.moveTo(0,-15); ctx.lineTo(0,-20); ctx.lineTo(4,-20); ctx.stroke();
     ctx.globalAlpha = 1;
   }
 
   // Nose (dims with damage)
   ctx.globalAlpha = 0.4 + 0.6 * (parts.nose / 100);
-  ctx.fillStyle='#2c3e50';
+  ctx.fillStyle = skin.nose || '#2c3e50';
   ctx.beginPath(); ctx.arc(22,0,4,-Math.PI/2,Math.PI/2); ctx.fill();
   ctx.globalAlpha = 1;
 
@@ -2266,7 +2881,7 @@ function drawSub(sub) {
   }
 
   // Porthole
-  ctx.fillStyle='#85c1e9';
+  ctx.fillStyle = skin.porthole || '#85c1e9';
   ctx.beginPath(); ctx.arc(8,0,2.5,0,Math.PI*2); ctx.fill();
 
   ctx.restore();
@@ -2281,6 +2896,23 @@ function drawSub(sub) {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+  }
+
+  if (sub.afterburnerActive) {
+    ctx.fillStyle = AFTERBURNER_COLOR;
+    ctx.beginPath();
+    ctx.moveTo(sx - f * 22, sub.y - 3);
+    ctx.lineTo(sx - f * (32 + Math.random() * 6), sub.y);
+    ctx.lineTo(sx - f * 22, sub.y + 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#fcd34d';
+    ctx.beginPath();
+    ctx.moveTo(sx - f * 22, sub.y - 1.5);
+    ctx.lineTo(sx - f * (28 + Math.random() * 3), sub.y);
+    ctx.lineTo(sx - f * 22, sub.y + 1.5);
+    ctx.closePath();
+    ctx.fill();
   }
 
   if (periscopeActive) {
@@ -2436,7 +3068,10 @@ function drawHUD() {
 
   // Status
   ctx.textAlign='right'; ctx.font='13px Arial';
-  if (sub.disembarked) { ctx.fillStyle='#d4a053'; ctx.fillText('DISEMBARKED', W-15, 95); }
+  if (world.mode === 'orbit' && world.space?.nearestBody) {
+    ctx.fillStyle = '#c4b5fd';
+    ctx.fillText(`Orbiting near ${world.space.nearestBody.body.label}`, W-15, 95);
+  } else if (sub.disembarked) { ctx.fillStyle='#d4a053'; ctx.fillText(sub.diverMode ? 'DIVER DEPLOYED' : 'DISEMBARKED', W-15, 95); }
   else if (sub.floating) { ctx.fillStyle='#85c1e9'; ctx.fillText('FLOATING', W-15, 95); }
   else {
     const alt = Math.round(WATER_LINE - sub.y);
@@ -2456,15 +3091,20 @@ function drawHUD() {
   ctx.font='12px Arial';
   const tReady = world.fireCooldown <= 0 && canFireTorpedo(sub.parts) && sub.torpedoAmmo > 0;
   const mReady = world.missileCooldown <= 0 && sub.missileAmmo > 0;
+  const dReady = world.depthChargeCooldown <= 0 && sub.depthChargeAmmo > 0;
   ctx.fillStyle = sub.torpedoAmmo <= 0 ? '#555' : tReady ? '#2ecc71' : '#7f8c8d';
   ctx.fillText(`TORP x${sub.torpedoAmmo} ${sub.torpedoAmmo<=0?'EMPTY':(tReady?'RDY':(canFireTorpedo(sub.parts)?'...':'DMG'))}`, W-15, 128);
   ctx.fillStyle = sub.missileAmmo <= 0 ? '#555' : mReady ? '#e74c3c' : '#7f8c8d';
   ctx.fillText(`MSL x${sub.missileAmmo} ${sub.missileAmmo<=0?'EMPTY':(mReady?'RDY':'...')}`, W-15, 142);
+  ctx.fillStyle = sub.depthChargeAmmo <= 0 ? '#555' : dReady ? DEPTH_CHARGE_COLOR : '#7f8c8d';
+  ctx.fillText(`DCHG x${sub.depthChargeAmmo} ${sub.depthChargeAmmo<=0?'EMPTY':(dReady?'RDY':'...')}`, W-15, 156);
+  ctx.fillStyle = sub.afterburnerCharge > 20 ? AFTERBURNER_COLOR : '#7f8c8d';
+  ctx.fillText(`A/B ${Math.round(sub.afterburnerCharge)}%`, W-15, 170);
 
   // Controls
   ctx.font='11px Arial'; ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.textAlign='center';
-  if (sub.disembarked) ctx.fillText('[E] Embark  |  Enemies still attack!', W/2, H-10);
-  else ctx.fillText('Arrows: fly/turn | Space: torpedo | Shift: missile | E: disembark | Esc: pause | F11: fullscreen', W/2, H-10);
+  if (sub.disembarked) ctx.fillText('[Tab] Re-enter  |  Diver tether active', W/2, H-10);
+  else ctx.fillText('Esc: controls | Tab: eject | A: afterburner | Ctrl: depth | Space: torpedo | Shift: missile', W/2, H-10);
 }
 
 // ============================================================

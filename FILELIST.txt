@@ -23,7 +23,8 @@ DIRECTORY STRUCTURE:
     │   ├── powerups.txt                    (Power-up notes)
     │   ├── obstacles.txt                   (Obstacle notes)
     │   └── todo.txt                        (Future enhancements)
-    ├── launch.sh                          (Launch script)
+    ├── launcher.sh                        (Unified launcher)
+    ├── integ.sh                           (Desktop/menu integration helper)
     ├── FILELIST.txt                       (This file)
     └── README.md                          (Main documentation)
 
@@ -42,7 +43,8 @@ $HOME/airborne-game/notes/powerups.txt 1444 bytes 2026-03-21 15:25:41.193336566 
 $HOME/airborne-game/notes/obstacles.txt 1415 bytes 2026-03-21 15:25:41.195321071 +0000
 $HOME/airborne-game/notes/todo.txt 1708 bytes 2026-03-21 15:25:41.196336677 +0000
 $HOME/airborne-game/README.md 3013 bytes 2026-03-21 15:25:41.188336380 +0000
-$HOME/airborne-game/launch.sh 318 bytes 2026-03-21 15:25:41.197336715 +0000
+$HOME/airborne-game/launcher.sh 5468 bytes 2026-03-22 18:34:00.000000000 +0000
+$HOME/airborne-game/integ.sh 225 bytes 2026-03-31 15:22:00.000000000 +0000
 $HOME/airborne-game/FILELIST.txt 2753 bytes 2026-03-21 15:25:41.225337757 +0000
 
 TOTAL SIZE: 116K
