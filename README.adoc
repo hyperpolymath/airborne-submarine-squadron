@@ -68,6 +68,74 @@ bash gossamer/launch.sh     # direct Gossamer desktop build
 ./launcher.sh --stop        # stop running Deno/Gossamer instances and tray helpers
 ----
 
+== Enhanced Integration System (NEW)
+
+The game now features an advanced, cross-platform integration system:
+
+* **Reflective Architecture**: Self-aware installation with platform detection
+* **Homoiconic Design**: Self-describing configuration and metadata
+* **Self-Healing**: Automatic file verification and backup restoration
+* **Fault Tolerance**: Graceful degradation on unsupported platforms
+* **Cross-Platform**: Linux, Windows (partial), RISC-V, Minix support
+
+=== Installation
+
+[source,bash]
+----
+./integ.sh          # Enhanced installer with diagnostics
+./launcher.sh --install  # Traditional installation
+----
+
+=== Features
+
+* **Multiple Icon Formats**: PNG, SVG, and ICO (Windows compatibility)
+* **Automatic Platform Detection**: Linux, Windows, RISC-V, Minix
+* **Self-Diagnostics**: Pre-installation health checks
+* **Fault Tolerant**: Continues with limited functionality if tools missing
+* **Backup System**: Automatic backup of critical files in `.backup/`
+
+=== Platform Support
+
+[cols="1,1,1,1"]
+|===
+| Platform | Status | Icons | Menu Integration
+
+| Linux (x86_64/ARM) 
+| ✓ Full 
+| PNG, SVG, ICO 
+| ✓ Menu + Desktop
+
+| Windows 
+| ⚠ Partial 
+| ✓ ICO available 
+| Manual setup required
+
+| RISC-V 
+| ⚠ Planned 
+| ✓ ICO available 
+| Future support
+
+| Minix 
+| ⚠ Planned 
+| - 
+| Future support
+|===
+
+=== Windows Notes
+
+For Windows users:
+- ICO file provided at `desktop/icons/airborne-submarine-squadron.ico`
+- Contains multiple sizes: 16x16, 32x32, 48x48, 64x64, 128x128, 256x256
+- Manual shortcut creation may be needed until full installer available
+
+=== Self-Healing
+
+The system includes:
+- Automatic backup of critical files in `.backup/`
+- File existence verification before operations
+- Graceful fallback when required tools are missing
+- Comprehensive error reporting and recovery
+
 == Documentation & Assets
 
 -  – developer notes, telemetry, and feature writeups
