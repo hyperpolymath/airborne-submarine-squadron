@@ -1,0 +1,10 @@
+src/** linguist-generated=true
+build/** linguist-generated=true
+dist/** linguist-generated=true
+contractiles/** linguist-generated=true
+web/** linguist-language=JavaScript
+gossamer/** linguist-language=JavaScript
+tray/** linguist-language=Rust
+docs/** linguist-language=Markdown
+launcher.sh linguist-language=Shell
+run_wasm*.js linguist-language=JavaScript

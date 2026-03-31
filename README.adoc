@@ -1,0 +1,117 @@
+= Airborne Submarine Squadron (Gossamer Edition)
+
+image:https://img.shields.io/badge/License-Palimpsest--MPL%201.0-blue.svg[License: Palimpsest-MPL 1.0,link=https://github.com/hyperpolymath/palimpsest-license]
+
+Airborne Submarine Squadron is a browser-forward take on the classic Sopwith-style arcade, rebuilt on the Gossamer launcher and wired to a Palimpsest-MPL licensed stack. The current build layers deterministic simulation, cinematic HUD telemetry, orbital warp transitions, depth-charge weapons, and leaderboard persistence inside a retro-inspired visual shell.
+
+== Status
+
+This repo now hosts a playable Gossamer frontend that wraps the AffineScript/WASM core and the launcher/installer ecosystem. The current goal is finishing the orbit/depth-charge gameplay loop and stabilizing builds, installs, and multi-platform deploys.
+
+== Quick Start (WASM)
+
+Prereqs:
+
+- AffineScript compiler available on  (or set  to a local checkout)
+- Modern browser or Deno runtime for launcher support
+- Node.js only if you want to run the standalone WASM runner
+
+[NOTE]
+====
+ prefers the compiler but copies  into  (and preserves legacy artifacts) when no compiler is present, so playtesting works out of the box.
+====
+
+[source,bash]
+----
+# Build to WebAssembly
+./build.sh
+
+# Run the WASM module (exports )
+node run_wasm.js build/airborne-submarine-squadron.wasm main
+----
+
+== Quick Start (Gossamer)
+
+[source,bash]
+----
+./launcher.sh gossamer            # launch the Gossamer desktop/web player
+python3 -m http.server -d gossamer  # serve browser version from gossamer/ and open http://localhost:8000
+----
+
+Controls, HUD, and color settings live inside the pause menu () and the on-screen legend ().
+
+== Gameplay Highlights
+
+- Free-flight submarine with accelerometer/afterburner, diver ejection (Tab/M), and space transition when you exceed 88 MPH with a sharp climb.
+- Weapon triad: torpedoes (), missiles (), and depth charges (). Depth charges are anti-sub-super weapons with particle trails and wide blast radii.
+- Digital Knight Rider–style HUD showing speedometer, accelerometer, status gauges, and a persistent controls legend.
+- Solar map in the top-left corner, warp hotkeys (, Enter, –), and leaderboard tracking performance per mission.
+- Custom skin tuning (, , ,  while paused) plus retro battle background and diver/tray integration.
+
+== Controls
+
+
+
+== Building & Tooling
+
+-  – ensures the WASM bundle is refreshed. Points to  when you need a fresh compile; otherwise the prebuilt  is reused.
+-  – installs desktop/start-menu shortcuts through the Gossamer tray workflow.
+-  – multiplatform entry point that wires the Gossamer runtime, browser view, and desktop tray helper.
+-  – optional Justfile targets for type-checking and scripted builds.
+
+== Launcher Quick Start
+
+[source,bash]
+----
+./launcher.sh --browser     # start the browser version (Deno file server + HUD)
+bash gossamer/launch.sh     # direct Gossamer desktop build
+./launcher.sh --stop        # stop running Deno/Gossamer instances and tray helpers
+----
+
+== Documentation & Assets
+
+-  – developer notes, telemetry, and feature writeups
+-  – launcher page, HUD canvas, and loader visuals
+-  – supporting web assets and auxiliary integrations
+- , ,  – narrative, power-up design, and feature references
+
+== Layout & Project Overview
+
+[source]
+----
+airborne-submarine-squadron/
+├── src/                 # AffineScript source
+│   └── main.as
+├── build/               # WASM output (reuses dist/ when builder absent)
+├── gossamer/            # HTML/JS launcher and HUD assets
+├── CLI tools (launcher.sh, integ.sh)
+├── tray/                # Rust system tray binary + installer scripts
+└── README.adoc           # this document
+----
+
+[source]
+----
+airborne-submarine-squadron-affinescript/
+├── src/
+├── docs/
+├── web/
+├── build/
+├── Justfile
+├── build.sh
+└── run_wasm.js
+----
+
+== Build Notes
+
+ prefers a global  binary. When missing it looks for  and otherwise copies the prebuilt  into  so the launcher can run without rebuilding.
+
+== Roadmap
+
+- **Compile stability:** Resolve the  AffineScript error, refresh , and keep the prebuilt artifact in sync with the source.
+- **UI polish:** Finish Groove/Burble integration in the Gossamer panel, add persistent HUD legend, leaderboard final scoring, and damage state map (rear damage slows sub, front shield vanishes when depleted, middle damage makes you sink or lose buoyancy).
+- **Expansion:** Ship packages for Linux (deb/rpm, kinoite/silverblue), macOS, Windows, Android/iOS, and RISC-V/minix targets, while documenting CI/build expectations.
+- **Gameplay:** Add orbital warp menu (, Enter, Orbit, Depart) with digital speedometer (space speeds), planet numbering (–), hazard handling (Sun burns), and multi-map transitions with odd-colored alien terrain.
+
+== License
+
+This repository is documented and distributed under , the Palimpsest-MPL license layer on top of MPL-2.0. See  or https://github.com/hyperpolymath/palimpsest-license for full terms.
