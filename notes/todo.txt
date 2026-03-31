@@ -1,0 +1,83 @@
+Future Enhancements Todo List
+==============================
+
+## High Priority
+
+### Gameplay
+- [ ] Add visual effects for power-ups
+- [ ] Implement sound effects
+- [ ] Add score system with high scores
+- [ ] Create mission system with objectives
+- [ ] Balance difficulty progression
+
+### Technical
+- [ ] Optimize WASM compilation
+- [ ] Reduce WASM file size
+- [ ] Improve collision detection
+- [ ] Add save/load functionality
+- [ ] Implement mobile controls
+
+### Web Interface
+- [ ] Add responsive design
+- [ ] Create main menu
+- [ ] Add settings panel
+- [ ] Implement touch controls
+- [ ] Add gamepad support
+
+## Medium Priority
+
+### Gameplay
+- [ ] Add more power-up types
+- [ ] Add more obstacle types
+- [ ] Implement boss battles
+- [ ] Create level system
+- [ ] Add unlockable content
+
+### Technical
+- [ ] Add WASM threading
+- [ ] Implement WebGL rendering
+- [ ] Add particle effects
+- [ ] Optimize memory usage
+- [ ] Add error handling
+
+### Content
+- [ ] Design more levels
+- [ ] Create tutorials
+- [ ] Add story mode
+- [ ] Implement achievements
+- [ ] Add leaderboards
+
+## Low Priority
+
+### Polish
+- [ ] Add juicy effects
+- [ ] Improve animations
+- [ ] Add screen shake
+- [ ] Implement camera effects
+- [ ] Add lighting effects
+
+### Experimental
+- [ ] Multiplayer support
+- [ ] VR mode
+- [ ] AR mode
+- [ ] Procedural generation
+- [ ] Mod support
+
+## Completed
+
+✅ Core game engine
+✅ Power-up system (7 types)
+✅ Obstacle system (7 types)
+✅ Type-safe implementation
+✅ WASM compilation
+✅ Basic web interface
+✅ Documentation
+✅ Game structure
+
+## Backlog
+
+- Review gameplay balance
+- Test on different browsers
+- Gather player feedback
+- Plan version 2.0 features
+- Create marketing materials

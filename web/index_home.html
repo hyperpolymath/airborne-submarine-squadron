@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airborne Submarine Squadron</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #121212;
+            color: white;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+        }
+        
+        #gameCanvas {
+            background: #1a1a2e;
+            border: none;
+            outline: none;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        #loading h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #4a6baf;
+        }
+        
+        #loading .progress {
+            width: 200px;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        
+        #loading .progress-bar {
+            height: 100%;
+            background: #4a6baf;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        #loading .tip {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        @media (max-width: 768px) {
+            #gameCanvas {
+                width: 100vw;
+                height: 100vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="loading">
+            <h1>Airborne Submarine Squadron</h1>
+            <div class="progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="tip">Loading game assets...</div>
+        </div>
+    </div>
+    
+    <script src="/web/app_enhanced_home.js"></script>
+</body>
+</html>

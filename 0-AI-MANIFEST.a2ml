@@ -1,0 +1,69 @@
+; SPDX-License-Identifier: PMPL-1.0-or-later
+; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+;
+; 0-AI-MANIFEST.a2ml -- AI Agent Entry Point
+; Airborne Submarine Squadron
+; Updated: 2026-03-21
+
+[manifest]
+name = "airborne-submarine-squadron"
+version = "0.3.0"
+type = "game"
+description = "Sopwith-inspired flying submarine arcade game. AffineScript -> WASM engine with vanilla JS browser frontend, Deno file server, and Rust system tray binary."
+author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>"
+license = "PMPL-1.0-or-later"
+monorepo = "games & trivia"
+
+[canonical-locations]
+scm-files = ".machine_readable/"
+state = ".machine_readable/STATE.scm"
+meta = ".machine_readable/META.scm"
+ecosystem = ".machine_readable/ECOSYSTEM.scm"
+readme = "README.adoc"
+launcher = "launcher.sh"
+license = "LICENSE"
+
+[key-files]
+launcher = "launcher.sh"
+game-engine-js = "web/app_enhanced_home.js"
+game-page = "web/index_home.html"
+game-style = "web/style_home.css"
+affinescript-source = "src/main.as"
+tray-binary-source = "tray/src/main.rs"
+tray-cargo = "tray/Cargo.toml"
+build-script = "build.sh"
+task-runner = "Justfile"
+desktop-shortcut = "desktop/airborne-submarine-squadron.desktop"
+desktop-installer = "desktop/install.sh"
+desktop-uninstaller = "desktop/uninstall.sh"
+wasm-build = "build/airborne-final-working.wasm"
+
+[how-to-run]
+default = "./launcher.sh"
+browser = "./launcher.sh --browser"
+cli = "./launcher.sh --cli"
+tray = "./launcher.sh --tray"
+install-desktop = "./launcher.sh --install"
+stop = "./launcher.sh --stop"
+port = 6860
+
+[critical-invariants]
+no-typescript = "TypeScript is banned. Use vanilla JS or AffineScript."
+no-tauri = "No Tauri or Electron. Browser + system tray binary only."
+no-npm = "npm, Bun, pnpm, yarn are all banned."
+no-node = "Node.js is banned. Use Deno as the JavaScript runtime."
+deno-only = "The file server uses Deno. Python fallback is deprecated."
+scm-location = "SCM files (.scm) MUST be in .machine_readable/ directory ONLY."
+port-convention = "Default port is 6860 (686 attack sub reference)."
+monorepo-rule = "This is a subdirectory of the 'games & trivia' monorepo. No .git here."
+
+[current-status]
+playable = true
+engine = "JavaScript placeholder (web/app_enhanced_home.js)"
+wasm-ready = "WASM builds exist in build/ but are not yet wired to the frontend"
+desktop-integration = "Working (XDG shortcut, system tray, install/uninstall)"
+next-milestone = "Wire WASM engine to replace JS placeholder"
+
+[lifecycle]
+on-enter = "Read this manifest, then .machine_readable/STATE.scm for current progress."
+on-exit = "Update .machine_readable/STATE.scm with any progress made."

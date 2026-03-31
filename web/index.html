@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Airborne Submarine Squadron (AffineScript)</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header>
+        <h1>Airborne Submarine Squadron</h1>
+        <p>2D side-view arcade flight (Sopwith-inspired). Run a fixed simulation and see the score.</p>
+      </header>
+
+      <section class="panel">
+        <div class="row">
+          <button id="run">Run WASM Score</button>
+          <button id="sim">Start Visual Sim</button>
+          <button id="rebuild" title="Rebuild WASM">Rebuild (CLI)</button>
+        </div>
+        <div class="metrics">
+          <div>
+            <div class="label">Score</div>
+            <div id="score" class="value">—</div>
+          </div>
+          <div>
+            <div class="label">Elapsed</div>
+            <div id="elapsed" class="value">—</div>
+          </div>
+        </div>
+        <canvas id="viewport" width="720" height="420"></canvas>
+        <p class="hint">Controls: Arrow keys to thrust, Space to fire, Shift to alt fire, E to toggle environment.</p>
+        <pre id="log" class="log">Ready.</pre>
+      </section>
+
+      <section class="notes">
+        <h2>How to run</h2>
+        <ol>
+          <li>Build the WASM: <code>./build.sh</code></li>
+          <li>Serve this folder from repo root: <code>python -m http.server</code></li>
+          <li>Open <code>/web/index.html</code></li>
+        </ol>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

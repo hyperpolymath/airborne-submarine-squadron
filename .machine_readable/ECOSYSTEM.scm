@@ -1,0 +1,73 @@
+; SPDX-License-Identifier: PMPL-1.0-or-later
+; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+;
+; ECOSYSTEM.scm -- Airborne Submarine Squadron ecosystem relationships
+; Updated: 2026-03-21
+
+(ecosystem
+  (metadata
+    (version "1.0.0")
+    (name "airborne-submarine-squadron")
+    (type "game")
+    (media-type "application/vnd.ecosystem+scm")
+    (last-updated "2026-03-21"))
+
+  (purpose
+    "Sopwith-inspired flying submarine arcade game. Serves as both a playable
+     game and a real-world test case for the AffineScript compiler's WASM output.")
+
+  (position-in-ecosystem
+    (monorepo "games & trivia")
+    (monorepo-path "airborne-submarine-squadron/")
+    (monorepo-location "~/Documents/hyperpolymath-repos/games & trivia/")
+    (role "Game project within the games & trivia collection"))
+
+  (related-projects
+    (affinescript
+      (relationship "compiler-dependency")
+      (location "nextgen-languages/affinescript")
+      (details "AffineScript compiler used to build the WASM game engine.
+                The game is one of the primary test cases for the compiler."))
+
+    (nextgen-languages
+      (relationship "parent-ecosystem")
+      (location "~/Documents/hyperpolymath-repos/nextgen-languages/")
+      (details "Monorepo containing AffineScript and other next-generation
+                programming languages developed by hyperpolymath."))
+
+    (games-and-trivia
+      (relationship "sibling-games")
+      (location "~/Documents/hyperpolymath-repos/games & trivia/")
+      (details "Monorepo containing all hyperpolymath game projects including
+                phantom-metal-taste, dicti0nary-attack, candy-crash, and others."))
+
+    (rsr-template-repo
+      (relationship "template-origin")
+      (location "~/Documents/hyperpolymath-repos/rsr-template-repo/")
+      (details "RSR template providing standard workflows, contractiles,
+                and repository structure."))
+
+    (proven
+      (relationship "potential-consumer")
+      (location "~/Documents/hyperpolymath-repos/proven/")
+      (details "Formally verified components. The game server integration
+                (proven-game-server.js) uses proven patterns for state management.")))
+
+  (technologies
+    (languages
+      (primary "AffineScript" "Vanilla JavaScript")
+      (build "Bash")
+      (tray "Rust"))
+    (runtimes
+      (server "Deno")
+      (wasm "wasmtime (CLI), browser (web)"))
+    (platforms
+      (browser "HTML5 Canvas, Web Audio API")
+      (desktop "XDG .desktop, ksni system tray")
+      (target-os "Linux (Fedora, KDE Plasma, Wayland)")))
+
+  (standards
+    (license "PMPL-1.0-or-later")
+    (abi-ffi "Idris2 ABI + Zig FFI (standard hyperpolymath pattern)")
+    (desktop "XDG Desktop Entry Specification")
+    (tray "KDE StatusNotifierItem (via ksni crate)")))

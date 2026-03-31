@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- SPDX-License-Identifier: PMPL-1.0-or-later -->
+  <!-- Airborne Submarine Squadron icon — submarine with wings -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a237e"/>
+      <stop offset="100%" stop-color="#4fc3f7"/>
+    </linearGradient>
+    <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#546e7a"/>
+      <stop offset="100%" stop-color="#37474f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="128" cy="128" r="120" fill="url(#sky)" stroke="#0d47a1" stroke-width="4"/>
+
+  <!-- Clouds -->
+  <ellipse cx="60" cy="70" rx="30" ry="12" fill="#ffffff" opacity="0.3"/>
+  <ellipse cx="190" cy="55" rx="25" ry="10" fill="#ffffff" opacity="0.25"/>
+
+  <!-- Submarine hull -->
+  <ellipse cx="128" cy="140" rx="70" ry="22" fill="url(#hull)" stroke="#263238" stroke-width="2"/>
+
+  <!-- Conning tower -->
+  <rect x="118" y="115" width="20" height="25" rx="4" fill="#455a64" stroke="#263238" stroke-width="1.5"/>
+  <rect x="124" y="105" width="8" height="12" rx="2" fill="#607d8b"/>
+
+  <!-- Periscope -->
+  <line x1="128" y1="105" x2="128" y2="92" stroke="#78909c" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="128" cy="90" r="4" fill="#b3e5fc" stroke="#78909c" stroke-width="1.5"/>
+
+  <!-- Wings (left) -->
+  <path d="M58,140 L30,120 L35,115 L65,132" fill="#ff7043" stroke="#d84315" stroke-width="1.5"/>
+  <path d="M58,140 L30,155 L35,160 L65,148" fill="#ff7043" stroke="#d84315" stroke-width="1.5"/>
+
+  <!-- Wings (right) -->
+  <path d="M198,140 L226,120 L221,115 L191,132" fill="#ff7043" stroke="#d84315" stroke-width="1.5"/>
+  <path d="M198,140 L226,155 L221,160 L191,148" fill="#ff7043" stroke="#d84315" stroke-width="1.5"/>
+
+  <!-- Propeller (rear) -->
+  <circle cx="198" cy="140" r="3" fill="#90a4ae"/>
+  <line x1="198" y1="130" x2="198" y2="150" stroke="#78909c" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Portholes -->
+  <circle cx="100" cy="140" r="5" fill="#b3e5fc" stroke="#263238" stroke-width="1.5"/>
+  <circle cx="118" cy="140" r="5" fill="#b3e5fc" stroke="#263238" stroke-width="1.5"/>
+  <circle cx="140" cy="140" r="5" fill="#b3e5fc" stroke="#263238" stroke-width="1.5"/>
+  <circle cx="158" cy="140" r="5" fill="#b3e5fc" stroke="#263238" stroke-width="1.5"/>
+
+  <!-- Nose torpedo tube -->
+  <circle cx="58" cy="140" r="4" fill="#263238"/>
+  <circle cx="58" cy="140" r="2" fill="#37474f"/>
+
+  <!-- Exhaust trails -->
+  <ellipse cx="210" cy="135" rx="8" ry="3" fill="#ffffff" opacity="0.4"/>
+  <ellipse cx="225" cy="133" rx="6" ry="2" fill="#ffffff" opacity="0.25"/>
+  <ellipse cx="236" cy="132" rx="4" ry="1.5" fill="#ffffff" opacity="0.15"/>
+
+  <!-- Stars/sparkles -->
+  <circle cx="45" cy="45" r="2" fill="#ffffff" opacity="0.7"/>
+  <circle cx="200" cy="40" r="1.5" fill="#ffffff" opacity="0.6"/>
+  <circle cx="170" cy="80" r="1" fill="#ffffff" opacity="0.5"/>
+</svg>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Airborne Submarine Squadron - Simple</title>
+    <style>
+        body { margin: 0; padding: 0; background: #222; overflow: hidden; }
+        canvas { display: block; background: #111; }
+    </style>
+</head>
+<body>
+    <canvas id="game" width="800" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        
+        // Simple game state
+        let submarine = { x: 400, y: 300, health: 100 };
+        let powerups = [];
+        let obstacles = [];
+        let tick = 0;
+        let score = 0;
+        
+        // Game loop
+        function loop() {
+            // Clear screen
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw water (bottom 70%)
+            ctx.fillStyle = '#1a6ea0';
+            ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
+            
+            // Draw air (top 30%)
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height * 0.7);
+            
+            // Draw submarine
+            ctx.fillStyle = '#4a6baf';
+            ctx.beginPath();
+            ctx.moveTo(submarine.x, submarine.y - 15);
+            ctx.lineTo(submarine.x + 20, submarine.y);
+            ctx.lineTo(submarine.x, submarine.y + 15);
+            ctx.lineTo(submarine.x - 20, submarine.y);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Draw HUD
+            ctx.fillStyle = '#ff6b6b';
+            ctx.fillRect(20, 20, submarine.health, 20);
+            ctx.strokeStyle = '#fff';
+            ctx.strokeRect(20, 20, 100, 20);
+            ctx.fillStyle = '#fff';
+            ctx.font = '16px Arial';
+            ctx.fillText(`Score: ${score}`, 20, 50);
+            ctx.fillText('🌊 Water', 20, 80);
+            
+            // Spawn powerups occasionally
+            if (tick % 100 === 0 && powerups.length < 3) {
+                powerups.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    type: 'health'
+                });
+            }
+            
+            // Draw powerups
+            powerups.forEach(p => {
+                ctx.fillStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('❤️', p.x, p.y);
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+            });
+            
+            // Check collisions
+            powerups.forEach((p, i) => {
+                const dx = submarine.x - p.x;
+                const dy = submarine.y - p.y;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                if (distance < 20) {
+                    submarine.health = Math.min(100, submarine.health + 25);
+                    score += 50;
+                    powerups.splice(i, 1);
+                }
+            });
+            
+            tick++;
+            requestAnimationFrame(loop);
+        }
+        
+        // Start game
+        loop();
+        
+        // Simple controls
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowUp': submarine.y -= 5; break;
+                case 'ArrowDown': submarine.y += 5; break;
+                case 'ArrowLeft': submarine.x -= 5; break;
+                case 'ArrowRight': submarine.x += 5; break;
+            }
+        });
+    </script>
+</body>
+</html>

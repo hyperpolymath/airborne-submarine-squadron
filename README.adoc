@@ -1,0 +1,112 @@
+= Airborne Submarine Squadron (AffineScript)
+
+image:https://img.shields.io/badge/License-PMPL--1.0-blue.svg[License: PMPL-1.0,link="https://github.com/hyperpolymath/palimpsest-license"]
+
+A 2D flying submarine game rewritten in AffineScript with a WebAssembly-first build.
+
+== Status
+
+This is a from-scratch rewrite. The current goal is a minimal WASM build with a stable core loop and state model.
+
+== Quick Start (WASM)
+
+Prereqs:
+
+- AffineScript compiler available on PATH (or set `AFFINESCRIPT_REPO` to a local checkout)
+- Node.js (for the simple WASM runner)
+
+[source,bash]
+----
+# Build to WebAssembly
+./build.sh
+
+# Run the WASM module (exports `main`)
+node run_wasm.js build/airborne-submarine-squadron.wasm main
+----
+
+== Quick Start (Justfile)
+
+[source,bash]
+----
+# Type-check
+just check
+
+# Build and run
+just build
+just run
+----
+
+== Design Principles
+
+- Text-first simulation: make the loop observable before adding graphics.
+- Deterministic updates: same inputs produce the same outputs.
+- Small, explicit data structures: no hidden mutation.
+- Make safety constraints explicit in types and data flow.
+
+== Roadmap
+
+- Core loop stabilization (tick/update determinism, bounds, gravity, HUD)
+- Input model wiring (real inputs replacing stubs)
+- Weapons + projectile lifecycle (cooldowns, ammo, despawn)
+- Enemy AI + spawn model (patterns, pacing, fairness)
+- Mission layer vs. sandbox mode (objectives, scoring)
+- Web demo / visualization (canvas rendering, debug overlays)
+
+== Web Demo
+
+[source,bash]
+----
+# Build WASM
+./build.sh
+
+# Serve from repo root
+python -m http.server
+----
+
+Open `/web/index.html` in your browser.
+
+== Layout
+
+[source]
+----
+airborne-submarine-squadron-affinescript/
+├── src/
+│   └── main.as
+├── docs/
+│   └── DESIGN.md
+├── web/
+│   ├── index.html
+│   ├── app.js
+│   └── style.css
+├── build/
+├── Justfile
+├── build.sh
+├── run_wasm.js
+└── README.adoc
+----
+
+== Project Layout
+
+[source]
+----
+airborne-submarine-squadron-affinescript/
+├── src/              # AffineScript source
+│   └── main.as
+├── build/            # Build output (WASM)
+├── run_wasm.js       # Minimal WASM runner
+├── build.sh          # Build helper
+├── LICENSE.txt
+└── license/PMPL-1.0.txt
+----
+
+== Build Notes
+
+`build.sh` prefers a global `affinescript` binary. If not found, it will use a local compiler via `AFFINESCRIPT_REPO=/path/to/affinescript`.
+
+== Roadmap (WASM-first)
+
+- Core state model (submarine, environment, weapons)
+- Deterministic update step (fixed tick)
+- Minimal input/event stubs
+- Text HUD output
+- Sprite pipeline after baseline logic is stable

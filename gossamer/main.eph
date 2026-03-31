@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: PMPL-1.0-or-later
+// Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+//
+// Airborne Submarine Squadron — Gossamer desktop game.
+//
+// Wraps the Canvas 2D game in a resizable native Gossamer window.
+// The game renders at a virtual 800x600 resolution and CSS-scales
+// to fill the window while maintaining 4:3 aspect ratio with
+// letterboxing/pillarboxing as needed.
+//
+// Linear resource lifecycle:
+//   webview handle: create -> navigate -> run (consumed)
+
+import Gossamer.Shell
+
+/// Launch Airborne Submarine Squadron in a Gossamer webview shell.
+///
+/// The window is resizable and the game canvas auto-scales to fill
+/// the available space using CSS object-fit, preserving the 4:3
+/// aspect ratio. The internal game loop always runs at 800x600
+/// virtual resolution — no game logic changes required.
+fn main() -> i32 {
+    region app:
+        // Create a resizable, decorated desktop window (linear handle).
+        let! webview = Shell.create@app({
+            title: "Airborne Submarine Squadron",
+            width: 960,
+            height: 720,
+            resizable: true,
+            decorations: true,
+            fullscreen: false,
+        })
+
+        // Navigate to the Gossamer-specific game page.
+        // The file URI is resolved relative to the module location.
+        let! (webview, _) = Shell.navigate(webview, "file://index_gossamer.html")
+
+        // Run event loop — CONSUMES the webview handle.
+        // Blocks until the user closes the window.
+        Shell.run(webview)
+
+        0
+}
