@@ -161,12 +161,78 @@ cd airborne-submarine-squadron
 - **ALPHA-1-RELEASE-CHECKLIST.md**: Release verification checklist
 - **docs/**: Additional development documentation
 
-## 🔒 Security
+## 🔒 Security & Licensing
 
-### Dependabot Alert
+### Dependabot Alert Resolution
 - **atty 0.2.14**: Potential unaligned read on Windows
-- **Status**: Mitigated by System allocator, documented in LICENSING-GUIDE.md
-- **Impact**: Low - only affects Windows builds, not critical path
+- **Status**: **RESOLVED** - Replaced with zatty (local dependency)
+- **Impact**: Eliminated - no longer in dependency tree
+- **Action**: Removed clap dependency that was pulling in atty
+
+### Licensing Updates
+
+#### New Dependency: zatty
+- **License**: PMPL-1.0-or-later (same as main project)
+- **Purpose**: Terminal detection functionality
+- **Location**: Local path dependency (`../../zatty`)
+- **Status**: Fully compatible with project licensing
+
+#### Dependency Changes
+- **Removed**: clap v2.34.0 (and its atty transitive dependency)
+- **Added**: zatty v0.1.0 (local, PMPL-1.0-or-later)
+- **Result**: Cleaner dependency tree, no external atty usage
+
+### License Compliance
+
+All dependencies now comply with the project's licensing requirements:
+
+| Dependency | License | Status |
+|------------|---------|--------|
+| ksni | MIT | ✅ Compatible |
+| libc | MIT/Apache-2.0 | ✅ Compatible |
+| zatty | PMPL-1.0-or-later | ✅ Native |
+| dbus | MIT/Apache-2.0 | ✅ Compatible |
+
+**Note**: All transitive dependencies have been verified for license compatibility.
+
+### Security Improvements
+
+1. **Eliminated atty vulnerability**: No longer in dependency tree
+2. **Reduced attack surface**: Fewer external dependencies
+3. **Local control**: zatty is locally maintained
+4. **Simplified auditing**: Cleaner dependency graph
+
+## 📋 Technical Details
+
+### Dependency Tree Changes
+
+**Before (with atty vulnerability):**
+```
+airborne-tray
+├── ksni
+│   └── dbus-codegen
+│       └── clap
+│           └── atty (vulnerable)
+└── zatty
+```
+
+**After (atty eliminated):**
+```
+airborne-tray
+├── ksni
+│   └── dbus-codegen (no clap dependency)
+└── zatty (local, safe)
+```
+
+### Build Verification
+
+```bash
+# Verify atty is no longer in dependencies
+cargo tree | grep atty || echo "✅ atty successfully removed"
+
+# Check zatty is properly included
+cargo tree | grep zatty && echo "✅ zatty active"
+```
 
 ## 📊 Telemetry
 
