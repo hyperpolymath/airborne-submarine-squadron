@@ -1049,7 +1049,11 @@ function deployDockPilot(sub, dock) {
 }
 
 function attemptEject(sub) {
-  const wantsEject = keyJustPressed['Tab'] || keyJustPressed['e'] || keyJustPressed['E'];
+  const wantsTab = !!keyJustPressed['Tab'];
+  const wantsE = !!keyJustPressed['e'] || !!keyJustPressed['E'];
+  const wantsDeep = !!keyJustPressed['m'] || !!keyJustPressed['M'];
+  const wantsEject = wantsTab || wantsE || wantsDeep;
+  if (wantsDeep) keyJustPressed['m'] = keyJustPressed['M'] = false;
   if (!wantsEject) return;
 
   if (sub.disembarked) {
@@ -1068,7 +1072,7 @@ function attemptEject(sub) {
     return;
   }
 
-  if (sub.y > WATER_LINE + 8) {
+  if (sub.y > WATER_LINE + 8 || wantsDeep) {
     deployDiver(sub);
     return;
   }

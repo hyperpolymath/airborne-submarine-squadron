@@ -2,11 +2,11 @@
 
 image:https://img.shields.io/badge/License-Palimpsest--MPL%201.0-blue.svg[License: Palimpsest-MPL 1.0,link="https://github.com/hyperpolymath/palimpsest-license"]
 
-A standalone 2D flying submarine game repo with an AffineScript/WASM core, browser launcher, and Gossamer desktop frontend.
+This repo now hosts a playable Gossamer frontend that wraps the AffineScript/WASM core plus the CLI/browser launcher ecosystem, with a focus on finishing the Orbit/depth-charge gameplay loop while stabilizing builds and installs.
 
 == Status
 
-This is a from-scratch rewrite. The current goal is a minimal WASM build with a stable core loop and state model.
+This is a from-scratch rewrite. The project now ships a deterministic update loop, HUD telemetry, Gossamer loader/controls, weapons+depth charges, leaderboard tracking, and a launcher/installer pipeline. The current goal is finishing the AffineScript build path while improving deployment and multi-platform packaging.
 
 == License
 
@@ -25,6 +25,10 @@ Prereqs:
 - AffineScript compiler available on PATH (or set `AFFINESCRIPT_REPO` to a local checkout)
 - Node.js (for the simple WASM runner)
 
+[NOTE]
+====
+`./build.sh` prefers a compiler but will copy `dist/airborne-submarine-squadron.wasm` into `build/` (and the legacy `airborne-final-working.wasm`) when no compiler is present, so you can still launch the web or Gossamer front end without a full rebuild.
+====
 [source,bash]
 ----
 # Build to WebAssembly
@@ -44,6 +48,15 @@ just check
 # Build and run
 just build
 just run
+----
+
+== Launcher Quick Start
+
+[source,bash]
+----
+./launcher.sh --browser     # start the browser build (Deno file server + web HUD)
+bash gossamer/launch.sh     # run the Gossamer desktop build (fallback uses Deno + local webview)
+./launcher.sh --stop        # stop any running Deno/Gossamer instances
 ----
 
 == Design Principles
@@ -114,10 +127,14 @@ airborne-submarine-squadron-affinescript/
 `build.sh` prefers a global `affinescript` binary. If not found, it will use a local compiler via `AFFINESCRIPT_REPO=/path/to/affinescript`.
 If no compiler is available and the repository has a prebuilt WASM in `dist/airborne-submarine-squadron.wasm`, the script copies that into `build/` so the launcher can run without a rebuild.
 
-== Roadmap (WASM-first)
+== Project Highlights
 
-- Core state model (submarine, environment, weapons)
-- Deterministic update step (fixed tick)
-- Minimal input/event stubs
-- Text HUD output
-- Sprite pipeline after baseline logic is stable
+- Gossamer loading/controls with retro battle background, boot-phase gating, and on-screen legend showing depth charges, afterburner, and key bindings.
+- Orbit-ready backup mode, networked leaderboard, diver/eject mechanics, depth charges, chaffs/mines, and custom sub skins (rainbow/pride/spectrum).
+- Launcher/installer combo that can start/stop Deno browsers, Gossamer fallback, tray integration, and desktop shortcuts, plus a build script that falls back to `dist/` if AffineScript is missing.
+
+== Roadmap
+
+- **Infra:** Resolve the `Bool vs Unit` AffineScript compile error and refresh `dist/airborne-submarine-squadron.wasm` with the new build so everyone can rebuild locally.
+- **UI/Controls:** Surface Groove/Burble status inside the Gossamer overlay, finish the pause/settings panel, add a persistent controls legend, and polish HUD reticle/leaderboard transitions.
+- **Expansion:** Ship platform packages (deb/rpm/AppImage, Windows/macOS bundle, Android/iOS wrappers), bake CLI/tray automation, and document the CI/build matrix so manual steps become reproducible.
