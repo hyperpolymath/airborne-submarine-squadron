@@ -112,6 +112,7 @@ airborne-submarine-squadron-affinescript/
 == Build Notes
 
 `build.sh` prefers a global `affinescript` binary. If not found, it will use a local compiler via `AFFINESCRIPT_REPO=/path/to/affinescript`.
+If no compiler is available and the repository has a prebuilt WASM in `dist/airborne-submarine-squadron.wasm`, the script copies that into `build/` so the launcher can run without a rebuild.
 
 == Roadmap (WASM-first)
 
