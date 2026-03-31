@@ -8,6 +8,9 @@ metadata:
   name: project-state-contract
   spec: v0.0.1
   description: "Invariant checks for config, policy, gateway, logs, and schema."
+  primary-owner: "JoshuaJewell (owner)"
+  primary-admin: "hyperpolymath (project admin)"
+  ownership-note: "This repository is JoshuaJewell's primary space and must be treated as his first and foremost project."
 
 parameters:
   gateway_port: "8080"
