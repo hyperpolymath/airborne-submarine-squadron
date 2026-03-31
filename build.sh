@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OUT_DIR="$ROOT_DIR/build"
 OUT_WASM="$OUT_DIR/airborne-submarine-squadron.wasm"
 LEGACY_WASM="$OUT_DIR/airborne-final-working.wasm"
+DIST_WASM="$ROOT_DIR/dist/airborne-submarine-squadron.wasm"
 TMP_WASM="$OUT_DIR/.airborne-submarine-squadron.wasm.tmp"
 
 mkdir -p "$OUT_DIR"
@@ -51,14 +52,18 @@ compile_with_affinescript() {
 
 preserve_bundled_wasm() {
   rm -f "$TMP_WASM"
-  if [ -f "$OUT_WASM" ] || [ -f "$LEGACY_WASM" ]; then
+  if [ -f "$DIST_WASM" ]; then
+    cp "$DIST_WASM" "$OUT_WASM"
+  elif [ -f "$OUT_WASM" ] || [ -f "$LEGACY_WASM" ]; then
     [ -f "$OUT_WASM" ] || cp "$LEGACY_WASM" "$OUT_WASM"
-    cp "$OUT_WASM" "$LEGACY_WASM"
-    echo "Compile failed; preserved bundled WASM artifact:"
-    echo "  $OUT_WASM"
-    exit 0
+  else
+    echo "No fallback WASM artifact available." >&2
+    exit 1
   fi
-  exit 1
+  cp "$OUT_WASM" "$LEGACY_WASM"
+  echo "Compile failed; reusing fallback WASM:"
+  echo "  $OUT_WASM"
+  exit 0
 }
 
 if REPO_PATH="$(find_affinescript_repo)"; then
@@ -70,10 +75,17 @@ elif command -v affinescript >/dev/null 2>&1; then
     preserve_bundled_wasm
   fi
 else
-  if [ -f "$OUT_WASM" ] || [ -f "$LEGACY_WASM" ]; then
+  if [ -f "$DIST_WASM" ]; then
+    cp "$DIST_WASM" "$OUT_WASM"
+    cp "$OUT_WASM" "$LEGACY_WASM"
+    echo "affinescript not found. Reusing prebuilt WASM artifact:"
+    echo "  $OUT_WASM"
+    echo "Set AFFINESCRIPT_REPO=/path/to/affinescript only if you need a fresh compile."
+    exit 0
+  elif [ -f "$OUT_WASM" ] || [ -f "$LEGACY_WASM" ]; then
     [ -f "$OUT_WASM" ] || cp "$LEGACY_WASM" "$OUT_WASM"
     cp "$OUT_WASM" "$LEGACY_WASM"
-    echo "affinescript not found. Reusing bundled WASM artifact:"
+    echo "affinescript not found. Reusing existing WASM artifact:"
     echo "  $OUT_WASM"
     echo "Set AFFINESCRIPT_REPO=/path/to/affinescript only if you need a fresh compile."
     exit 0

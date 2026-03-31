@@ -1,2 +1,3 @@
 /build/
 *.wasm
+!dist/airborne-submarine-squadron.wasm
