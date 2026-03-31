@@ -114,4 +114,4 @@ airborne-submarine-squadron-affinescript/
 
 == License
 
-This repository is documented and distributed under , the Palimpsest-MPL license layer on top of MPL-2.0. See  or https://github.com/hyperpolymath/palimpsest-license for full terms.
+This repository is documented and distributed under AGPL-3.0-or-later, the Palimpsest-MPL license layer on top of MPL-2.0 is the licnecning for Gossamer (linear-type gui wrapper), Burble (high assurance multiplayer communications), and Affinescript (affine-type programming language, compiling to WASM). See  or https://github.com/hyperpolymath/palimpsest-license for full terms and for foundational technologies..
