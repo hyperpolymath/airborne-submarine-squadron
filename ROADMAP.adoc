@@ -1,22 +1,39 @@
 // SPDX-License-Identifier: PMPL-1.0-or-later
 = Airborne Submarine Squadron Roadmap
 
-== Current Status
+== Current Stage
 
-Initial development phase.
+The Gossamer edition now boots a loader, shows retro battle art, draws a live solar-map HUD, and connects the digital instruments with the orbital menu. The system is deterministic, network-ready, and already records leaderboard runs plus damage diagrams in real time.
 
 == Milestones
 
-=== v0.1.0 - Foundation
-* [ ] Core functionality
-* [ ] Basic documentation
-* [ ] CI/CD pipeline
+=== v2.0 — Orbital Gossamer (released)
+* [x] Gossamer renderer with KITT-style HUD and digital speedometer/accelerometer.
+* [x] Depth charges, torpedoes, missiles, and afterburner toggles.
+* [x] Orbit menu with warp hotkeys (F + Enter) and direct 1‑5 destinations, sun hazard burnout, and cave messages.
+* [x] Leaderboard persistence, compact legend, and pause settings with sub-skin tuning.
 
-=== v1.0.0 - Stable Release
-* [ ] Full feature set
-* [ ] Comprehensive tests
-* [ ] Production ready
+=== v2.1 — Customization Layer (in-progress)
+* [ ] Full color picker / palette editor tied to the HUD and documentation (customizing plan incomplete; needs UX polish).
+* [ ] Damage map refinement: per-part blur when depleted, slowed movement, and buoyancy bleed for rear/front/mid hits.
+* [ ] Warp preview / solar map tooltip updates so astronauts understand where each number leads.
+* [ ] Integrate the pride/rainbow skin instructions into the settings panel and documentation.
+
+=== v3.0 — Multi-platform Deployment
+* [ ] Cross-platform packaging: Linux (deb/rpm), Kinoite/Silverblue, Windows, macOS, Android/iOS webview, Minix, RISC-V, Lua/Node wrappers.
+* [ ] Launcher/issuer automation (`launcher.sh`, `integ.sh`, `doinstall`), CICD health, and desktop/start menu integration.
+* [ ] AffineScript build chain checks with prebuilt WASM fallback messaging.
+
+== Work Queue
+
+* Finish the submarine customization screen, keep the damage diagram reactive, and document what each hit zone does (back, front, center).
+* Harden the warp menu instructions (spaceship leaps, afterburner => warp replacement in vacuum, impulse limits, automated `88 MPH` gating).
+* Capture compile notes, reference `AFFINESCRIPT_REPO`, and explain the `affinescript not found` fallback so builds are reproducible.
+* Verify README/ROADMAP mention the Palimpsest-MPL license and include the MPL-2.0 compatibility notice on the GitHub about panel if needed.
 
 == Future Directions
 
-_To be determined based on community feedback._
+* Orbital mechanics refinement (zoomed maps, solar orbit snare hazards, planet-specific enemy palettes).
+* Multiplayer sync, cross-sub coordination, and telemetry sharing between consoles.
+* Expand the documentation to include `burble`, `groove`, and `proven` integrations once the core loop stabilizes.
+

@@ -119,6 +119,44 @@ const SOLAR_SYSTEM_BODIES = [
   { id: 'uranus', label: 'Uranus', orbitRadius: 355, radius: 11, color: '#8ecae6', period: 520, phase: 2.9, gm: 12 },
   { id: 'neptune', label: 'Neptune', orbitRadius: 395, radius: 11, color: '#4361ee', period: 620, phase: 3.6, gm: 12 },
 ];
+const PLANETS = [
+  { name: 'Aegis', sky: '#041133', water: '#0f1f3b', land: '#2a1a1d', enemy: '#f76262', accent: '#ffb703' },
+  { name: 'Nemoris', sky: '#171b1c', water: '#0c3331', land: '#1c2f1d', enemy: '#9de2d6', accent: '#5eead4' },
+  { name: 'Vesper', sky: '#190b1a', water: '#2a0d20', land: '#331931', enemy: '#ffd6a5', accent: '#ff6b6b' },
+  { name: 'Arcadia', sky: '#021625', water: '#0c3246', land: '#1f1a2a', enemy: '#f8f3a6', accent: '#48cae4' },
+];
+
+const SUN_DESTINATION = {
+  name: 'Sun',
+  sky: '#090b1a',
+  water: '#000000',
+  land: '#090b1a',
+  enemy: '#f97316',
+  accent: '#fcd34d',
+  hotkey: '5',
+  star: true,
+};
+
+const PLANET_DESTINATIONS = [
+  ...PLANETS.map((planet, idx) => ({ ...planet, hotkey: `${idx + 1}`, index: idx })),
+  SUN_DESTINATION,
+];
+
+const PLANET_HOTKEY_MAP = {
+  '1': 0,
+  '2': 1,
+  '3': 2,
+  '4': 3,
+  '5': 'sun',
+};
+
+const SOLAR_MAP_SIZE = 110;
+const SOLAR_MAP_PADDING = 12;
+const SOLAR_MAP_SCALE = 0.32;
+const SOLAR_MAP_ANIMATION_SPEED = 0.08;
+const SUN_BURN_DURATION = 260;
+const SUN_BURN_DAMAGE = 3.6;
+const SUN_BURN_TICK = 18;
 const SETTINGS_KEY = 'airborne-submarine-squadron:gossamer:settings';
 const LEADERBOARD_KEY = 'airborne-submarine-squadron:gossamer:leaderboard';
 const SAFE_DIVER_SPEED = 0.55;
@@ -730,6 +768,62 @@ function enterOrbitMode(entrySpeedMph) {
   world.caveMessage = { text: '88 MPH LOCKED — ORBITAL MECHANICS ONLINE', timer: 180 };
 }
 
+function getCurrentPlanetPalette() {
+  return world.planetPalette || PLANETS[world.currentPlanet] || PLANETS[0];
+}
+
+function canWarpToPlanet() {
+  const sub = world.sub;
+  const currentSpeed = velocityToMph(sub.vx, sub.vy, 'atmosphere');
+  return currentSpeed >= ORBIT_TRIGGER_SPEED_MPH
+    && keys['ArrowUp']
+    && sub.y <= ATMOSPHERE_CEILING
+    && sub.angle <= SHARP_ASCENT_ANGLE;
+}
+
+function startPlanetWarp(target = null) {
+  if (!canWarpToPlanet()) {
+    world.caveMessage = { text: 'BUILD 88 MPH + SHARP CLIMB BEFORE WARP', timer: 120 };
+    return;
+  }
+
+  let destination = PLANETS[(world.currentPlanet + 1) % PLANETS.length];
+  if (target === 'sun') {
+    destination = SUN_DESTINATION;
+  } else if (typeof target === 'number' && target >= 0 && target < PLANETS.length) {
+    world.currentPlanet = target;
+    destination = PLANETS[target];
+  } else {
+    world.currentPlanet = (world.currentPlanet + 1) % PLANETS.length;
+  }
+
+  if (destination.star) {
+    world.caveMessage = { text: 'SUN BURN — RETROGRADE NOW', timer: 160 };
+  } else {
+    world.planetPalette = destination;
+    world.caveMessage = { text: `Warp drop: ${destination.name}`, timer: 140 };
+  }
+
+  world.currentDestination = destination;
+  world.terrain = generateTerrain(TERRAIN_LENGTH);
+  const baseX = Math.random() * (TERRAIN_LENGTH - 200) + 100;
+  world.sub.worldX = baseX;
+  world.sub.y = -150;
+  world.sub.vx = 0;
+  world.sub.vy = 0;
+  world.sub.angle = 0;
+  world.sub.floating = false;
+  world.sub.liftingOff = false;
+  world.sub.wasInWater = false;
+  world.sub.periscopeMode = false;
+  world.sub.diverMode = false;
+  world.cameraX = world.sub.worldX - W * 0.4;
+  world.cameraY = -120;
+  world.menuOpen = false;
+  world.sunBurnTimer = destination.star ? SUN_BURN_DURATION : 0;
+  world.sunBurnTick = destination.star ? SUN_BURN_TICK : 0;
+}
+
 function ensureLeaderboardRecorded(status) {
   if (world.leaderboardRecorded) return;
   world.leaderboard = recordLeaderboardEntry({
@@ -830,6 +924,19 @@ function updateDepthCharges(dt) {
   });
 }
 
+function handleSunBurn(dt) {
+  if (world.sunBurnTimer <= 0) return;
+  world.sunBurnTimer = Math.max(0, world.sunBurnTimer - dt);
+  world.sunBurnTick -= dt;
+  if (world.sunBurnTick <= 0) {
+    damageRandomPart(world.sub.parts, SUN_BURN_DAMAGE);
+    world.sunBurnTick = SUN_BURN_TICK;
+  }
+  if (world.sunBurnTimer <= 0) {
+    world.caveMessage = { text: 'SUN BURN: SYSTEMS CRITICAL', timer: 120 };
+  }
+}
+
 // --- World init ---
 function initWorld() {
   const terrain = generateTerrain(TERRAIN_LENGTH);
@@ -855,6 +962,11 @@ function initWorld() {
       launchReady: false,
     },
     space: null,
+    currentPlanet: 0,
+    planetPalette: PLANETS[0],
+    currentDestination: PLANET_DESTINATIONS[0],
+    sunBurnTimer: 0,
+    sunBurnTick: 0,
     sub: {
       worldX: 180,      // Start at home port
       y: WATER_LINE - 7, // Floating at dock
@@ -1192,6 +1304,18 @@ function updateOrbitMode(dt) {
 function update(dt) {
   const sub = world.sub;
   world.tick++;
+  handleSunBurn(dt);
+  const directWarpKey = ['1', '2', '3', '4', '5'].find((k) => keyJustPressed[k]);
+  if (directWarpKey && world.mode === 'orbit' && !world.paused) {
+    const dest = PLANET_HOTKEY_MAP[directWarpKey];
+    startPlanetWarp(dest);
+  }
+  if ((keyJustPressed['f'] || keyJustPressed['F']) && !world.paused) {
+    world.menuOpen = !world.menuOpen;
+  }
+  if (world.menuOpen && (keyJustPressed['Enter'] || keyJustPressed['Return'])) {
+    startPlanetWarp();
+  }
 
   if (world.mode === 'orbit') {
     updateOrbitMode(dt);
@@ -2023,60 +2147,146 @@ function drawLeaderboardPanel(x, y, title) {
   });
 }
 
-function drawFlightInstruments() {
-  const telemetry = world.telemetry;
-  const speed = clamp(telemetry.speedMph, 0, SPEEDOMETER_MAX_MPH);
-  const accel = clamp(telemetry.accelG, 0, ACCELEROMETER_MAX_G);
+function drawSolarMiniMap() {
+  const x = SOLAR_MAP_PADDING;
+  const y = SOLAR_MAP_PADDING;
+  ctx.fillStyle = 'rgba(3,7,18,0.85)';
+  ctx.fillRect(x, y, SOLAR_MAP_SIZE, SOLAR_MAP_SIZE);
+  ctx.strokeStyle = 'rgba(248,250,252,0.2)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, SOLAR_MAP_SIZE, SOLAR_MAP_SIZE);
 
-  const panelX = W - 196;
-  const panelY = 12;
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(panelX, panelY, 182, 120);
-  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
-  ctx.strokeRect(panelX, panelY, 182, 120);
+  const centerX = x + SOLAR_MAP_SIZE / 2;
+  const centerY = y + SOLAR_MAP_SIZE / 2;
+  const bodies = getSolarBodies(world.tick * SOLAR_MAP_ANIMATION_SPEED);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  for (const body of bodies) {
+    if (body.id === 'sun') continue;
+    const orbitRadius = Math.max(14, body.orbitRadius * SOLAR_MAP_SCALE);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, orbitRadius, 0, TWO_PI);
+    ctx.stroke();
+  }
 
-  const cx = panelX + 52;
-  const cy = panelY + 66;
-  ctx.strokeStyle = '#cbd5e1';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 34, Math.PI * 0.75, Math.PI * 2.25);
-  ctx.stroke();
+  for (const body of bodies) {
+    const radius = body.id === 'sun' ? 8 : 4;
+    const px = centerX + body.x * SOLAR_MAP_SCALE;
+    const py = centerY + body.y * SOLAR_MAP_SCALE;
+    ctx.fillStyle = body.id === 'sun' ? '#ffd166' : body.color;
+    ctx.beginPath();
+    ctx.arc(px, py, radius, 0, TWO_PI);
+    ctx.fill();
+    if (body.id !== 'sun') {
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '8px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(body.label.slice(0, 2).toUpperCase(), px, py + 12);
+    }
+  }
 
-  const speedPct = Math.min(1, speed / SPEEDOMETER_MAX_MPH);
-  const speedAngle = Math.PI * 0.75 + speedPct * Math.PI * 1.5;
-  ctx.strokeStyle = speed >= ORBIT_TRIGGER_SPEED_MPH ? '#f97316' : '#38bdf8';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(cx + Math.cos(speedAngle) * 28, cy + Math.sin(speedAngle) * 28);
-  ctx.stroke();
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 10px Arial';
-  ctx.textAlign = 'center';
-  const label = telemetry.mode === 'orbit' ? 'IMPULSE' : 'MPH';
-  ctx.fillText(label, cx, panelY + 24);
-  ctx.font = 'bold 20px Arial';
-  ctx.fillText(`${Math.round(speed)}`, cx, panelY + 90);
+  const destination = world.currentDestination || PLANETS[world.currentPlanet];
+  if (destination) {
+    const body = bodies.find((b) => b.label.toLowerCase() === destination.name.toLowerCase());
+    if (body) {
+      const px = centerX + body.x * SOLAR_MAP_SCALE;
+      const py = centerY + body.y * SOLAR_MAP_SCALE;
+      ctx.strokeStyle = destination.star ? '#f97316' : '#34d399';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, destination.star ? 12 : 7, 0, TWO_PI);
+      ctx.stroke();
+    }
+  }
 
-  const barX = panelX + 116;
-  const barY = panelY + 26;
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(barX, barY, 22, 76);
-  ctx.strokeStyle = '#64748b';
-  ctx.strokeRect(barX, barY, 22, 76);
-  ctx.fillStyle = accel > 2 ? '#ef4444' : accel > 1 ? '#f59e0b' : '#22c55e';
-  ctx.fillRect(barX + 3, barY + 73 - (accel / ACCELEROMETER_MAX_G) * 70, 16, (accel / ACCELEROMETER_MAX_G) * 70);
   ctx.fillStyle = '#e2e8f0';
-  ctx.font = 'bold 11px Arial';
-  ctx.fillText('G', barX + 11, panelY + 16);
-  ctx.font = '12px Arial';
-  ctx.fillText(`${accel.toFixed(2)}`, barX + 11, panelY + 114);
-
-  ctx.fillStyle = telemetry.launchReady ? '#f59e0b' : '#94a3b8';
-  ctx.font = '11px Arial';
+  ctx.font = '10px "Courier New", monospace';
   ctx.textAlign = 'left';
-  ctx.fillText(telemetry.launchReady ? '88 MPH WINDOW LIVE' : 'Build for 88 MPH', panelX + 12, panelY + 114);
+  ctx.fillText(`Warp hotkeys: 1-4 = planets`, x + 8, y + SOLAR_MAP_SIZE - 32);
+  ctx.fillText(`5 = Sun (hazard)`, x + 8, y + SOLAR_MAP_SIZE - 20);
+  ctx.fillText(`F opens orbit menu`, x + 8, y + SOLAR_MAP_SIZE - 8);
+}
+
+function drawFlightInstruments() {
+  const telemetry = world.telemetry || {};
+  const speed = clamp(telemetry.speedMph || 0, 0, SPEEDOMETER_MAX_MPH);
+  const accel = clamp(telemetry.accelG || 0, 0, ACCELEROMETER_MAX_G);
+
+  const panelX = W - 226;
+  const panelY = 12;
+  const panelW = 214;
+  const panelH = 138;
+  ctx.fillStyle = 'rgba(1,4,14,0.92)';
+  ctx.fillRect(panelX, panelY, panelW, panelH);
+  const grad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
+  grad.addColorStop(0, 'rgba(15,23,42,0.7)');
+  grad.addColorStop(1, 'rgba(2,6,18,0.95)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(panelX, panelY, panelW, panelH);
+  ctx.strokeStyle = 'rgba(248,250,252,0.2)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panelX, panelY, panelW, panelH);
+
+  const centerX = panelX + panelW / 2;
+  ctx.font = 'bold 38px "Courier New", monospace';
+  ctx.fillStyle = '#0ea5e9';
+  ctx.textAlign = 'center';
+  const speedStr = `${Math.round(speed)}`.padStart(3, '0');
+  ctx.fillText(speedStr, centerX, panelY + 70);
+  ctx.font = '11px "Courier New", monospace';
+  ctx.fillStyle = '#cbd5e1';
+  const label = telemetry.mode === 'orbit' ? 'IMPULSE' : 'MPH';
+  ctx.fillText(label, centerX, panelY + 90);
+
+  const segmentCount = 10;
+  const segmentWidth = (panelW - 32) / segmentCount;
+  const limitColor = telemetry.launchReady ? '#f97316' : '#94a3b8';
+  for (let i = 0; i < segmentCount; i++) {
+    const segX = panelX + 16 + i * segmentWidth;
+    const segmentActive = (speed / SPEEDOMETER_MAX_MPH) > i / segmentCount;
+    ctx.fillStyle = segmentActive ? '#0ea5e9' : 'rgba(14,165,233,0.15)';
+    ctx.fillRect(segX, panelY + 24, segmentWidth - 2, 6);
+  }
+
+  const accelPanelX = panelX + panelW - 48;
+  const accelPanelY = panelY + 12;
+  const accelPanelH = panelH - 28;
+  ctx.fillStyle = 'rgba(2,6,18,0.85)';
+  ctx.fillRect(accelPanelX, accelPanelY, 36, accelPanelH);
+  ctx.strokeStyle = 'rgba(248,250,252,0.18)';
+  ctx.strokeRect(accelPanelX, accelPanelY, 36, accelPanelH);
+  const accelHeight = Math.max(6, (accel / ACCELEROMETER_MAX_G) * (accelPanelH - 12));
+  ctx.fillStyle = accel > 2 ? '#ef4444' : accel > 1 ? '#f59e0b' : '#22c55e';
+  ctx.fillRect(accelPanelX + 8, accelPanelY + accelPanelH - 8 - accelHeight, 20, accelHeight);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 10px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('G', accelPanelX + 18, accelPanelY + 14);
+  ctx.fillText(`${accel.toFixed(2)}G`, accelPanelX + 18, accelPanelY + accelPanelH - 6);
+
+  ctx.font = '11px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = limitColor;
+  ctx.fillText(telemetry.launchReady ? '88 MPH WINDOW LIVE' : 'Build for 88 MPH', panelX + 12, panelY + panelH - 26);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText('KITT HUD', panelX + 12, panelY + panelH - 42);
+
+  const destination = world.currentDestination || PLANETS[world.currentPlanet];
+  if (destination) {
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '10px "Courier New", monospace';
+    ctx.fillText(`DEST: ${destination.name}`, panelX + 12, panelY + panelH - 58);
+    if (destination.hotkey) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`HOTKEY: ${destination.hotkey}`, panelX + 12, panelY + panelH - 46);
+    }
+  }
+
+  if (world.sunBurnTimer > 0) {
+    ctx.fillStyle = '#f97316';
+    ctx.font = 'bold 11px "Courier New", monospace';
+    ctx.fillText('SUN BURN — HULL HEATING', panelX + 12, panelY + panelH - 12);
+  }
 }
 
 function drawPauseOverlay() {
@@ -2124,6 +2334,30 @@ function drawPauseOverlay() {
   ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 338);
 
   drawLeaderboardPanel(240, 392, 'Top Runs');
+}
+
+function drawWarpMenu() {
+  if (!world.menuOpen) return;
+  const palette = getCurrentPlanetPalette();
+  const nextPlanet = PLANETS[(world.currentPlanet + 1) % PLANETS.length];
+  ctx.fillStyle = 'rgba(4,4,18,0.92)';
+  ctx.fillRect(W/2 - 220, H/2 - 140, 440, 220);
+  ctx.strokeStyle = palette.accent;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(W/2 - 220, H/2 - 140, 440, 220);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 24px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('Orbit Menu', W/2, H/2 - 90);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '16px Arial';
+  ctx.fillText(`Next planet: ${nextPlanet.name}`, W/2, H/2 - 54);
+  ctx.font = '14px Arial';
+  ctx.fillText('Press Enter to depart once you have a sustained 88 MPH climb', W/2, H/2 - 24);
+  ctx.fillText('Use the arrow keys to build velocity, then aim straight up', W/2, H/2 + 4);
+  ctx.fillText('Current planet colors are shown in the HUD and damage map', W/2, H/2 + 32);
+  ctx.fillStyle = palette.enemy;
+  ctx.fillText(`Palette accent: ${palette.name}`, W/2, H/2 + 70);
 }
 
 function drawOrbitScene() {
@@ -2262,12 +2496,14 @@ function draw() {
   ctx.save();
   ctx.translate(0, -camY);
 
+  const palette = getCurrentPlanetPalette();
   // Sky (extends above water line, very tall to cover high flight)
   const skyTop = -200; // Allow for high flight
   const skyGrad = ctx.createLinearGradient(0, skyTop, 0, WATER_LINE);
-  skyGrad.addColorStop(0,'#050a14'); skyGrad.addColorStop(0.3,'#0a1628');
-  skyGrad.addColorStop(0.7,'#1a3a5c'); skyGrad.addColorStop(1,'#2a6496');
-  ctx.fillStyle = skyGrad; ctx.fillRect(0, skyTop, W, WATER_LINE - skyTop);
+  skyGrad.addColorStop(0, palette.sky);
+  skyGrad.addColorStop(1, palette.water);
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, skyTop, W, WATER_LINE - skyTop);
 
   // Stars (parallax — fixed to sky)
   ctx.fillStyle = '#ffffff';
@@ -2289,8 +2525,8 @@ function draw() {
   // Water (extends deep below surface)
   const waterBottom = SEA_FLOOR + 100;
   const wg = ctx.createLinearGradient(0,WATER_LINE,0,waterBottom);
-  wg.addColorStop(0,'#1a5276'); wg.addColorStop(0.2,'#154360');
-  wg.addColorStop(0.6,'#0b2e4a'); wg.addColorStop(1,'#050f1a');
+  wg.addColorStop(0, palette.water);
+  wg.addColorStop(1, palette.land);
   ctx.fillStyle = wg; ctx.fillRect(0,WATER_LINE,W,waterBottom-WATER_LINE);
 
   // Waves
@@ -2302,7 +2538,7 @@ function draw() {
   ctx.stroke();
 
   // Ground
-  ctx.fillStyle = '#2d1810'; ctx.beginPath(); ctx.moveTo(0, H);
+  ctx.fillStyle = palette.land; ctx.beginPath(); ctx.moveTo(0, H);
   for (let sx = 0; sx <= W; sx += 4) ctx.lineTo(sx, getGroundY(sx + cam));
   ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
 
@@ -2734,6 +2970,7 @@ function draw() {
   // HUD (screen-space, not affected by camera)
   drawHUD();
   drawDamageDiagram();
+  if (world.menuOpen) drawWarpMenu();
   drawFlightInstruments();
   drawCompactLegend();
 
@@ -3098,34 +3335,42 @@ function drawEnemy(e) {
 // HUD — bottom info + controls hint
 // ============================================================
 function drawHUD() {
+  drawSolarMiniMap();
   const sub = world.sub;
   const hp = overallHealth(sub.parts);
+  const hudStartY = SOLAR_MAP_PADDING + SOLAR_MAP_SIZE + 6;
 
   // Overall health bar (bottom-left area below damage diagram)
-  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(15, 85, 104, 12);
+  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(15, hudStartY, 104, 12);
   ctx.fillStyle = hp > 50 ? '#2ecc71' : hp > 25 ? '#f39c12' : '#e74c3c';
-  ctx.fillRect(17, 87, Math.max(0, hp), 8);
-  ctx.strokeStyle='#ecf0f1'; ctx.lineWidth=1; ctx.strokeRect(15, 85, 104, 12);
+  ctx.fillRect(17, hudStartY + 2, Math.max(0, hp), 8);
+  ctx.strokeStyle='#ecf0f1'; ctx.lineWidth=1; ctx.strokeRect(15, hudStartY, 104, 12);
 
   ctx.fillStyle='#ecf0f1'; ctx.font='11px Arial'; ctx.textAlign='left';
-  ctx.fillText(`Overall: ${Math.ceil(hp)}%`, 125, 95);
+  ctx.fillText(`Overall: ${Math.ceil(hp)}%`, 125, hudStartY + 10);
 
   // Score & kills
   ctx.font='bold 16px Arial';
-  ctx.fillText(`Score: ${world.score}`, 15, 113);
+  ctx.fillText(`Score: ${world.score}`, 15, hudStartY + 32);
   ctx.font='12px Arial';
-  ctx.fillText(`Kills: ${world.kills}`, 15, 128);
+  ctx.fillText(`Kills: ${world.kills}`, 15, hudStartY + 48);
 
   // Status
   ctx.textAlign='right'; ctx.font='13px Arial';
+  const statusY = hudStartY + 10;
   if (world.mode === 'orbit' && world.space?.nearestBody) {
     ctx.fillStyle = '#c4b5fd';
-    ctx.fillText(`Orbiting near ${world.space.nearestBody.body.label}`, W-15, 95);
-  } else if (sub.disembarked) { ctx.fillStyle='#d4a053'; ctx.fillText(sub.diverMode ? 'DIVER DEPLOYED' : 'DISEMBARKED', W-15, 95); }
-  else if (sub.floating) { ctx.fillStyle='#85c1e9'; ctx.fillText('FLOATING', W-15, 95); }
-  else {
+    ctx.fillText(`Orbiting near ${world.space.nearestBody.body.label}`, W-15, statusY);
+  } else if (sub.disembarked) {
+    ctx.fillStyle='#d4a053';
+    ctx.fillText(sub.diverMode ? 'DIVER DEPLOYED' : 'DISEMBARKED', W-15, statusY);
+  } else if (sub.floating) {
+    ctx.fillStyle='#85c1e9';
+    ctx.fillText('FLOATING', W-15, statusY);
+  } else {
     const alt = Math.round(WATER_LINE - sub.y);
-    ctx.fillStyle='#ecf0f1'; ctx.fillText(alt > 0 ? `Alt: ${alt}` : `Depth: ${-alt}`, W-15, 95);
+    ctx.fillStyle='#ecf0f1';
+    ctx.fillText(alt > 0 ? `Alt: ${alt}` : `Depth: ${-alt}`, W-15, statusY);
   }
 
   if (sub.periscopeMode) {
@@ -3135,7 +3380,7 @@ function drawHUD() {
 
   // Facing indicator
   ctx.fillStyle='#bdc3c7'; ctx.font='12px Arial';
-  ctx.fillText(sub.facing > 0 ? 'HEADING: >>>' : 'HEADING: <<<', W-15, 112);
+  ctx.fillText(sub.facing > 0 ? 'HEADING: >>>' : 'HEADING: <<<', W-15, hudStartY + 26);
 
   // Weapons + ammo
   ctx.font='12px Arial';
