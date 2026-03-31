@@ -1,4 +1,4 @@
-= Airborne Submarine Squadron
+= Airborne Submarine Squadron (ASS)
 
 image:https://img.shields.io/badge/License-Palimpsest--MPL%201.0-blue.svg[License: Palimpsest-MPL 1.0,link=https://github.com/hyperpolymath/palimpsest-license]
 
