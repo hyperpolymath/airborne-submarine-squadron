@@ -19,4 +19,10 @@
      (branching "main branch, feature branches, PRs required"))
 
     (design-rationale
-     ())))
+     (()))
+
+    (ownership
+     (primary-owner "JoshuaJewell")
+     (admin "hyperpolymath")
+     (note "This repository must remain JoshuaJewell's primary project and is to be treated as his first and foremost repo."))
+    ())))

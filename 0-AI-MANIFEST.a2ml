@@ -59,6 +59,9 @@ scm-location = "SCM files (.scm) MUST be in .machine_readable/ directory ONLY."
 port-convention = "Default port is 6860 (686 attack sub reference)."
 standalone-git = "This directory is its own standalone git repository."
 
+; Ownership: primary-owner = "JoshuaJewell", admin = "hyperpolymath"
+; This manifest must treat airborne-submarine-squadron as JoshuaJewell's primary repository.
+
 [current-status]
 playable = true
 engine = "JavaScript frontend with Gossamer desktop variant and WASM build artifacts"
