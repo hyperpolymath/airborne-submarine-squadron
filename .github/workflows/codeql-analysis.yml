@@ -31,9 +31,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'rust', 'javascript-typescript' ]
+        language: [ 'javascript-typescript' ]
         # CodeQL supports [ 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift' ]
         # Learn more about CodeQL language support at https://git.io/codeql-language-support
+        # Note: AffineScript compiles to JavaScript/WASM, so we analyze the JavaScript/TypeScript
 
     steps:
     - name: Checkout repository
@@ -66,6 +67,12 @@ jobs:
     #- run: |
     #   make bootstrap
     #   make release
+
+    # For the Rust tray component (optional, only if you want to analyze it)
+    - name: Build Rust tray component
+      if: always() && matrix.language == 'javascript-typescript'
+      run: |
+        cd tray && cargo build --release
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4

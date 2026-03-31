@@ -204,11 +204,22 @@ All dependencies now comply with the project's licensing requirements:
 
 ## 📋 Technical Details
 
+### Language Architecture
+
+**Primary Language**: AffineScript (compiles to JavaScript/WASM)
+- Game logic, core mechanics, and main application
+- Analyzed via JavaScript/TypeScript CodeQL queries
+
+**Secondary Language**: Rust (tray component only)
+- System tray icon functionality
+- Minimal codebase, isolated from main game
+- Now uses zatty instead of atty
+
 ### Dependency Tree Changes
 
 **Before (with atty vulnerability):**
 ```
-airborne-tray
+airborne-tray (Rust)
 ├── ksni
 │   └── dbus-codegen
 │       └── clap
@@ -218,20 +229,27 @@ airborne-tray
 
 **After (atty eliminated):**
 ```
-airborne-tray
+airborne-tray (Rust)
 ├── ksni
 │   └── dbus-codegen (no clap dependency)
 └── zatty (local, safe)
 ```
 
+**Main Application (AffineScript → WASM):**
+```
+No external dependencies (self-contained WASM)
+```
+
 ### Build Verification
 
 ```bash
-# Verify atty is no longer in dependencies
+# For Rust tray component
+cd tray
 cargo tree | grep atty || echo "✅ atty successfully removed"
-
-# Check zatty is properly included
 cargo tree | grep zatty && echo "✅ zatty active"
+
+# For main AffineScript application
+./build.sh && echo "✅ AffineScript builds successfully"
 ```
 
 ## 📊 Telemetry
