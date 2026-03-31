@@ -17,6 +17,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="/tmp/airborne-server.pid"
 PORT_FILE="/tmp/airborne-server.port"
+GOSSAMER_PID_FILE="/tmp/airborne-gossamer.pid"
+GOSSAMER_SERVER_PID_FILE="/tmp/airborne-gossamer-server.pid"
 WASM_FILE="$SCRIPT_DIR/build/airborne-final-working.wasm"
 WEB_DIR="$SCRIPT_DIR"
 TRAY_BIN="$SCRIPT_DIR/tray/target/release/airborne-tray"
@@ -37,6 +39,12 @@ find_free_port() {
 
 is_server_running() {
     [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+}
+
+should_auto_open() {
+    [ "${AIRBORNE_NO_OPEN:-0}" != "1" ] || return 1
+    command -v xdg-open >/dev/null 2>&1 || return 1
+    [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]
 }
 
 start_server() {
@@ -86,6 +94,12 @@ DENO_SERVER
     fi
 
     local pid=$!
+    sleep 0.3
+    if ! kill -0 "$pid" 2>/dev/null; then
+        rm -f "$PID_FILE" "$PORT_FILE"
+        echo "Error: web server failed to start on port $port" >&2
+        return 1
+    fi
     echo "$pid" > "$PID_FILE"
     echo "$port" > "$PORT_FILE"
     echo "Server started on port $port (PID $pid)"
@@ -93,15 +107,31 @@ DENO_SERVER
 }
 
 stop_server() {
+    local stopped=0
     if is_server_running; then
         local pid
         pid=$(cat "$PID_FILE")
         kill "$pid" 2>/dev/null || true
         rm -f "$PID_FILE" "$PORT_FILE"
         echo "Server stopped (PID $pid)"
+        stopped=1
     else
-        echo "No server running"
         rm -f "$PID_FILE" "$PORT_FILE"
+    fi
+
+    for pf in "$GOSSAMER_PID_FILE" "$GOSSAMER_SERVER_PID_FILE"; do
+        if [ -f "$pf" ]; then
+            local pid
+            pid=$(cat "$pf")
+            kill "$pid" 2>/dev/null || true
+            rm -f "$pf"
+            echo "Stopped Gossamer runtime (PID $pid)"
+            stopped=1
+        fi
+    done
+
+    if [ "$stopped" -eq 0 ]; then
+        echo "No managed Airborne Submarine Squadron runtime is running"
     fi
 }
 
@@ -109,8 +139,13 @@ launch_browser() {
     local port
     port=$(start_server)
     sleep 0.5
-    echo "Opening http://127.0.0.1:$port/web/index_home.html"
-    xdg-open "http://127.0.0.1:$port/web/index_home.html" 2>/dev/null &
+    if should_auto_open; then
+        echo "Opening http://127.0.0.1:$port/web/index_home.html"
+        xdg-open "http://127.0.0.1:$port/web/index_home.html" 2>/dev/null &
+    else
+        echo "Server ready at http://127.0.0.1:$port/web/index_home.html"
+        echo "Auto-open skipped (set up a GUI session or unset AIRBORNE_NO_OPEN)"
+    fi
 }
 
 launch_cli() {

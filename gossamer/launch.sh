@@ -18,10 +18,30 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GAME_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 GOSSAMER_DIR="$SCRIPT_DIR"
+GOSSAMER_PID_FILE="/tmp/airborne-gossamer.pid"
+GOSSAMER_SERVER_PID_FILE="/tmp/airborne-gossamer-server.pid"
 
 REPOS_ROOT="$(cd "$GAME_ROOT/../.." && pwd)"
 EPHAPAX="${REPOS_ROOT}/nextgen-languages/ephapax/target/release/ephapax"
 LIBGOSSAMER="${REPOS_ROOT}/gossamer/src/interface/ffi/zig-out/lib/libgossamer.so"
+
+cleanup() {
+    local pid_file
+    for pid_file in "$GOSSAMER_PID_FILE" "$GOSSAMER_SERVER_PID_FILE"; do
+        if [[ -f "$pid_file" ]]; then
+            local pid
+            pid="$(cat "$pid_file")"
+            kill "$pid" 2>/dev/null || true
+            rm -f "$pid_file"
+        fi
+    done
+}
+
+should_auto_open() {
+    [[ "${AIRBORNE_NO_OPEN:-0}" != "1" ]] || return 1
+    command -v xdg-open >/dev/null 2>&1 || return 1
+    [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]
+}
 
 # --- Parse args ---
 USE_FALLBACK=false
@@ -35,12 +55,20 @@ if [[ "$USE_FALLBACK" == false ]] && [[ -x "$EPHAPAX" ]] && [[ -f "$LIBGOSSAMER"
     echo "Window: resizable, 960x720 initial"
     echo "Compiler: $EPHAPAX"
     echo "FFI lib:  $LIBGOSSAMER"
+    echo "Stop from another terminal with: ./launcher.sh --stop"
     echo ""
 
+    trap cleanup INT TERM EXIT
     "$EPHAPAX" run "$GOSSAMER_DIR/main.eph" \
         -L "$LIBGOSSAMER" \
-        -v
-    exit 0
+        -v &
+    APP_PID=$!
+    echo "$APP_PID" > "$GOSSAMER_PID_FILE"
+    wait "$APP_PID"
+    STATUS=$?
+    rm -f "$GOSSAMER_PID_FILE"
+    trap - INT TERM EXIT
+    exit "$STATUS"
 fi
 
 # --- Fallback: Deno file server ---
@@ -62,6 +90,7 @@ while ss -tlnp 2>/dev/null | grep -q ":${PORT} " 2>/dev/null; do
 done
 
 echo "Server: http://127.0.0.1:${PORT}/"
+echo "Stop from another terminal with: ./launcher.sh --stop"
 echo ""
 
 # Serve the gossamer directory via Deno (piped to stdin for Deno 2.x compat)
@@ -89,13 +118,22 @@ Deno.serve({ port: ${PORT}, hostname: "127.0.0.1" }, async (req) => {
 });
 DENO_SERVER
 SERVER_PID=$!
+echo "$SERVER_PID" > "$GOSSAMER_SERVER_PID_FILE"
 
 # Wait for server to start
 sleep 0.5
+if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+    rm -f "$GOSSAMER_SERVER_PID_FILE"
+    echo "ERROR: Gossamer fallback server failed to start on port ${PORT}" >&2
+    exit 1
+fi
 
-# Open in default browser/webview
-xdg-open "http://127.0.0.1:${PORT}/" 2>/dev/null || true
+if should_auto_open; then
+    xdg-open "http://127.0.0.1:${PORT}/" 2>/dev/null || true
+else
+    echo "Auto-open skipped; visit http://127.0.0.1:${PORT}/ manually."
+fi
 
 echo "Press Ctrl+C to stop."
-trap "kill $SERVER_PID 2>/dev/null; exit 0" INT TERM
+trap cleanup INT TERM EXIT
 wait $SERVER_PID

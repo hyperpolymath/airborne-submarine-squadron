@@ -1,12 +1,22 @@
 = Airborne Submarine Squadron (AffineScript)
 
-image:https://img.shields.io/badge/License-PMPL--1.0-blue.svg[License: PMPL-1.0,link="https://github.com/hyperpolymath/palimpsest-license"]
+image:https://img.shields.io/badge/License-Palimpsest--MPL%201.0-blue.svg[License: Palimpsest-MPL 1.0,link="https://github.com/hyperpolymath/palimpsest-license"]
 
-A 2D flying submarine game rewritten in AffineScript with a WebAssembly-first build.
+A standalone 2D flying submarine game repo with an AffineScript/WASM core, browser launcher, and Gossamer desktop frontend.
 
 == Status
 
 This is a from-scratch rewrite. The current goal is a minimal WASM build with a stable core loop and state model.
+
+== License
+
+This repository is documented and distributed under `PMPL-1.0-or-later`, the Palimpsest-MPL license published by the Palimpsest Stewardship Council.
+
+- Canonical license text: link:LICENSE[`LICENSE`]
+- Alternate copy: link:license/PMPL-1.0.txt[`license/PMPL-1.0.txt`]
+- Upstream license project: https://github.com/hyperpolymath/palimpsest-license
+
+Palimpsest-MPL is an MPL-2.0-derived license. Git hosting UIs may classify it as `Other` because it is not one of GitHub's built-in SPDX-recognized license templates.
 
 == Quick Start (WASM)
 
