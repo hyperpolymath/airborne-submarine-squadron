@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: PMPL-1.0-or-later
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Airborne Submarine Squadron
+GenericName=Arcade Game
+Comment=2D side-view arcade flight game (Sopwith-inspired) — AffineScript WASM
+Exec="LAUNCHER_PATH" --browser
+Icon=airborne-submarine-squadron
+Terminal=false
+Categories=Game;ArcadeGame;
+Keywords=submarine;aircraft;arcade;wasm;affinescript;
+StartupWMClass=airborne-submarine-squadron
+StartupNotify=true
+Actions=gossamer;cli;tray;
+
+[Desktop Action gossamer]
+Name=Launch as Gossamer Desktop Game
+Exec="LAUNCHER_PATH" --gossamer
+Icon=airborne-submarine-squadron
+Terminal=false
+
+[Desktop Action cli]
+Name=Launch CLI Mode (Terminal)
+Exec="LAUNCHER_PATH" --cli
+Icon=airborne-submarine-squadron
+Terminal=true
+
+[Desktop Action tray]
+Name=Start in System Tray
+Exec="LAUNCHER_PATH" --tray
+Icon=airborne-submarine-squadron
+Terminal=false

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: PMPL-1.0-or-later -->
+<!-- Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) -->
+<!--
+  Airborne Submarine Squadron — Gossamer desktop game frontend.
+
+  The canvas runs at a fixed 800x600 virtual resolution.
+  CSS scaling + a ResizeObserver auto-fit the canvas to the window
+  while maintaining 4:3 aspect ratio with letterbox/pillarbox bars.
+  The game logic is completely resolution-independent.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Airborne Submarine Squadron</title>
+    <style>
+        /* --- Reset & fullscreen fill --- */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            /* Letterbox/pillarbox bars are pure black */
+        }
+
+        /* --- Centred scaling container --- */
+        #scaleContainer {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- Game canvas: rendered at 800x600, CSS-scaled to fit --- */
+        #gameCanvas {
+            background: #1a1a2e;
+            /* Crisp pixel scaling for the retro aesthetic */
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            /* No border — flush with letterbox bars */
+            border: none;
+            outline: none;
+        }
+
+        /* --- Loading overlay --- */
+        #loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.25), transparent 45%),
+                        radial-gradient(circle at 70% 35%, rgba(94, 126, 255, 0.4), transparent 50%),
+                        #07071c;
+            overflow: hidden;
+            z-index: 100;
+            color: white;
+            font-family: 'Space Mono', 'IBM Plex Mono', monospace;
+            letter-spacing: 0.09em;
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        #loading.splash-complete {
+            opacity: 0;
+            transform: translateY(-20px);
+            pointer-events: none;
+        }
+
+        #loading .splash-grid {
+            text-align: center;
+            width: min(420px, 85vw);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            position: relative;
+            padding: 20px;
+            border-radius: 18px;
+            background: rgba(5, 10, 20, 0.75);
+            box-shadow: 0 0 24px rgba(99, 130, 255, 0.35);
+            backdrop-filter: blur(18px);
+        }
+
+        #loading .rainbow-line {
+            height: 4px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #4a90e2, #ad1df7, #ff5a5f, #fcd34d);
+            animation: pulse 2.8s ease-in-out infinite;
+            box-shadow: 0 0 16px rgba(255, 255, 255, 0.5);
+        }
+
+        @keyframes pulse {
+            0%   { transform: scaleX(0.6); }
+            50%  { transform: scaleX(1.1); }
+            100% { transform: scaleX(0.6); }
+        }
+
+        #loading .splash-title {
+            font-size: clamp(1.6rem, 2vw, 2.2rem);
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #f5f8ff;
+            letter-spacing: 0.2em;
+        }
+
+        #loading .splash-subtitle {
+            font-size: 0.9rem;
+            color: #9dd3ff;
+        }
+
+        .loader-track {
+            position: relative;
+            width: 100%;
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .loader-progress {
+            position: absolute;
+            inset: 0;
+            width: 0%;
+            background: linear-gradient(120deg, #52d0ff, #5383ff, #a75bff);
+            border-radius: 999px;
+            transition: width 0.2s ease-out;
+        }
+
+        .loader-glow {
+            position: absolute;
+            inset: 0;
+            mix-blend-mode: screen;
+            background: radial-gradient(circle at 60% 50%, rgba(255, 255, 255, 0.7), transparent 45%);
+            opacity: 0.6;
+            animation: glow 1.8s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%   { transform: scaleX(0.8); opacity: 0.3; }
+            50%  { transform: scaleX(1.05); opacity: 0.8; }
+            100% { transform: scaleX(0.8); opacity: 0.3; }
+        }
+
+        .loading-status {
+            font-size: 0.85rem;
+            color: #cce4ff;
+            text-transform: uppercase;
+        }
+
+        .splash-hint {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .splash-stars {
+            position: absolute;
+            inset: 0;
+            background-image:
+                radial-gradient(circle, rgba(255, 255, 255, 0.3) 0.8px, transparent 0),
+                radial-gradient(circle, rgba(255, 255, 255, 0.2) 1px, transparent 0),
+                radial-gradient(circle, rgba(255, 255, 255, 0.1) 1.5px, transparent 0);
+            background-size: 120px 120px, 90px 90px, 200px 200px;
+            animation: starfield 18s linear infinite;
+            opacity: 0.8;
+            pointer-events: none;
+        }
+
+        @keyframes starfield {
+            from { background-position: 0 0, 0 0, 0 0; }
+            to { background-position: -400px 200px, 200px -400px, -800px 600px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scaleContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <div id="loading" class="splash-screen">
+        <div class="splash-grid">
+            <div class="rainbow-line"></div>
+            <div class="splash-title">Airborne Submarine Squadron</div>
+            <div class="splash-subtitle">Retro saturation boot</div>
+            <div class="loader-track">
+                <span class="loader-progress" id="loadingProgress"></span>
+                <span class="loader-glow"></span>
+            </div>
+            <div id="loadingStatus" class="loading-status">Calibrating vector pulses…</div>
+            <div class="splash-hint">Press any key after the burst to engage.</div>
+        </div>
+        <div class="splash-stars"></div>
+    </div>
+
+    <!--
+      Scaling layer: auto-fit the 800x600 canvas to the window.
+      Runs before the game script so the canvas is correctly sized
+      from the first frame.
+    -->
+    <script>
+    // SPDX-License-Identifier: PMPL-1.0-or-later
+    (function () {
+        'use strict';
+        const VIRTUAL_W = 800;
+        const VIRTUAL_H = 600;
+        const ASPECT    = VIRTUAL_W / VIRTUAL_H;
+
+        const canvas    = document.getElementById('gameCanvas');
+        const container = document.getElementById('scaleContainer');
+
+        function fitCanvas() {
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            let displayW, displayH;
+            if (cw / ch > ASPECT) {
+                displayH = ch;
+                displayW = Math.floor(ch * ASPECT);
+            } else {
+                displayW = cw;
+                displayH = Math.floor(cw / ASPECT);
+            }
+            canvas.style.width  = displayW + 'px';
+            canvas.style.height = displayH + 'px';
+        }
+        fitCanvas();
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(fitCanvas).observe(container);
+        } else {
+            window.addEventListener('resize', fitCanvas);
+        }
+    })();
+    </script>
+    <script>
+        (function () {
+            const splash = document.getElementById('loading');
+            const progress = document.getElementById('loadingProgress');
+            const status = document.getElementById('loadingStatus');
+            const messages = [
+                'Calibrating vector pulses…',
+                'Syncing buoyancy grids…',
+                'Warming neon rails…',
+                'Locking periscope tilt…',
+                'Routing power through retroplate…'
+            ];
+            let pct = 0.04;
+            let msgIndex = 0;
+            let frameId = null;
+            let state = { ready: false, user: false, finished: false };
+
+            function attemptComplete() {
+                if (state.finished) return;
+                if (state.ready && state.user) {
+                    finish();
+                }
+            }
+
+            function finish() {
+                state.finished = true;
+                if (frameId) cancelAnimationFrame(frameId);
+                if (progress) progress.style.width = '100%';
+                if (status) status.textContent = 'Transmission locked — launch in three…';
+                if (splash) {
+                    splash.classList.add('splash-complete');
+                    setTimeout(() => splash.style.display = 'none', 600);
+                }
+                cleanup();
+            }
+
+            function update() {
+                pct = Math.min(0.95, pct + 0.0015 + Math.random() * 0.0008);
+                if (progress) progress.style.width = `${pct * 100}%`;
+                if (status && performance.now() % 1200 < 16) {
+                    status.textContent = messages[msgIndex];
+                    msgIndex = (msgIndex + 1) % messages.length;
+                }
+                if (!state.finished) frameId = requestAnimationFrame(update);
+            }
+
+            let inputGuard = null;
+            if (splash) {
+                window.__gossamerSplash = {
+                    markReady() {
+                        state.ready = true;
+                        attemptComplete();
+                    },
+                    markUserReady() {
+                        state.user = true;
+                        attemptComplete();
+                    }
+                };
+                const handleUserInput = (e) => {
+                    if (state.user) return;
+                    e && e.preventDefault && e.preventDefault();
+                    window.__gossamerSplash.markUserReady();
+                    cleanup();
+                };
+                inputGuard = handleUserInput;
+                function cleanup() {
+                    if (!inputGuard) return;
+                    window.removeEventListener('keydown', handleUserInput);
+                    window.removeEventListener('mousedown', handleUserInput);
+                    window.removeEventListener('pointerdown', handleUserInput);
+                    window.removeEventListener('touchstart', handleUserInput);
+                    if (splash) splash.removeEventListener('click', handleUserInput);
+                    inputGuard = null;
+                }
+                window.addEventListener('keydown', handleUserInput);
+                window.addEventListener('mousedown', handleUserInput);
+                window.addEventListener('pointerdown', handleUserInput);
+                window.addEventListener('touchstart', handleUserInput);
+                if (splash) splash.addEventListener('click', handleUserInput);
+            }
+            setTimeout(() => {
+                state.user = true;
+                attemptComplete();
+            }, 12000);
+            update();
+        })();
+    </script>
+
+    <!-- Game engine — unmodified from web/app_enhanced_home.js -->
+    <script src="app_gossamer.js"></script>
+</body>
+</html>

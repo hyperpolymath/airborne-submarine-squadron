@@ -1,0 +1,239 @@
+/* Main Styles */
+body {
+    margin: 0;
+    padding: 0;
+    background: #121212;
+    color: white;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+}
+
+#gameContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+#gameCanvas {
+    background: #1a1a2e;
+    border: none;
+    outline: none;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Loading Screen */
+#loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 100;
+}
+
+#loading h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: #4a6baf;
+    text-shadow: 0 0 10px rgba(74, 107, 175, 0.5);
+}
+
+.progress {
+    width: 200px;
+    height: 6px;
+    background: #333;
+    border-radius: 3px;
+    margin: 0 auto;
+    overflow: hidden;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4a6baf, #6a8bc1);
+    width: 0%;
+    transition: width 0.3s ease-out;
+}
+
+.tip {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: #aaa;
+    font-style: italic;
+}
+
+/* HUD */
+#hud {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px 15px;
+    border-radius: 8px;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.hud-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hud-label {
+    font-size: 0.9rem;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.hud-value {
+    font-size: 1rem;
+    color: white;
+    font-weight: bold;
+}
+
+.powerup-icon {
+    width: 24px;
+    height: 24px;
+    font-size: 1.2rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    #gameCanvas {
+        width: 100vw;
+        height: 100vh;
+    }
+    
+    #hud {
+        top: 10px;
+        left: 10px;
+        padding: 8px 12px;
+        gap: 6px;
+    }
+    
+    .hud-label {
+        font-size: 0.8rem;
+    }
+    
+    .hud-value {
+        font-size: 0.9rem;
+    }
+}
+
+/* Animations */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.pulse {
+    animation: pulse 1.5s infinite;
+}
+
+/* Game Over Overlay */
+.game-over {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    z-index: 200;
+}
+
+.game-over h2 {
+    font-size: 3rem;
+    color: #ff6b6b;
+    text-shadow: 0 0 10px #ff6b6b;
+    margin-bottom: 1rem;
+}
+
+.game-over button {
+    background: #4a6baf;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin: 0.5rem;
+}
+
+.game-over button:hover {
+    background: #5a7bc1;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(74, 107, 175, 0.4);
+}
+
+/* Pause Menu */
+.pause-menu {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.pause-menu h2 {
+    font-size: 2.5rem;
+    color: #4a6baf;
+    margin-bottom: 2rem;
+}
+
+.pause-menu .menu-item {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 12px 24px;
+    font-size: 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin: 0.5rem;
+    width: 200px;
+    text-align: center;
+}
+
+.pause-menu .menu-item:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+/* Tooltip */
+.tooltip {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    pointer-events: none;
+    z-index: 300;
+    transition: opacity 0.2s;
+    opacity: 0;
+}
+
+.tooltip.show {
+    opacity: 1;
+}
