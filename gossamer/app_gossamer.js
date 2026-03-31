@@ -130,11 +130,13 @@ const SUB_SKINS = [
   { id: 'amber', label: 'Amber Gold', hull: '#d68910', hullStroke: '#9c640c', wings: '#f8c471', tower: '#7e5109', nose: '#5d4037', porthole: '#fff2cc' },
   { id: 'emerald', label: 'Emerald', hull: '#1e8449', hullStroke: '#145a32', wings: '#58d68d', tower: '#0b5345', nose: '#0e6251', porthole: '#d5f5e3' },
   { id: 'violet', label: 'Violet', hull: '#7d3c98', hullStroke: '#512e5f', wings: '#c39bd3', tower: '#4a235a', nose: '#2e1a47', porthole: '#ebdef0' },
+  { id: 'spectrum', label: 'Spectrum Custom', customHue: true },
   { id: 'rainbow', label: 'Rainbow', rainbow: true, porthole: '#ffffff', wings: '#ffffff', nose: '#1d3557', tower: '#111827' },
   { id: 'pride', label: 'Pride Submarine', pride: true, porthole: '#ffffff', wings: '#ffffff', nose: '#111827', tower: '#111827' },
 ];
 const DEFAULT_SETTINGS = {
   subSkin: 'ocean',
+  customHue: 210,
   showLegend: true,
 };
 
@@ -578,12 +580,34 @@ function currentSubSkin(settings) {
   return SUB_SKINS.find((skin) => skin.id === settings.subSkin) || SUB_SKINS[0];
 }
 
+function resolveSubSkin(settings) {
+  const skin = currentSubSkin(settings);
+  if (!skin.customHue) return skin;
+  const hue = ((settings.customHue ?? DEFAULT_SETTINGS.customHue) % 360 + 360) % 360;
+  return {
+    ...skin,
+    hue,
+    hull: `hsl(${hue} 74% 54%)`,
+    hullStroke: `hsl(${hue} 72% 28%)`,
+    wings: `hsl(${(hue + 30) % 360} 88% 70%)`,
+    tower: `hsl(${hue} 42% 22%)`,
+    nose: `hsl(${(hue + 10) % 360} 58% 18%)`,
+    porthole: `hsl(${(hue + 180) % 360} 95% 86%)`,
+  };
+}
+
 function cycleSubSkin(settings, direction) {
   const index = SUB_SKINS.findIndex((skin) => skin.id === settings.subSkin);
   const nextIndex = (index + direction + SUB_SKINS.length) % SUB_SKINS.length;
   settings.subSkin = SUB_SKINS[nextIndex].id;
   saveSettings(settings);
   return currentSubSkin(settings);
+}
+
+function adjustCustomHue(settings, delta) {
+  settings.customHue = ((settings.customHue ?? DEFAULT_SETTINGS.customHue) + delta + 360) % 360;
+  saveSettings(settings);
+  return resolveSubSkin(settings);
 }
 
 function isSubStationaryForDiver(sub) {
@@ -868,11 +892,11 @@ let world = null;
 
 async function init() {
   canvas.width = W; canvas.height = H; canvas.focus();
+  world = initWorld();
   const splash = window.__gossamerSplash;
   if (splash && typeof splash.markReady === 'function') {
     splash.markReady();
   }
-  world = initWorld();
   requestAnimationFrame(gameLoop);
 }
 
@@ -976,6 +1000,8 @@ function updatePauseMenu() {
   if (!world) return;
   if (keyJustPressed['[']) cycleSubSkin(world.settings, -1);
   if (keyJustPressed[']']) cycleSubSkin(world.settings, 1);
+  if (keyJustPressed[',']) adjustCustomHue(world.settings, -12);
+  if (keyJustPressed['.']) adjustCustomHue(world.settings, 12);
   if (keyJustPressed['l'] || keyJustPressed['L']) {
     world.settings.showLegend = !world.settings.showLegend;
     saveSettings(world.settings);
@@ -2032,7 +2058,7 @@ function drawFlightInstruments() {
 }
 
 function drawPauseOverlay() {
-  const skin = currentSubSkin(world.settings);
+  const skin = resolveSubSkin(world.settings);
   ctx.fillStyle = 'rgba(0,0,0,0.7)';
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#e2e8f0';
@@ -2069,9 +2095,11 @@ function drawPauseOverlay() {
   ctx.font = '14px Arial';
   ctx.fillText(`Sub skin: ${skin.label}`, 420, 194);
   ctx.fillText('Use [ and ] to cycle skins', 420, 218);
-  ctx.fillText(`Legend always visible: ${world.settings.showLegend ? 'ON' : 'OFF'}`, 420, 242);
-  ctx.fillText('Press L to toggle the on-screen legend', 420, 266);
-  ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 290);
+  ctx.fillText(`Custom hue: ${Math.round(world.settings.customHue)}${skin.customHue ? ' degrees' : ' (Spectrum only)'}`, 420, 242);
+  ctx.fillText('Use , and . to tune hue while paused', 420, 266);
+  ctx.fillText(`Legend always visible: ${world.settings.showLegend ? 'ON' : 'OFF'}`, 420, 290);
+  ctx.fillText('Press L to toggle the on-screen legend', 420, 314);
+  ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 338);
 
   drawLeaderboardPanel(240, 392, 'Top Runs');
 }
@@ -2136,7 +2164,7 @@ function drawOrbitScene() {
   ctx.save();
   ctx.translate(space.shipX, space.shipY);
   ctx.rotate(space.shipAngle);
-  const skin = currentSubSkin(world.settings);
+  const skin = resolveSubSkin(world.settings);
   ctx.fillStyle = skin.pride ? stripedGradient(-18, 0, 18, 0, ['#e40303', '#ff8c00', '#ffed00', '#008026', '#24408e', '#732982'])
     : skin.rainbow ? stripedGradient(-18, 0, 18, 0, ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#6a4c93'])
     : skin.hull;
@@ -2797,7 +2825,7 @@ function drawSub(sub) {
   const periscopeActive = sub.periscopeMode;
   const sx = toScreen(sub.worldX);
   const f = sub.facing; // 1=right, -1=left
-  const skin = currentSubSkin(world.settings);
+  const skin = resolveSubSkin(world.settings);
 
   // Wake ripples when floating
   if (sub.floating && !sub.disembarked) {

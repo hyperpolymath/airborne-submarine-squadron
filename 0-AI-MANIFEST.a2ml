@@ -3,16 +3,16 @@
 ;
 ; 0-AI-MANIFEST.a2ml -- AI Agent Entry Point
 ; Airborne Submarine Squadron
-; Updated: 2026-03-21
+; Updated: 2026-03-31
 
 [manifest]
 name = "airborne-submarine-squadron"
-version = "0.3.0"
+version = "0.4.0"
 type = "game"
-description = "Sopwith-inspired flying submarine arcade game. AffineScript -> WASM engine with vanilla JS browser frontend, Deno file server, and Rust system tray binary."
+description = "Sopwith-inspired flying submarine arcade game. Standalone repository with AffineScript -> WASM engine, browser launcher, Gossamer desktop frontend, Deno file server, and Rust system tray binary."
 author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>"
 license = "PMPL-1.0-or-later"
-monorepo = "games & trivia"
+monorepo = "none"
 
 [canonical-locations]
 scm-files = ".machine_readable/"
@@ -21,6 +21,7 @@ meta = ".machine_readable/META.scm"
 ecosystem = ".machine_readable/ECOSYSTEM.scm"
 readme = "README.adoc"
 launcher = "launcher.sh"
+integration-helper = "integ.sh"
 license = "LICENSE"
 
 [key-files]
@@ -44,6 +45,7 @@ browser = "./launcher.sh --browser"
 cli = "./launcher.sh --cli"
 tray = "./launcher.sh --tray"
 install-desktop = "./launcher.sh --install"
+integrate-desktop = "./integ.sh"
 stop = "./launcher.sh --stop"
 port = 6860
 
@@ -55,14 +57,14 @@ no-node = "Node.js is banned. Use Deno as the JavaScript runtime."
 deno-only = "The file server uses Deno. Python fallback is deprecated."
 scm-location = "SCM files (.scm) MUST be in .machine_readable/ directory ONLY."
 port-convention = "Default port is 6860 (686 attack sub reference)."
-monorepo-rule = "This is a subdirectory of the 'games & trivia' monorepo. No .git here."
+standalone-git = "This directory is its own standalone git repository."
 
 [current-status]
 playable = true
-engine = "JavaScript placeholder (web/app_enhanced_home.js)"
+engine = "JavaScript frontend with Gossamer desktop variant and WASM build artifacts"
 wasm-ready = "WASM builds exist in build/ but are not yet wired to the frontend"
 desktop-integration = "Working (XDG shortcut, system tray, install/uninstall)"
-next-milestone = "Wire WASM engine to replace JS placeholder"
+next-milestone = "Finish splash/front-end polish and broader packaging targets"
 
 [lifecycle]
 on-enter = "Read this manifest, then .machine_readable/STATE.scm for current progress."
