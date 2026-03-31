@@ -30,6 +30,8 @@ The Gossamer edition now boots a loader, shows retro battle art, draws a live so
 * Harden the warp menu instructions (spaceship leaps, afterburner => warp replacement in vacuum, impulse limits, automated `88 MPH` gating).
 * Capture compile notes, reference `AFFINESCRIPT_REPO`, and explain the `affinescript not found` fallback so builds are reproducible.
 * Verify README/ROADMAP mention the Palimpsest-MPL license and include the MPL-2.0 compatibility notice on the GitHub about panel if needed.
+* Update documentation set (README.adoc, explainme.adoc, ROADMAP.adoc) to reflect npm package publishing capabilities.
+* Add package.json maintenance to build process and CI/CD pipeline.
 
 == Future Directions
 

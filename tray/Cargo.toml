@@ -11,3 +11,7 @@ description = "System tray icon for Airborne Submarine Squadron"
 [dependencies]
 ksni = "0.2"
 libc = "0.2"
+zatty = { path = "../../zatty" }
+
+# Note: clap dependency removed to eliminate atty transitive dependency
+# zatty is used as a replacement for terminal detection functionality

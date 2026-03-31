@@ -1,0 +1,249 @@
+// SPDX-License-Identifier: PMPL-1.0-or-later
+= Airborne Submarine Squadron - Technical Explanation
+
+This document explains the technical architecture, design decisions, and implementation details of Airborne Submarine Squadron.
+
+== Architecture Overview
+
+Airborne Submarine Squadron is built on a multi-layered architecture:
+
+[source]
+----
+User Interface Layer (Gossamer)
+    ↓
+Game Logic Layer (AffineScript/WASM)
+    ↓
+Integration Layer (Launcher/Installer)
+    ↓
+Platform Abstraction Layer (Tray/Desktop)
+----
+
+=== Gossamer Layer
+
+The Gossamer layer provides:
+
+* **Retro-inspired UI**: KITT-style digital HUD with speedometer, accelerometer, and status gauges
+* **Solar Map**: Interactive map showing warp destinations and current position
+* **Controls Legend**: Persistent on-screen controls reference
+* **Pause Menu**: Settings, customization, and game options
+
+Technologies: HTML5 Canvas, JavaScript, CSS
+
+=== AffineScript/WASM Core
+
+The core game logic is implemented in AffineScript and compiled to WebAssembly:
+
+* **Deterministic Simulation**: Reproducible game state for fair competition
+* **Physics Engine**: Submarine buoyancy, acceleration, and collision detection
+* **Weapon Systems**: Torpedoes, missiles, and depth charges with distinct behaviors
+* **Damage System**: Per-part damage tracking (front, middle, rear)
+* **Leaderboard**: Performance tracking and persistence
+
+Key Files:
+
+* `src/main.as` - Main game logic
+* `build/airborne-submarine-squadron.wasm` - Compiled WASM module
+
+=== Integration System
+
+The integration layer handles cross-platform concerns:
+
+* **Reflective Architecture**: Self-aware installation with platform detection
+* **Homoiconic Design**: Self-describing configuration
+* **Self-Healing**: Automatic file verification and backup restoration
+* **Fault Tolerance**: Graceful degradation on unsupported platforms
+
+Files:
+
+* `launcher.sh` - Main entry point
+* `install.sh` - Installation script
+* `integ.sh` - Enhanced installer with diagnostics
+* `tray/` - System tray integration (Rust)
+
+== Technical Design Decisions
+
+=== Why AffineScript?
+
+AffineScript was chosen for:
+
+* **Type Safety**: Affine types prevent resource leaks and ensure proper initialization
+* **WASM Compilation**: First-class WebAssembly support
+* **Performance**: Near-native performance for game logic
+* **Portability**: Runs anywhere WASM is supported
+
+=== Why Gossamer?
+
+Gossamer provides:
+
+* **Linear Type GUI**: Memory-safe user interface components
+* **Retro Aesthetics**: Built-in support for digital/retro styling
+* **Cross-platform**: Works in browsers and as desktop applications
+* **Integration**: Easy connection to WASM modules
+
+=== Build System
+
+The build process follows these steps:
+
+1. **AffineScript Compilation**: `src/main.as` → `build/airborne-submarine-squadron.wasm`
+2. **WASM Optimization**: Post-processing for size and performance
+3. **Bundle Creation**: Packaging for distribution
+4. **Platform Packaging**: Creating installers for different platforms
+
+Build Scripts:
+
+* `build.sh` - Main build script
+* `Justfile` - Alternative build targets
+
+== Game Systems Deep Dive
+
+=== Physics System
+
+The submarine physics model includes:
+
+* **Buoyancy**: Automatic depth adjustment based on damage
+* **Acceleration**: Afterburner for rapid movement
+* **Collision**: Per-pixel detection with environment and enemies
+* **Transition**: Space warp when exceeding 88 MPH with sharp climb
+
+=== Weapon Systems
+
+Three weapon types with distinct behaviors:
+
+Torpedoes:: Straight-line underwater projectiles
+Missiles:: Heat-seeking air/surface weapons  
+Depth Charges:: Anti-submarine weapons with wide blast radius
+
+=== Damage System
+
+The submarine has three damage zones:
+
+Front:: Affects forward shield and speed
+Middle:: Affects buoyancy and stability  
+Rear:: Affects reverse thrust and maneuverability
+
+=== Leaderboard System
+
+Performance tracking includes:
+
+* Mission completion times
+* Damage taken
+* Weapons accuracy
+* Warp efficiency
+
+== Platform Support
+
+=== Linux (x86_64/ARM)
+
+* **Status**: Full support
+* **Features**: Desktop integration, system tray, menu entries
+* **Formats**: DEB, RPM packages available
+
+=== Windows
+
+* **Status**: Partial support
+* **Features**: Manual installation, ICO support
+* **Limitations**: No automatic start menu integration yet
+
+=== macOS
+
+* **Status**: Planned
+* **Features**: App bundle, native menu bar
+* **Target**: Future release
+
+=== RISC-V and Minix
+
+* **Status**: Experimental
+* **Features**: Basic functionality
+* **Target**: Research and development
+
+=== Web/Mobile
+
+* **Status**: Functional
+* **Features**: Browser-based gameplay
+* **Platforms**: Android/iOS via webview
+
+== Development Workflow
+
+=== Building
+
+```bash
+# Build WASM from AffineScript
+./build.sh
+
+# Run the game
+node run_wasm.js build/airborne-submarine-squadron.wasm main
+
+# Launch Gossamer interface
+./launcher.sh gossamer
+```
+
+=== Testing
+
+The project includes several test approaches:
+
+* **Manual Testing**: Playtesting different scenarios
+* **Integration Testing**: `integ.sh` for installation verification
+* **WASM Testing**: Direct execution via Node.js
+
+=== Debugging
+
+Debugging tools available:
+
+* **Console Output**: Detailed logging from WASM module
+* **HUD Telemetry**: Real-time performance metrics
+* **Damage Diagrams**: Visual representation of submarine state
+* **Leaderboard**: Performance tracking across sessions
+
+== Future Technical Directions
+
+=== Performance Optimization
+
+* WASM size reduction
+* Loading time improvement
+* Memory usage optimization
+
+=== Multiplayer Architecture
+
+* Burble integration for secure communication
+* Cross-sub coordination protocols
+* Telemetry sharing between players
+
+=== Enhanced Physics
+
+* Orbital mechanics refinement
+* Solar orbit hazards
+* Planet-specific gravity effects
+
+=== AI Systems
+
+* Enemy behavior patterns
+* Adaptive difficulty
+* Procedural mission generation
+
+== License and Legal
+
+The project uses a multi-layered licensing approach:
+
+* **Core Game**: AGPL-3.0-or-later
+* **Gossamer UI**: Palimpsest-MPL (linear-type GUI wrapper)
+* **Burble**: High-assurance multiplayer communications
+* **AffineScript**: Affine-type programming language
+
+See LICENSE.txt and https://github.com/hyperpolymath/palimpsest-license for complete licensing information.
+
+== Getting Help
+
+For technical questions and support:
+
+* **Documentation**: README.adoc, ROADMAP.adoc
+* **Community**: GitHub Issues and Discussions
+* **Maintainers**: See MAINTAINERS.adoc
+* **Contributing**: CONTRIBUTING.md
+
+== Glossary
+
+AffineScript:: Functional programming language with affine types that compiles to WASM
+Gossamer:: Linear-type GUI framework for retro-inspired interfaces
+Burble:: High-assurance multiplayer communication protocol
+Palimpsest-MPL:: Multi-layered licensing approach combining MPL-2.0 and AGPL-3.0
+WASM:: WebAssembly - portable binary instruction format

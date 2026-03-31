@@ -1,0 +1,41 @@
+{
+  "name": "airborne-submarine-squadron",
+  "version": "0.1.0-alpha.1",
+  "description": "A browser-forward take on the classic Sopwith-style arcade game built with AffineScript/WASM",
+  "main": "build/airborne-submarine-squadron.wasm",
+  "scripts": {
+    "build": "./build.sh",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node run_wasm.js build/airborne-submarine-squadron.wasm main",
+    "launch": "./launcher.sh",
+    "install": "./install.sh"
+  },
+  "keywords": [
+    "game",
+    "wasm",
+    "affinescript",
+    "arcade",
+    "gossamer",
+    "retro"
+  ],
+  "author": "hyperpolymath",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hyperpolymath/airborne-submarine-squadron.git"
+  },
+  "files": [
+    "build/",
+    "dist/",
+    "src/",
+    "gossamer/",
+    "tray/",
+    "launcher.sh",
+    "install.sh",
+    "build.sh",
+    "run_wasm.js"
+  ],
+  "bin": {
+    "airborne-submarine-squadron": "./launcher.sh"
+  }
+}
