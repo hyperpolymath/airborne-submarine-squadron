@@ -803,10 +803,15 @@ function updateDepthCharges(dt) {
     charge.y += charge.vy * dt;
 
     const groundY = getGroundY(charge.worldX);
+    const hittingGround = charge.y >= groundY - 4;
     const hitMine = world.mines.some((mine) =>
       mine.active && Math.hypot(mine.x - charge.worldX, mine.y - charge.y) < MINE_RADIUS + 8
     );
     if (charge.life <= 0 || charge.y >= groundY - 4 || hitMine) {
+      if (hittingGround) {
+        charge.y = groundY - 4;
+        charge.vy = Math.min(0, charge.vy);
+      }
       detonateDepthCharge(charge);
       return false;
     }
