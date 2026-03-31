@@ -77,10 +77,10 @@ const MINE_COLOR = '#7f1111';
 const TWO_PI = Math.PI * 2;
 const ATMOSPHERE_CEILING = 20;
 const ORBIT_TRIGGER_SPEED_MPH = 88;
-const SPEEDOMETER_MAX_MPH = 140;
+const SPEEDOMETER_MAX_MPH = 3200;
 const ACCELEROMETER_MAX_G = 3.2;
 const MPH_PER_GAME_SPEED = 24;
-const SPACE_MPH_PER_GAME_SPEED = 180;
+const SPACE_MPH_PER_GAME_SPEED = 2400;
 const ACCEL_G_SCALE = 0.42;
 const SHARP_ASCENT_ANGLE = -0.42;
 const SHARP_ASCENT_VY = -2.4;
@@ -104,9 +104,9 @@ const SPACE_CAMERA_SMOOTH = 0.06;
 const SPACE_TIME_SCALE = 0.22;
 const SOLAR_GM = 1180;
 const ORBITAL_TURN_RATE = 0.06;
-const ORBITAL_THRUST = 0.085;
-const ORBITAL_RETRO_THRUST = 0.07;
-const ORBITAL_AFTERBURNER_THRUST = 0.14;
+const ORBITAL_THRUST = 0.035;
+const ORBITAL_RETRO_THRUST = 0.025;
+const ORBITAL_AFTERBURNER_THRUST = 0.065;
 const ORBITAL_COLLISION_RADIUS = 12;
 const SOLAR_SYSTEM_BODIES = [
   { id: 'sun', label: 'Sun', orbitRadius: 0, radius: 32, color: '#ffd166', period: 1, phase: 0, gm: SOLAR_GM },
@@ -529,6 +529,17 @@ function overallHealth(parts) {
 function getSpeedMult(parts)   { return parts.engine > 0 ? 1 : 0.4; }
 function getThrustMult(parts)  { return parts.wings > 0 ? 1 : 0.5; }
 function getTurnMult(parts)    { return parts.rudder > 0 ? 1 : 0.3; }
+function getBackDamagePenalty(parts) {
+  const enginePct = clamp(parts.engine / 80, 0, 1);
+  const rudderPct = clamp(parts.rudder / 60, 0, 1);
+  return clamp(1 - (enginePct + rudderPct) / 2, 0, 1);
+}
+function getFrontControlPenalty(parts) {
+  return clamp(1 - parts.nose / 100, 0, 1);
+}
+function getHullBuoyancyPenalty(parts) {
+  return clamp(1 - parts.hull / 120, 0, 1);
+}
 function canFireTorpedo(parts) { return parts.nose > 20; }
 function clamp(v, lo, hi)      { return Math.max(lo, Math.min(hi, v)); }
 
@@ -2032,7 +2043,8 @@ function drawFlightInstruments() {
   ctx.arc(cx, cy, 34, Math.PI * 0.75, Math.PI * 2.25);
   ctx.stroke();
 
-  const speedAngle = Math.PI * 0.75 + (speed / SPEEDOMETER_MAX_MPH) * Math.PI * 1.5;
+  const speedPct = Math.min(1, speed / SPEEDOMETER_MAX_MPH);
+  const speedAngle = Math.PI * 0.75 + speedPct * Math.PI * 1.5;
   ctx.strokeStyle = speed >= ORBIT_TRIGGER_SPEED_MPH ? '#f97316' : '#38bdf8';
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -2040,11 +2052,12 @@ function drawFlightInstruments() {
   ctx.lineTo(cx + Math.cos(speedAngle) * 28, cy + Math.sin(speedAngle) * 28);
   ctx.stroke();
   ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 11px Arial';
+  ctx.font = 'bold 10px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('MPH', cx, panelY + 26);
-  ctx.font = 'bold 18px Arial';
-  ctx.fillText(`${Math.round(speed)}`, cx, panelY + 95);
+  const label = telemetry.mode === 'orbit' ? 'IMPULSE' : 'MPH';
+  ctx.fillText(label, cx, panelY + 24);
+  ctx.font = 'bold 20px Arial';
+  ctx.fillText(`${Math.round(speed)}`, cx, panelY + 90);
 
   const barX = panelX + 116;
   const barY = panelY + 26;
