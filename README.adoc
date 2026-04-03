@@ -182,26 +182,31 @@ airborne-submarine-squadron/
 
 [source]
 ----
-airborne-submarine-squadron-affinescript/
-├── src/
-├── docs/
-├── web/
-├── build/
-├── Justfile
-├── build.sh
-└── run_wasm.js
+airborne-submarine-squadron/
+├── index.html            # Web entry point (serves Gossamer v2 engine)
+├── src/                  # AffineScript source (main.as = canonical)
+├── gossamer/             # Gossamer v2 JS engine + desktop launcher
+├── build/                # Compiled WASM artifacts (gitignored locally)
+├── dist/                 # Release WASM artifact (tracked)
+├── tray/                 # Rust system tray binary (ksni)
+├── ffi/                  # Zig FFI layer
+├── docs/                 # Design and development docs
+├── launcher.sh           # Unified launcher
+├── build.sh              # AffineScript -> WASM build script
+├── Justfile              # Task runner
+└── .machine_readable/    # STATE.scm, META.scm, ECOSYSTEM.scm
 ----
 
 == Build Notes
 
- prefers a global  binary. When missing it looks for  and otherwise copies the prebuilt  into  so the launcher can run without rebuilding.
+`build.sh` prefers a global `affinescript` binary on `$PATH`. When missing it looks for a sibling `nextgen-languages/affinescript` checkout and uses `dune exec`. Otherwise it copies the prebuilt WASM from `dist/` into `build/` so the launcher can run without rebuilding.
 
 == Roadmap
 
-- **Compile stability:** Resolve the  AffineScript error, refresh , and keep the prebuilt artifact in sync with the source.
-- **UI polish:** Finish Groove/Burble integration in the Gossamer panel, add persistent HUD legend, leaderboard final scoring, and damage state map (rear damage slows sub, front shield vanishes when depleted, middle damage makes you sink or lose buoyancy).
-- **Expansion:** Ship packages for Linux (deb/rpm, kinoite/silverblue), macOS, Windows, Android/iOS, and RISC-V/minix targets, while documenting CI/build expectations.
-- **Gameplay:** Add orbital warp menu (, Enter, Orbit, Depart) with digital speedometer (space speeds), planet numbering (–), hazard handling (Sun burns), and multi-map transitions with odd-colored alien terrain.
+- *UI polish:* Finish Groove/Burble integration in the Gossamer panel, add persistent HUD legend, leaderboard final scoring, and damage state map (rear damage slows sub, front shield vanishes when depleted, middle damage makes you sink or lose buoyancy).
+- *Expansion:* Ship packages for Linux (deb/rpm, kinoite/silverblue), macOS, Windows, Android/iOS, and RISC-V/minix targets, while documenting CI/build expectations.
+- *Gameplay:* Add orbital warp menu (Enter → Orbit → Depart) with digital speedometer (space speeds), planet numbering, hazard handling (Sun burns), and multi-map transitions with alien terrain.
+- *AffineScript WASM pipeline:* Complete WebKit compiler compatibility; graduate co-processor from frame counter to primary physics engine.
 
 == License
 
