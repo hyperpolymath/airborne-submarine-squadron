@@ -3,7 +3,7 @@
 ;
 ; 0-AI-MANIFEST.a2ml -- AI Agent Entry Point
 ; Airborne Submarine Squadron
-; Updated: 2026-03-31
+; Updated: 2026-04-03
 
 [manifest]
 name = "airborne-submarine-squadron"
@@ -26,12 +26,12 @@ license-file = "LICENSE"
 
 [key-files]
 launcher = "launcher.sh"
-game-engine-js = "web/app_enhanced_home.js"
-game-page = "web/index_home.html"
-game-style = "web/style_home.css"
+web-entry-point = "index.html"
+game-engine-js = "gossamer/app_gossamer.js"
+gossamer-page-desktop = "gossamer/index_gossamer.html"
 affinescript-source = "src/main.as"
 gossamer-engine = "gossamer/app_gossamer.js"
-gossamer-page = "gossamer/index_gossamer.html"
+gossamer-launch = "gossamer/launch.sh"
 tray-binary-source = "tray/src/main.rs"
 tray-cargo = "tray/Cargo.toml"
 build-script = "build.sh"
@@ -66,8 +66,8 @@ standalone-git = "This directory is its own standalone git repository."
 
 [current-status]
 playable = true
-engine = "JavaScript frontend with Gossamer desktop variant and WASM build artifacts"
-wasm-ready = "WASM builds exist in build/ but are not yet wired to the frontend"
+engine = "Gossamer v2 JS engine (gossamer/app_gossamer.js) with AffineScript WASM co-processor (build/airborne-final-working.wasm)"
+wasm-ready = "WASM co-processor wired into gossamer/app_gossamer.js — loads async, graceful fallback while WebKit compiler issue is resolved"
 desktop-integration = "Working (XDG shortcut, system tray, install/uninstall)"
 next-milestone = "Finish splash/front-end polish and broader packaging targets"
 

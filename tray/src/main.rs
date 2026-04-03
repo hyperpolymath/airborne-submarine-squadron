@@ -159,7 +159,7 @@ impl ksni::Tray for AirborneTray {
 }
 
 fn main() {
-    let _handle = AirborneTray.spawn().unwrap();
+    let _handle = AirborneTray.spawn().expect("failed to initialise system tray");
     // Block forever — tray runs in background thread
     loop {
         std::thread::sleep(std::time::Duration::from_secs(3600));

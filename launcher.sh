@@ -68,7 +68,7 @@ const port = parseInt(Deno.args[1] || "8000");
 Deno.serve({ port, hostname: "127.0.0.1" }, async (req) => {
     const url = new URL(req.url);
     let path = decodeURIComponent(url.pathname);
-    if (path === "/") path = "/web/index_home.html";
+    if (path === "/") path = "/index.html";
 
     const filePath = dir + path;
     try {
@@ -140,10 +140,10 @@ launch_browser() {
     port=$(start_server)
     sleep 0.5
     if should_auto_open; then
-        echo "Opening http://127.0.0.1:$port/web/index_home.html"
-        xdg-open "http://127.0.0.1:$port/web/index_home.html" 2>/dev/null &
+        echo "Opening http://127.0.0.1:$port/"
+        xdg-open "http://127.0.0.1:$port/" 2>/dev/null &
     else
-        echo "Server ready at http://127.0.0.1:$port/web/index_home.html"
+        echo "Server ready at http://127.0.0.1:$port/"
         echo "Auto-open skipped (set up a GUI session or unset AIRBORNE_NO_OPEN)"
     fi
 }
