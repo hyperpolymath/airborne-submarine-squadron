@@ -162,20 +162,60 @@ Performance tracking includes:
 * **Features**: Browser-based gameplay
 * **Platforms**: Android/iOS via webview
 
+== Dev Server and Port Management
+
+The `run.js` Deno script manages the local development server:
+
+* **Port**: 6860 by default (thematic nod to the Type 686 attack submarine), with automatic fallback to 6870–6874
+* **Port release**: Before probing, `freePort()` kills any stale process holding the primary port via `fuser -k` (Linux) or `lsof`+`kill` (macOS) — prevents the "port locked on second run" problem
+* **Signal handling**: `SIGINT`/`SIGTERM` listeners call `server.kill()` so the child Deno server is cleaned up when `run.js` exits, releasing the port for next time
+* **Crash report endpoint**: `POST /crash-report` accepts JSON from the browser and writes `logs/crash-<timestamp>.json` to disk
+
+== Crash Logging and Diagnostics
+
+Browser crashes and unhandled promise rejections are automatically captured:
+
+* `window.onerror` and `window.onunhandledrejection` intercept all uncaught errors
+* Each log entry includes: timestamp, error message, stack trace, and a world state snapshot (tick, score, kills, mode, sub position)
+* Entries are stored in `localStorage` under `ass_crash_logs` (max 20 entries, newest first)
+* If the Deno dev server is running, the entry is also `POST`ed to `/crash-report` → written to `logs/crash-<timestamp>.json` on disk
+
+.Console helpers (open browser devtools):
+[source,javascript]
+----
+ASS_dumpCrashLog()       // print all stored crashes to console
+ASS_downloadCrashLog()   // download as JSON file
+ASS_clearCrashLog()      // clear stored crashes
+----
+
+Crash log files in `logs/` are `.gitignore`d; the directory is tracked via `logs/.gitkeep`.
+
+== Component Readiness Grade
+
+Current grade: **D (Alpha)** — assessed against CRG v2.0 (see `READINESS.md`).
+
+.Grade D requires:
+* RSR compliance (rhodibot workflows) — _partially met; `hypatia-scan.yml` missing_
+* Test matrix declared and all tests passing — _test files exist; justfile wiring pending_
+* Scope documented — _met_
+
+Failing tests are a D-blocker under CRG v2.0. The path to grade C requires deep annotation and dogfooding as a PanLL game-dev panel target.
+
 == Development Workflow
 
 === Building
 
-```bash
+[source,bash]
+----
 # Build WASM from AffineScript
 ./build.sh
 
-# Run the game
-node run_wasm.js build/airborne-submarine-squadron.wasm main
+# Run the game (auto-detect platform, launch server, open browser)
+deno run --allow-all run.js
 
-# Launch Gossamer interface
-./launcher.sh gossamer
-```
+# Run with no git cycle
+deno run --allow-all run.js --no-git
+----
 
 === Testing
 
@@ -183,15 +223,16 @@ The project includes several test approaches:
 
 * **Manual Testing**: Playtesting different scenarios
 * **Integration Testing**: `integ.sh` for installation verification
-* **WASM Testing**: Direct execution via Node.js
+* **WASM Testing**: Direct execution via wasmtime or Deno
+* **Declared tests**: `test_types.as`, `test_verisimdb_simple.js` — to be wired to justfile
 
 === Debugging
 
 Debugging tools available:
 
-* **Console Output**: Detailed logging from WASM module
-* **HUD Telemetry**: Real-time performance metrics
-* **Damage Diagrams**: Visual representation of submarine state
+* **Crash logs**: `ASS_dumpCrashLog()` in browser devtools; `logs/` on disk (when dev server running)
+* **HUD Telemetry**: Real-time performance metrics on-screen
+* **Damage Diagrams**: Visual representation of submarine part health
 * **Leaderboard**: Performance tracking across sessions
 
 == Future Technical Directions

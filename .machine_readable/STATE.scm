@@ -2,26 +2,29 @@
 ; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 ;
 ; STATE.scm -- Airborne Submarine Squadron project state
-; Updated: 2026-04-03
+; Updated: 2026-04-04
 
 (state
   (metadata
     (version "0.5.0")
     (name "airborne-submarine-squadron")
     (type "game")
-    (last-updated "2026-04-03"))
+    (last-updated "2026-04-04"))
 
   (project-context
     (description "Sopwith-inspired flying submarine arcade game with space, underwater, and land combat")
     (monorepo "games & trivia")
     (language "AffineScript")
     (target "WASM + browser + Gossamer desktop")
-    (port 6860))
+    (port 6860)
+    (crg-grade "D")
+    (crg-file "READINESS.md"))
 
   (current-position
     (phase "alpha")
-    (completion-percentage 75)
-    (milestone "Full gameplay loop: atmosphere, water, space. Ships, subs, thermal layers, hangars."))
+    (completion-percentage 77)
+    (milestone "Full gameplay loop: atmosphere, water, space. Ships, subs, thermal layers, hangars.
+                Crash logging, port management, and CRG assessment added 2026-04-04."))
 
   (components
     (game-engine
@@ -51,7 +54,21 @@
       (details "XDG shortcut, system tray (ksni 0.3), install/uninstall"))
     (save-system
       (status "working")
-      (details "Save/load to localStorage, key rebinding, HALO/deep-diver-kit upgrades")))
+      (details "Save/load to localStorage, key rebinding, HALO/deep-diver-kit upgrades"))
+    (crash-logging
+      (status "working")
+      (details "window.onerror + onunhandledrejection capture errors with world snapshot.
+                Stored in localStorage (ass_crash_logs, max 20 entries).
+                POST /crash-report sends to Deno dev server → logs/<timestamp>.json on disk.
+                Console helpers: ASS_dumpCrashLog(), ASS_downloadCrashLog(), ASS_clearCrashLog().
+                Implemented 2026-04-04 in gossamer/app_gossamer.js."))
+    (dev-server
+      (status "working")
+      (details "run.js Deno file server on port 6860 (fallback 6870-6874).
+                freePort() kills stale processes via fuser (Linux) / lsof+kill (macOS) before probe.
+                SIGINT/SIGTERM handlers kill child server on exit.
+                POST /crash-report endpoint writes JSON to logs/ directory.
+                Fixed 2026-04-04 — was leaving orphan processes locking the port.")))
 
   (route-to-mvp
     (milestone-1
@@ -69,16 +86,22 @@
 
   (blockers-and-issues
     (blocker-1
-      (description "AffineScript compiler WASM pipeline now working — src/main.as compiles to WASM 1.0")
-      (severity "resolved")
-      (workaround "none — src/main.as compiles cleanly; build/airborne-final-working.wasm updated 2026-04-03"))
+      (description "hypatia-scan.yml workflow missing — required for RSR compliance and CRG grade D lock")
+      (severity "medium")
+      (workaround "Other CI workflows present; hypatia scan not yet blocking"))
     (blocker-2
+      (description "No formal test runner — test_types.as and test_verisimdb_simple.js exist but
+                    are not wired to justfile. CRG v2.0 requires all declared tests to pass for grade D.")
+      (severity "medium")
+      (workaround "Manual testing only; justfile wiring is the next action"))
+    (blocker-3
       (description "Gossamer desktop runtime requires WebKitGTK")
       (severity "low")
       (workaround "Browser fallback works everywhere")))
 
   (critical-next-actions
-    (action-1 "Compress solar system scale and add radar/astrocompass")
-    (action-2 "Add mission system with hostage rescue scenarios")
-    (action-3 "Implement Trionic SubCommando platformer for mission islands")
-    (action-4 "Add more GitHub Actions workflows for CI/CD")))
+    (action-1 "Add hypatia-scan.yml workflow from RSR template (required for RSR compliance)")
+    (action-2 "Wire test_types.as and test_verisimdb_simple.js to justfile 'test' recipe")
+    (action-3 "Verify all declared tests pass — this locks CRG grade D per READINESS.md")
+    (action-4 "Compress solar system scale and add radar/astrocompass")
+    (action-5 "Add mission system with hostage rescue scenarios")))

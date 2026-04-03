@@ -296,26 +296,32 @@ async function launchDeno(platform) {
   if (!platform.denoAvailable) return false;
   log("Launching via Deno file server...");
 
-  // Release any stale process holding the primary port before probing
+  // Kill anything holding the primary port before probing.
+  // This handles orphaned servers from previous runs (e.g. terminal closed
+  // without Ctrl+C, or run.js killed before the child server was cleaned up).
   await freePort(REGISTRY.ports.primary, platform.os);
 
   const port = await findFreePort();
   const url  = `http://127.0.0.1:${port}/`;
 
-  // Inline Deno file server with crash-report endpoint.
-  // POST /crash-report → writes JSON to logs/<timestamp>.json on disk.
-  // All other requests → static file server.
-  const serverScript = `
-    import { serveDir } from "https://deno.land/std@0.224.0/http/file_server.ts";
-    await Deno.mkdir("logs", { recursive: true });
-    const CORS = { "Access-Control-Allow-Origin": "*" };
-    const handler = async (req) => {
+  // Run the file server IN THIS PROCESS using Deno.serve() + AbortController.
+  // This guarantees the port is released the instant run.js exits — no
+  // orphaned child processes possible.
+  const { serveDir } = await import("https://deno.land/std@0.224.0/http/file_server.ts");
+  await Deno.mkdir("logs", { recursive: true });
+
+  const CORS = { "Access-Control-Allow-Origin": "*" };
+  const ac   = new AbortController();
+
+  const server = Deno.serve(
+    { port, hostname: "127.0.0.1", signal: ac.signal, onListen: () => {} },
+    async (req) => {
       const { pathname } = new URL(req.url);
       if (req.method === "POST" && pathname === "/crash-report") {
         try {
           const body = await req.json();
           const ts   = new Date().toISOString().replace(/[:.]/g, "-");
-          await Deno.writeTextFile(\`logs/crash-\${ts}.json\`, JSON.stringify(body, null, 2));
+          await Deno.writeTextFile(`logs/crash-${ts}.json`, JSON.stringify(body, null, 2));
           return new Response("ok", { status: 200, headers: CORS });
         } catch (e) {
           return new Response(e.message, { status: 500, headers: CORS });
@@ -323,32 +329,23 @@ async function launchDeno(platform) {
       }
       if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
       return serveDir(req, { fsRoot: ".", quiet: true });
-    };
-    Deno.serve({ port: ${port}, hostname: "127.0.0.1" }, handler);
-    console.log("ASS game server: ${url}  |  crash reports: POST /crash-report");
-  `;
-  const tmpServer = await Deno.makeTempFile({ suffix: ".js" });
-  await Deno.writeTextFile(tmpServer, serverScript);
+    },
+  );
 
-  const server = new Deno.Command("deno", {
-    args: ["run", "--allow-net", "--allow-read", "--allow-write", tmpServer],
-    stdin: "null", stdout: "inherit", stderr: "inherit",
-  }).spawn();
+  log(`Game server: ${url}  |  crash reports: POST /crash-report`);
+  log(`Press Ctrl+C to stop the server and release port ${port}`);
 
-  // Kill the child server when this process receives SIGINT or SIGTERM
-  let serverKilled = false;
-  function killServer() {
-    if (serverKilled) return;
-    serverKilled = true;
-    try { server.kill("SIGTERM"); } catch { /* already gone */ }
+  // On SIGINT/SIGTERM: abort the server (releases the port immediately) then exit.
+  // Port is freed before the process fully terminates so the next run sees it free.
+  function shutdown() {
+    warn("Shutting down server...");
+    ac.abort();
+    Deno.exit(0);
   }
   try {
-    Deno.addSignalListener("SIGINT",  killServer);
-    Deno.addSignalListener("SIGTERM", killServer);
-  } catch { /* Windows / unsupported signal — best-effort */ }
-
-  // Give the server a moment to start
-  await new Promise(r => setTimeout(r, 800));
+    Deno.addSignalListener("SIGINT",  shutdown);
+    Deno.addSignalListener("SIGTERM", shutdown);
+  } catch { /* Windows — signals not fully supported */ }
 
   if (platform.browserCmd) {
     log(`Opening browser at ${url}`);
@@ -357,8 +354,7 @@ async function launchDeno(platform) {
     log(`Server running at ${url} — open in your browser`);
   }
 
-  await server.status;
-  try { await Deno.remove(tmpServer); } catch { /* cleanup best-effort */ }
+  await server.finished;
   return true;
 }
 

@@ -2,14 +2,14 @@
 ; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 ;
 ; META.scm -- Airborne Submarine Squadron architecture decisions and meta-information
-; Updated: 2026-03-21
+; Updated: 2026-04-04
 
 (meta
   (metadata
-    (version "1.0.0")
+    (version "1.0.1")
     (name "airborne-submarine-squadron")
     (media-type "application/meta+scheme")
-    (last-updated "2026-03-21"))
+    (last-updated "2026-04-04"))
 
   (architecture-decisions
     (adr-001
@@ -63,7 +63,42 @@
       (rationale "AffineScript is a hyperpolymath language from the
                   nextgen-languages ecosystem. It compiles to WASM and provides
                   affine type safety for game state management. The game serves
-                  as a real-world test case for the AffineScript compiler.")))
+                  as a real-world test case for the AffineScript compiler."))
+
+    (adr-007
+      (title "keyJustPressed for terminal game-state triggers")
+      (status "accepted")
+      (date "2026-04-04")
+      (rationale "Game-state transitions triggered by a keypress (restart, level-complete dismiss)
+                  must use keyJustPressed rather than keys. keys is true every frame the key is held;
+                  using it for initWorld() caused the world to reset on every frame while R was held,
+                  making the game appear frozen immediately after restart. keyJustPressed fires only on
+                  the first frame of the press. keys is correct for continuous actions (thrust, fire)."))
+
+    (adr-008
+      (title "Crash logs to localStorage + server endpoint, not console-only")
+      (status "accepted")
+      (date "2026-04-04")
+      (rationale "console.error alone loses crash context when the tab is refreshed or closed.
+                  localStorage persists across page reloads and survives the crash event itself.
+                  The /crash-report POST endpoint writes JSON to logs/ on disk when the Deno dev
+                  server is running, enabling offline analysis without requiring a remote service.
+                  Max 20 entries in localStorage prevents unbounded storage growth.
+                  Console helpers (ASS_dumpCrashLog, ASS_downloadCrashLog) give developers
+                  a browser-native retrieval path without a separate dashboard."))
+
+    (adr-009
+      (title "freePort() before port probe + SIGINT/SIGTERM handlers for dev server")
+      (status "accepted")
+      (date "2026-04-04")
+      (rationale "When run.js is killed (Ctrl+C or process manager), the child Deno file server
+                  it spawns does not automatically inherit the termination signal, leaving the
+                  port locked for future runs. Two fixes applied together:
+                  (1) freePort() runs fuser -k (Linux) or lsof+kill (macOS) to release the
+                  primary port before probing — handles orphaned processes from past sessions.
+                  (2) SIGINT/SIGTERM listeners call server.kill() so the child is cleaned up
+                  when the parent exits normally. The findFreePort() fallback range (6870-6874)
+                  remains as a last resort if port release fails.")))
 
   (development-practices
     (no-npm "npm, Bun, pnpm, yarn are all banned")

@@ -10,7 +10,7 @@
   (identity
     (name "airborne-submarine-squadron")
     (full-name "Airborne Submarine Squadron (ASS)")
-    (version "0.4.0")
+    (version "0.5.0")
     (repo "https://github.com/hyperpolymath/airborne-submarine-squadron")
     (license "AGPL-3.0-or-later")
     (author "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>")
@@ -25,9 +25,9 @@
 
   (context-tiers
     (tier-0 "Always load: this file + .claude/CLAUDE.md")
-    (tier-1 "Load if working on code: README.adoc, EXPLAINME.adoc, Justfile")
+    (tier-1 "Load if working on code: README.adoc, EXPLAINME.adoc, Justfile, READINESS.md")
     (tier-2 "Load on demand: .machine_readable/STATE.scm, docs/")
-    (tier-3 "Never load unless asked: gossamer/app_gossamer.js (7300+ lines), build/"))
+    (tier-3 "Never load unless asked: gossamer/app_gossamer.js (7500+ lines), build/"))
 
   (canonical-locations
     (ai-manifest     "0-AI-MANIFEST.a2ml"                    "THIS FILE")
@@ -35,13 +35,16 @@
     (state           ".machine_readable/STATE.scm")
     (meta            ".machine_readable/META.scm")
     (ecosystem       ".machine_readable/ECOSYSTEM.scm")
+    (readiness       "READINESS.md"                          "CRG v2.0 grade assessment")
     (web-entry       "index.html"                            "Root game entry — no redirect")
-    (game-engine     "gossamer/app_gossamer.js"              "Gossamer v2 JS engine")
+    (game-engine     "gossamer/app_gossamer.js"              "Gossamer v2 JS engine + crash logger")
     (desktop-entry   "gossamer/index_gossamer.html"          "Gossamer desktop HTML")
     (as-source       "src/main.as"                           "Canonical AffineScript source")
     (wasm-dist       "dist/airborne-submarine-squadron.wasm" "Tracked release artifact")
+    (run-script      "run.js"                                "Deno launcher — inline server, port management")
     (launcher        "launcher.sh"                           "Unified launcher")
-    (build-script    "build.sh"                              "AffineScript to WASM build"))
+    (build-script    "build.sh"                              "AffineScript to WASM build")
+    (crash-logs      "logs/"                                 "On-disk crash reports (gitignored except .gitkeep)"))
 
   (architecture
     (js-engine  "gossamer/app_gossamer.js"           "Full game at 60fps — current playable")
@@ -57,14 +60,16 @@
     (rule "No Tauri or Electron — browser plus ksni tray binary only")
     (rule "No npm, bun, pnpm, yarn — Deno only for JS runtime")
     (rule "No Node.js — Deno only")
-    (rule "SCM files MUST be in .machine_readable/ — never in root")
+    (rule "Machine-readable files MUST be in .machine_readable/ — never in root (A2ML preferred; SCM legacy)")
+    (rule "Crash logs in logs/ are gitignored — do NOT commit crash-*.json files")
     (rule "src/main.as is the ONLY canonical AffineScript source")
     (rule "gossamer/app_gossamer.js is the current game engine — do not replace"))
 
   (lifecycle
     (on-enter
       (step "Read THIS file first")
-      (step "Read .machine_readable/STATE.scm for current status and blockers"))
+      (step "Read .machine_readable/STATE.scm for current status and blockers")
+      (step "Read READINESS.md for CRG grade and open blockers"))
     (on-exit
       (step "Update .machine_readable/STATE.scm with any progress made")
       (step "Commit and push — full git cycle")))
@@ -73,6 +78,6 @@
     (version "2.1.0")
     (media-type "application/a2ml")
     (created "2026-01-30")
-    (last-updated "2026-04-03")
+    (last-updated "2026-04-04")
     (maintained-by "Jonathan D.A. Jewell / hyperpolymath")
     (protocol "https://github.com/hyperpolymath/0-ai-gatekeeper-protocol")))
