@@ -1,76 +1,78 @@
 ; SPDX-License-Identifier: AGPL-3.0-or-later
-; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+; SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
 ;
-; 0-AI-MANIFEST.a2ml -- AI Agent Entry Point
-; Airborne Submarine Squadron
-; Updated: 2026-04-03
+; 0-AI-MANIFEST.a2ml — Universal AI entry point for Airborne Submarine Squadron
+; Media-Type: application/a2ml
 
-[manifest]
-name = "airborne-submarine-squadron"
-version = "0.4.0"
-type = "game"
-description = "Sopwith-inspired flying submarine arcade game. Standalone repository with AffineScript -> WASM engine, browser launcher, Gossamer desktop frontend, Deno file server, and Rust system tray binary."
-author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>"
-license = "AGPL-3.0-or-later"
-monorepo = "none"
+; THIS FILE MUST BE READ FIRST BY ALL AI AGENTS
 
-[canonical-locations]
-scm-files = ".machine_readable/"
-state = ".machine_readable/STATE.scm"
-meta = ".machine_readable/META.scm"
-ecosystem = ".machine_readable/ECOSYSTEM.scm"
-readme = "README.adoc"
-entry-point = "launcher.sh"
-integration-helper = "integ.sh"
-license-file = "LICENSE"
+(manifest
+  (identity
+    (name "airborne-submarine-squadron")
+    (full-name "Airborne Submarine Squadron (ASS)")
+    (version "0.4.0")
+    (repo "https://github.com/hyperpolymath/airborne-submarine-squadron")
+    (license "AGPL-3.0-or-later")
+    (author "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>")
+    (co-author "Joshua Jewell (JoshuaJewell)")
+    (ownership "primary-owner: JoshuaJewell, admin: hyperpolymath"))
 
-[key-files]
-launcher = "launcher.sh"
-web-entry-point = "index.html"
-game-engine-js = "gossamer/app_gossamer.js"
-gossamer-page-desktop = "gossamer/index_gossamer.html"
-affinescript-source = "src/main.as"
-gossamer-engine = "gossamer/app_gossamer.js"
-gossamer-launch = "gossamer/launch.sh"
-tray-binary-source = "tray/src/main.rs"
-tray-cargo = "tray/Cargo.toml"
-build-script = "build.sh"
-task-runner = "Justfile"
-desktop-shortcut = "desktop/airborne-submarine-squadron.desktop"
-desktop-installer = "desktop/install.sh"
-desktop-uninstaller = "desktop/uninstall.sh"
-wasm-build = "build/airborne-final-working.wasm"
+  (purpose
+    "Sopwith-inspired flying submarine arcade game. Free-flight 2D arcade with
+     submarine, aircraft, ship and space mechanics. AffineScript compiled to WASM
+     as physics co-processor; Gossamer v2 JS engine is the current playable frontend.
+     Standalone AGPL repo — exception to PMPL, co-developed with son.")
 
-[how-to-run]
-default = "./launcher.sh"
-browser = "./launcher.sh --browser"
-cli = "./launcher.sh --cli"
-tray = "./launcher.sh --tray"
-install-desktop = "./launcher.sh --install"
-integrate-desktop = "./integ.sh"
-stop = "./launcher.sh --stop"
-port = 6860
+  (context-tiers
+    (tier-0 "Always load: this file + .claude/CLAUDE.md")
+    (tier-1 "Load if working on code: README.adoc, EXPLAINME.adoc, Justfile")
+    (tier-2 "Load on demand: .machine_readable/STATE.scm, docs/")
+    (tier-3 "Never load unless asked: gossamer/app_gossamer.js (7300+ lines), build/"))
 
-[critical-invariants]
-no-typescript = "TypeScript is banned. Use vanilla JS or AffineScript."
-no-tauri = "No Tauri or Electron. Browser + system tray binary only."
-no-npm = "npm, Bun, pnpm, yarn are all banned."
-no-node = "Node.js is banned. Use Deno as the JavaScript runtime."
-deno-only = "The file server uses Deno. Python fallback is deprecated."
-scm-location = "SCM files (.scm) MUST be in .machine_readable/ directory ONLY."
-port-convention = "Default port is 6860 (686 attack sub reference)."
-standalone-git = "This directory is its own standalone git repository."
+  (canonical-locations
+    (ai-manifest     "0-AI-MANIFEST.a2ml"                    "THIS FILE")
+    (ai-instructions ".claude/CLAUDE.md"                     "Claude-specific patterns")
+    (state           ".machine_readable/STATE.scm")
+    (meta            ".machine_readable/META.scm")
+    (ecosystem       ".machine_readable/ECOSYSTEM.scm")
+    (web-entry       "index.html"                            "Root game entry — no redirect")
+    (game-engine     "gossamer/app_gossamer.js"              "Gossamer v2 JS engine")
+    (desktop-entry   "gossamer/index_gossamer.html"          "Gossamer desktop HTML")
+    (as-source       "src/main.as"                           "Canonical AffineScript source")
+    (wasm-dist       "dist/airborne-submarine-squadron.wasm" "Tracked release artifact")
+    (launcher        "launcher.sh"                           "Unified launcher")
+    (build-script    "build.sh"                              "AffineScript to WASM build"))
 
-; Ownership: primary-owner = "JoshuaJewell", admin = "hyperpolymath"
-; This manifest must treat airborne-submarine-squadron as JoshuaJewell's primary repository.
+  (architecture
+    (js-engine  "gossamer/app_gossamer.js"           "Full game at 60fps — current playable")
+    (wasm-coproc "build/airborne-final-working.wasm" "AffineScript physics co-processor")
+    (tray       "tray/src/main.rs"                   "Rust system tray (ksni)")
+    (ffi        "ffi/zig/"                           "Zig FFI layer")
+    (ports      "browser:6860 gossamer-fallback:6870-6879"))
 
-[current-status]
-playable = true
-engine = "Gossamer v2 JS engine (gossamer/app_gossamer.js) with AffineScript WASM co-processor (build/airborne-final-working.wasm)"
-wasm-ready = "WASM co-processor wired into gossamer/app_gossamer.js — loads async, graceful fallback while WebKit compiler issue is resolved"
-desktop-integration = "Working (XDG shortcut, system tray, install/uninstall)"
-next-milestone = "Finish splash/front-end polish and broader packaging targets"
+  (critical-invariants
+    (rule "AGPL-3.0-or-later only — do NOT change license or relicense")
+    (rule "Standalone git repo — do NOT merge into any monorepo")
+    (rule "No TypeScript — use vanilla JS or AffineScript only")
+    (rule "No Tauri or Electron — browser plus ksni tray binary only")
+    (rule "No npm, bun, pnpm, yarn — Deno only for JS runtime")
+    (rule "No Node.js — Deno only")
+    (rule "SCM files MUST be in .machine_readable/ — never in root")
+    (rule "src/main.as is the ONLY canonical AffineScript source")
+    (rule "gossamer/app_gossamer.js is the current game engine — do not replace"))
 
-[lifecycle]
-on-enter = "Read this manifest, then .machine_readable/STATE.scm for current progress."
-on-exit = "Update .machine_readable/STATE.scm with any progress made."
+  (lifecycle
+    (on-enter
+      (step "Read THIS file first")
+      (step "Read .machine_readable/STATE.scm for current status and blockers"))
+    (on-exit
+      (step "Update .machine_readable/STATE.scm with any progress made")
+      (step "Commit and push — full git cycle")))
+
+  (format-meta
+    (version "2.1.0")
+    (media-type "application/a2ml")
+    (created "2026-01-30")
+    (last-updated "2026-04-03")
+    (maintained-by "Jonathan D.A. Jewell / hyperpolymath")
+    (protocol "https://github.com/hyperpolymath/0-ai-gatekeeper-protocol")))
