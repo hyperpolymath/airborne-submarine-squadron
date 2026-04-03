@@ -3,7 +3,8 @@
 # Airborne Submarine Squadron — Unified Launcher
 #
 # Usage:
-#   ./launcher.sh              Launch in browser (default)
+#   ./launcher.sh              Launch in Gossamer/browser mode (default)
+#   ./launcher.sh --gossamer   Launch in Gossamer/browser mode explicitly
 #   ./launcher.sh --browser    Launch in browser explicitly
 #   ./launcher.sh --cli        Run WASM in terminal via wasmtime
 #   ./launcher.sh --tray       Start system tray icon
@@ -187,9 +188,9 @@ do_uninstall() {
 
 # --- Main ---
 
-case "${1:---browser}" in
+case "${1:---gossamer}" in
+    --gossamer|-g|--auto) launch_gossamer ;;
     --browser|-b)   launch_browser ;;
-    --gossamer|-g)  launch_gossamer ;;
     --cli|-c)       launch_cli ;;
     --tray|-t)      launch_tray ;;
     --stop|-s)      stop_server ;;
@@ -201,8 +202,8 @@ case "${1:---browser}" in
         echo "Usage: $(basename "$0") [MODE]"
         echo ""
         echo "Modes:"
-        echo "  --browser, -b    Launch in browser (default)"
-        echo "  --gossamer, -g   Launch as resizable Gossamer desktop game"
+        echo "  --gossamer, -g   Launch as resizable Gossamer desktop game (default)"
+        echo "  --browser, -b    Launch in browser"
         echo "  --cli, -c        Run WASM in terminal via wasmtime"
         echo "  --tray, -t       Start system tray icon"
         echo "  --stop, -s       Stop running server"

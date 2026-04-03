@@ -184,7 +184,7 @@ main() {
     echo "You can launch it from:"
     echo "  - Application menu (under Games)"
     echo "  - Desktop shortcut (if your desktop supports it)"
-    echo "  - Command line: $LAUNCHER --browser"
+    echo "  - Command line: $LAUNCHER --gossamer"
 }
 
 # Run with error handling

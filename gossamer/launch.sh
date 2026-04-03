@@ -21,7 +21,7 @@ GOSSAMER_DIR="$SCRIPT_DIR"
 GOSSAMER_PID_FILE="/tmp/airborne-gossamer.pid"
 GOSSAMER_SERVER_PID_FILE="/tmp/airborne-gossamer-server.pid"
 
-REPOS_ROOT="$(cd "$GAME_ROOT/../.." && pwd)"
+REPOS_ROOT="$(cd "$GAME_ROOT/.." && pwd)"
 EPHAPAX="${REPOS_ROOT}/nextgen-languages/ephapax/target/release/ephapax"
 LIBGOSSAMER="${REPOS_ROOT}/gossamer/src/interface/ffi/zig-out/lib/libgossamer.so"
 
