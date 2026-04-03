@@ -31,8 +31,26 @@ cleanup() {
         if [[ -f "$pid_file" ]]; then
             local pid
             pid="$(cat "$pid_file")"
+            # SIGTERM first, then SIGKILL after 2 s if still alive.
             kill "$pid" 2>/dev/null || true
+            local waited=0
+            while kill -0 "$pid" 2>/dev/null && [[ $waited -lt 20 ]]; do
+                sleep 0.1
+                waited=$((waited + 1))
+            done
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -9 "$pid" 2>/dev/null || true
+            fi
             rm -f "$pid_file"
+        fi
+    done
+    # Aggressively release the Deno server port so a new launch never
+    # finds it occupied.  Run unconditionally — the port might be held
+    # by a Deno process whose PID file was already cleaned up.
+    for port in 6860 $(seq 6861 6869) $(seq 6870 6899); do
+        if ss -tlnH "sport = :$port" 2>/dev/null | grep -q .; then
+            # fuser sends SIGKILL to all processes bound to the port.
+            fuser -k "${port}/tcp" 2>/dev/null || true
         fi
     done
 }

@@ -107,12 +107,37 @@ DENO_SERVER
     echo "$port"
 }
 
+_kill_pid_aggressive() {
+    local pid="$1" label="$2"
+    kill "$pid" 2>/dev/null || return 0
+    # Wait up to 2 s for graceful exit, then SIGKILL.
+    local waited=0
+    while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 20 ]; do
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+        kill -9 "$pid" 2>/dev/null || true
+        echo "  (force-killed $label PID $pid)"
+    fi
+}
+
+_release_game_ports() {
+    # Aggressively release all game ports (6860–6869 main, 6870–6899 gossamer).
+    # Uses fuser to SIGKILL any process still holding the port.
+    for port in $(seq 6860 6899); do
+        if ss -tlnH "sport = :$port" 2>/dev/null | grep -q .; then
+            fuser -k "${port}/tcp" 2>/dev/null || true
+        fi
+    done
+}
+
 stop_server() {
     local stopped=0
     if is_server_running; then
         local pid
         pid=$(cat "$PID_FILE")
-        kill "$pid" 2>/dev/null || true
+        _kill_pid_aggressive "$pid" "web server"
         rm -f "$PID_FILE" "$PORT_FILE"
         echo "Server stopped (PID $pid)"
         stopped=1
@@ -124,12 +149,16 @@ stop_server() {
         if [ -f "$pf" ]; then
             local pid
             pid=$(cat "$pf")
-            kill "$pid" 2>/dev/null || true
+            _kill_pid_aggressive "$pid" "Gossamer runtime"
             rm -f "$pf"
             echo "Stopped Gossamer runtime (PID $pid)"
             stopped=1
         fi
     done
+
+    # Unconditional port release — catches orphaned Deno processes whose
+    # PID files were already cleaned up.
+    _release_game_ports
 
     if [ "$stopped" -eq 0 ]; then
         echo "No managed Airborne Submarine Squadron runtime is running"
