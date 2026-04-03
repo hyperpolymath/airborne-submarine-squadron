@@ -3487,6 +3487,13 @@ function initWorld() {
     gunPostBullets: [],
     subInCave: null,     // Reference to cave the sub is hiding in
     mission: { type: 'patrol', timer: 0, active: false, failed: false },
+    // WASM co-processor (AffineScript physics kernel, airborne-final-working.wasm).
+    // Populated asynchronously by init() after the module loads.
+    wasm: null,
+    wasmState: null,    // 29-element flat snapshot from last step_state call
+    wasmTick: undefined,
+    wasmScore: undefined,
+    wasmKills: undefined,
   };
 }
 
@@ -3495,6 +3502,42 @@ let world = null;
 async function init() {
   canvas.width = W; canvas.height = H; canvas.focus();
   world = initWorld();
+
+  // --- Load AffineScript WASM physics co-processor ---
+  // The WASM exports init_state() and step_state(...34 args) which model a
+  // simplified version of the game world (sub, weapons, 2 projectiles, 2 enemies).
+  // We run it in lockstep with the JS simulation as a verified frame counter
+  // and secondary score tracker.  Resolve the path relative to this script
+  // file so the fetch works whether the page is served from repo root
+  // (index.html → gossamer/app_gossamer.js) or from gossamer/ directly.
+  const _wasmUrl = (() => {
+    const scriptSrc = document.currentScript && document.currentScript.src;
+    if (scriptSrc) {
+      // script is at <repo>/gossamer/app_gossamer.js; WASM is at <repo>/build/
+      return new URL('../build/airborne-final-working.wasm', scriptSrc).href;
+    }
+    return '../build/airborne-final-working.wasm'; // fallback (direct open)
+  })();
+  try {
+    const resp = await fetch(_wasmUrl);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const buf = await resp.arrayBuffer();
+    const { instance } = await WebAssembly.instantiate(buf, {
+      // Provide a no-op fd_write stub — the WASM only uses it for println().
+      wasi_snapshot_preview1: { fd_write: () => 0 },
+    });
+    world.wasm = instance.exports;
+    // init_state() returns a pointer to a [tag, len=29, ...fields] array in
+    // WASM linear memory.  Slice off the two-word header to get 29 state fields.
+    const ptr = world.wasm.init_state();
+    const view = new DataView(world.wasm.memory.buffer);
+    world.wasmState = Array.from({ length: 31 }, (_, i) => view.getInt32(ptr + i * 4, true)).slice(2);
+    console.info('[ASS] WASM co-processor ready — init_state ptr:', ptr);
+  } catch (e) {
+    world.wasm = null;
+    console.warn('[ASS] WASM co-processor unavailable:', e.message);
+  }
+
   const splash = window.__gossamerSplash;
   if (splash && typeof splash.markReady === 'function') {
     splash.markReady();
@@ -4329,6 +4372,31 @@ function updateOrbitMode(dt) {
 function update(dt) {
   const sub = world.sub;
   world.tick++;
+
+  // --- Advance WASM physics co-processor ---
+  // Map the current JS key state onto the WASM Input type and call step_state.
+  // step_state takes 34 i32 args: 29 state fields (from the previous snapshot)
+  // followed by 5 input fields (thrust_x, thrust_y, fire, fire_alt, toggle_env).
+  // The return value is a pointer to the updated snapshot in WASM linear memory.
+  if (world.wasm && world.wasmState) {
+    try {
+      const s = world.wasmState;
+      const thrustX    = keys['ArrowRight'] ? 1 : keys['ArrowLeft'] ? -1 : 0;
+      const thrustY    = keys['ArrowDown']  ? 1 : keys['ArrowUp']   ? -1 : 0;
+      const fire       = (keys['Control'] ? 1 : 0);
+      const fireAlt    = (keys['Enter']   ? 1 : 0);
+      const ptr = world.wasm.step_state(
+        ...s,              // 29 state fields
+        thrustX, thrustY, fire, fireAlt, 0  // 5 input fields (toggle_env always 0)
+      );
+      const view = new DataView(world.wasm.memory.buffer);
+      world.wasmState  = Array.from({ length: 31 }, (_, i) => view.getInt32(ptr + i * 4, true)).slice(2);
+      world.wasmTick   = world.wasmState[0];   // tick counter
+      world.wasmScore  = world.wasmState[23];  // score
+      world.wasmKills  = world.wasmState[24];  // kills
+    } catch (_) { /* non-fatal: JS game continues unaffected */ }
+  }
+
   handleSunBurn(dt);
   const directWarpKey = ['1', '2', '3', '4', '5'].find((k) => keyJustPressed[k]);
   if (directWarpKey && world.mode === 'orbit' && !world.paused) {
@@ -7137,6 +7205,17 @@ function drawHUD() {
   ctx.fillText(`Score: ${world.score}`, 15, hudStartY + 32);
   ctx.font='12px Arial';
   ctx.fillText(`Kills: ${world.kills}`, 15, hudStartY + 48);
+
+  // WASM co-processor status badge
+  if (world.wasmTick !== undefined) {
+    ctx.font = '9px Arial';
+    ctx.fillStyle = '#34d399';
+    ctx.fillText(`WASM \u2713 t:${world.wasmTick}`, 15, hudStartY + 62);
+  } else if (world.wasm === null) {
+    ctx.font = '9px Arial';
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText('WASM offline', 15, hudStartY + 62);
+  }
 
   // Status
   ctx.textAlign='right'; ctx.font='13px Arial';

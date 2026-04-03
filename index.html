@@ -1,13 +1,710 @@
-<!doctype html>
+<!DOCTYPE html>
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-<!-- Airborne Submarine Squadron — entry point redirect -->
+<!-- Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) -->
+<!--
+  Airborne Submarine Squadron — web entry point.
+
+  The canvas runs at a fixed 800x600 virtual resolution.
+  CSS scaling + a ResizeObserver auto-fit the canvas to the window
+  while maintaining 4:3 aspect ratio with letterbox/pillarbox bars.
+  The game logic is completely resolution-independent.
+-->
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta http-equiv="refresh" content="0; url=gossamer/index_gossamer.html" />
-  <title>Airborne Submarine Squadron</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airborne Submarine Squadron</title>
+    <style>
+        /* --- Reset & fullscreen fill --- */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            position: relative;
+            /* Letterbox/pillarbox bars are pure black */
+        }
+
+        /* --- Centred scaling container --- */
+        #scaleContainer {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- Game canvas: rendered at 800x600, CSS-scaled to fit --- */
+        #gameCanvas {
+            background: #1a1a2e;
+            /* Crisp pixel scaling for the retro aesthetic */
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            /* No border — flush with letterbox bars */
+            border: none;
+            outline: none;
+        }
+
+        /* --- Loading overlay --- */
+        #loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.25), transparent 45%),
+                        radial-gradient(circle at 70% 35%, rgba(94, 126, 255, 0.4), transparent 50%),
+                        #07071c;
+            overflow: hidden;
+            z-index: 100;
+            color: white;
+            font-family: 'Space Mono', 'IBM Plex Mono', monospace;
+            letter-spacing: 0.09em;
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        #loading.accepting-input {
+            cursor: pointer;
+        }
+
+        #loading.input-blocked .splash-grid {
+            animation: nudge 0.18s linear 2;
+        }
+
+        #loading.splash-complete {
+            opacity: 0;
+            transform: translateY(-20px);
+            pointer-events: none;
+        }
+
+        @keyframes nudge {
+            0%   { transform: translateX(0); }
+            25%  { transform: translateX(-4px); }
+            75%  { transform: translateX(4px); }
+            100% { transform: translateX(0); }
+        }
+
+        .battle-scene {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .battle-grid {
+            position: absolute;
+            inset: auto -10% 26% -10%;
+            height: 42%;
+            background:
+                linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(1, 5, 15, 0.75)),
+                repeating-linear-gradient(90deg, rgba(74, 144, 226, 0.14) 0 1px, transparent 1px 56px),
+                repeating-linear-gradient(180deg, rgba(74, 144, 226, 0.12) 0 1px, transparent 1px 34px);
+            transform: perspective(420px) rotateX(72deg);
+            transform-origin: center bottom;
+            opacity: 0.7;
+        }
+
+        .battle-sun {
+            position: absolute;
+            top: 76px;
+            right: 12%;
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background:
+                radial-gradient(circle at 40% 40%, rgba(255, 243, 176, 0.95), rgba(255, 145, 77, 0.88) 40%, rgba(255, 73, 73, 0.2) 70%, transparent 72%);
+            filter: blur(2px);
+            opacity: 0.9;
+        }
+
+        .battle-haze {
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 20% 38%, rgba(255, 86, 48, 0.12), transparent 26%),
+                radial-gradient(circle at 72% 62%, rgba(84, 160, 255, 0.18), transparent 30%),
+                linear-gradient(180deg, transparent 10%, rgba(2, 6, 23, 0.18) 46%, rgba(1, 4, 15, 0.7) 100%);
+        }
+
+        .battle-fleet {
+            position: absolute;
+            inset: 0;
+        }
+
+        .enemy,
+        .hero-sub-silhouette,
+        .battle-cruiser {
+            position: absolute;
+            display: block;
+            filter: drop-shadow(0 0 18px rgba(80, 160, 255, 0.2));
+        }
+
+        .enemy-plane {
+            width: 74px;
+            height: 12px;
+            top: 18%;
+            left: 12%;
+            background: linear-gradient(90deg, rgba(188, 223, 255, 0.1), rgba(188, 223, 255, 0.35), rgba(188, 223, 255, 0.1));
+            border-radius: 999px;
+            transform: rotate(-10deg);
+            animation: drift-left 11s linear infinite;
+        }
+
+        .enemy-plane::before,
+        .enemy-plane::after {
+            content: '';
+            position: absolute;
+            background: rgba(188, 223, 255, 0.26);
+        }
+
+        .enemy-plane::before {
+            width: 26px;
+            height: 4px;
+            left: 24px;
+            top: -7px;
+            border-radius: 999px;
+        }
+
+        .enemy-plane::after {
+            width: 18px;
+            height: 3px;
+            left: 14px;
+            bottom: -6px;
+            border-radius: 999px;
+        }
+
+        .enemy-blimp {
+            width: 122px;
+            height: 34px;
+            top: 30%;
+            right: 16%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(255, 188, 88, 0.08), rgba(255, 188, 88, 0.34), rgba(255, 188, 88, 0.08));
+            animation: drift-right 14s linear infinite;
+        }
+
+        .enemy-blimp::before {
+            content: '';
+            position: absolute;
+            width: 26px;
+            height: 10px;
+            left: 48px;
+            bottom: -9px;
+            border-radius: 8px;
+            background: rgba(255, 188, 88, 0.18);
+        }
+
+        .enemy-sub {
+            width: 160px;
+            height: 42px;
+            left: 9%;
+            bottom: 20%;
+            border-radius: 30px 42px 42px 26px;
+            background: linear-gradient(90deg, rgba(80, 205, 255, 0.08), rgba(80, 205, 255, 0.3), rgba(80, 205, 255, 0.08));
+            transform: rotate(5deg);
+            animation: tide-shift 9s ease-in-out infinite;
+        }
+
+        .enemy-sub::before {
+            content: '';
+            position: absolute;
+            width: 42px;
+            height: 10px;
+            right: 24px;
+            top: -8px;
+            border-radius: 8px;
+            background: rgba(80, 205, 255, 0.18);
+        }
+
+        .battle-cruiser {
+            width: 220px;
+            height: 26px;
+            right: 8%;
+            bottom: 23%;
+            background: linear-gradient(90deg, rgba(255, 128, 91, 0.08), rgba(255, 128, 91, 0.26), rgba(255, 128, 91, 0.08));
+            clip-path: polygon(4% 100%, 84% 100%, 100% 42%, 92% 20%, 36% 20%, 20% 0, 9% 0);
+            animation: tide-shift 12s ease-in-out infinite reverse;
+        }
+
+        .hero-sub-silhouette {
+            width: 290px;
+            height: 86px;
+            left: 50%;
+            bottom: 13%;
+            transform: translateX(-50%);
+            border-radius: 70px 90px 82px 62px;
+            background:
+                linear-gradient(90deg, rgba(245, 87, 108, 0.18), rgba(56, 189, 248, 0.5), rgba(245, 87, 108, 0.18)),
+                linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0));
+            box-shadow: 0 0 40px rgba(56, 189, 248, 0.22);
+            animation: hero-rise 7s ease-in-out infinite;
+        }
+
+        .hero-sub-silhouette::before {
+            content: '';
+            position: absolute;
+            width: 88px;
+            height: 18px;
+            left: 112px;
+            top: -14px;
+            border-radius: 12px 12px 4px 4px;
+            background: rgba(201, 238, 255, 0.22);
+        }
+
+        .hero-sub-silhouette::after {
+            content: '';
+            position: absolute;
+            width: 52px;
+            height: 22px;
+            right: -10px;
+            top: 32px;
+            clip-path: polygon(0 50%, 58% 0, 100% 50%, 58% 100%);
+            background: rgba(226, 232, 240, 0.34);
+        }
+
+        .battle-waves {
+            position: absolute;
+            left: -8%;
+            right: -8%;
+            bottom: 11%;
+            height: 120px;
+            background:
+                radial-gradient(circle at 8% 18%, rgba(113, 213, 255, 0.2), transparent 20%),
+                repeating-radial-gradient(circle at 50% 130%, rgba(74, 144, 226, 0.28) 0 12px, rgba(0, 0, 0, 0) 12px 28px);
+            opacity: 0.8;
+            animation: tide-shift 10s ease-in-out infinite;
+        }
+
+        .burst {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 209, 102, 0.4);
+            box-shadow: 0 0 24px rgba(255, 170, 0, 0.14);
+            animation: burst 2.8s ease-out infinite;
+        }
+
+        .burst-a {
+            left: 24%;
+            top: 40%;
+            width: 46px;
+            height: 46px;
+        }
+
+        .burst-b {
+            right: 23%;
+            top: 52%;
+            width: 66px;
+            height: 66px;
+            animation-delay: 1.1s;
+        }
+
+        .burst-c {
+            left: 58%;
+            top: 30%;
+            width: 38px;
+            height: 38px;
+            animation-delay: 0.6s;
+        }
+
+        @keyframes drift-left {
+            0%   { transform: translateX(-4%) rotate(-10deg); }
+            50%  { transform: translateX(6%) rotate(-6deg); }
+            100% { transform: translateX(-4%) rotate(-10deg); }
+        }
+
+        @keyframes drift-right {
+            0%   { transform: translateX(5%) translateY(0); }
+            50%  { transform: translateX(-6%) translateY(6px); }
+            100% { transform: translateX(5%) translateY(0); }
+        }
+
+        @keyframes tide-shift {
+            0%   { transform: translateX(0) translateY(0); }
+            50%  { transform: translateX(-10px) translateY(7px); }
+            100% { transform: translateX(0) translateY(0); }
+        }
+
+        @keyframes hero-rise {
+            0%   { transform: translateX(-50%) translateY(0) rotate(-1deg); }
+            50%  { transform: translateX(-50%) translateY(-12px) rotate(1.5deg); }
+            100% { transform: translateX(-50%) translateY(0) rotate(-1deg); }
+        }
+
+        @keyframes burst {
+            0%   { transform: scale(0.4); opacity: 0.7; }
+            100% { transform: scale(1.75); opacity: 0; }
+        }
+
+        #loading .splash-grid {
+            text-align: center;
+            width: min(420px, 85vw);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            position: relative;
+            padding: 20px;
+            border-radius: 18px;
+            background: rgba(5, 10, 20, 0.75);
+            box-shadow: 0 0 24px rgba(99, 130, 255, 0.35);
+            backdrop-filter: blur(18px);
+        }
+
+        #loading .rainbow-line {
+            height: 4px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #4a90e2, #ad1df7, #ff5a5f, #fcd34d);
+            animation: pulse 2.8s ease-in-out infinite;
+            box-shadow: 0 0 16px rgba(255, 255, 255, 0.5);
+        }
+
+        @keyframes pulse {
+            0%   { transform: scaleX(0.6); }
+            50%  { transform: scaleX(1.1); }
+            100% { transform: scaleX(0.6); }
+        }
+
+        #loading .splash-title {
+            font-size: clamp(1.6rem, 2vw, 2.2rem);
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #f5f8ff;
+            letter-spacing: 0.2em;
+        }
+
+        #loading .splash-subtitle {
+            font-size: 0.9rem;
+            color: #9dd3ff;
+        }
+
+        .loader-track {
+            position: relative;
+            width: 100%;
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .loader-progress {
+            position: absolute;
+            inset: 0;
+            width: 0%;
+            background: linear-gradient(120deg, #52d0ff, #5383ff, #a75bff);
+            border-radius: 999px;
+            transition: width 0.2s ease-out;
+        }
+
+        .loader-glow {
+            position: absolute;
+            inset: 0;
+            mix-blend-mode: screen;
+            background: radial-gradient(circle at 60% 50%, rgba(255, 255, 255, 0.7), transparent 45%);
+            opacity: 0.6;
+            animation: glow 1.8s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%   { transform: scaleX(0.8); opacity: 0.3; }
+            50%  { transform: scaleX(1.05); opacity: 0.8; }
+            100% { transform: scaleX(0.8); opacity: 0.3; }
+        }
+
+        .loading-status {
+            font-size: 0.85rem;
+            color: #cce4ff;
+            text-transform: uppercase;
+        }
+
+        .boot-pips {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .boot-pip {
+            padding: 5px 9px;
+            border-radius: 999px;
+            border: 1px solid rgba(154, 190, 255, 0.2);
+            background: rgba(15, 23, 42, 0.55);
+            color: rgba(206, 227, 255, 0.45);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+        }
+
+        .boot-pip.active {
+            color: #f8fafc;
+            border-color: rgba(110, 194, 255, 0.65);
+            box-shadow: 0 0 14px rgba(56, 189, 248, 0.28);
+        }
+
+        .splash-hint {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.45);
+            transition: color 0.18s ease, opacity 0.18s ease;
+        }
+
+        .splash-hint.ready {
+            color: #f8fafc;
+        }
+
+        .splash-hint.warning {
+            color: #fca5a5;
+        }
+
+        .splash-stars {
+            position: absolute;
+            inset: 0;
+            background-image:
+                radial-gradient(circle, rgba(255, 255, 255, 0.3) 0.8px, transparent 0),
+                radial-gradient(circle, rgba(255, 255, 255, 0.2) 1px, transparent 0),
+                radial-gradient(circle, rgba(255, 255, 255, 0.1) 1.5px, transparent 0);
+            background-size: 120px 120px, 90px 90px, 200px 200px;
+            animation: starfield 18s linear infinite;
+            opacity: 0.8;
+            pointer-events: none;
+        }
+
+        @keyframes starfield {
+            from { background-position: 0 0, 0 0, 0 0; }
+            to { background-position: -400px 200px, 200px -400px, -800px 600px; }
+        }
+    </style>
 </head>
 <body>
-  <p>Loading game&hellip; <a href="gossamer/index_gossamer.html">Click here</a> if not redirected.</p>
+    <div id="scaleContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <div id="loading" class="splash-screen">
+        <div class="battle-scene" aria-hidden="true">
+            <div class="battle-sun"></div>
+            <div class="battle-haze"></div>
+            <div class="battle-grid"></div>
+            <div class="battle-fleet">
+                <span class="enemy enemy-plane"></span>
+                <span class="enemy enemy-blimp"></span>
+                <span class="enemy enemy-sub"></span>
+                <span class="battle-cruiser"></span>
+                <span class="hero-sub-silhouette"></span>
+                <span class="burst burst-a"></span>
+                <span class="burst burst-b"></span>
+                <span class="burst burst-c"></span>
+            </div>
+            <div class="battle-waves"></div>
+        </div>
+        <div class="splash-grid">
+            <div class="rainbow-line"></div>
+            <div class="splash-title">Airborne Submarine Squadron</div>
+            <div class="splash-subtitle">Retro battle boot sequence</div>
+            <div class="loader-track">
+                <span class="loader-progress" id="loadingProgress"></span>
+                <span class="loader-glow"></span>
+            </div>
+            <div class="boot-pips" id="bootPips">
+                <span class="boot-pip active">Hull</span>
+                <span class="boot-pip">Weapons</span>
+                <span class="boot-pip">Telemetry</span>
+                <span class="boot-pip">Launch</span>
+            </div>
+            <div id="loadingStatus" class="loading-status">Calibrating vector pulses…</div>
+            <div id="loadingHint" class="splash-hint">Stand by until the burst completes, then press any key to engage.</div>
+        </div>
+        <div class="splash-stars"></div>
+    </div>
+
+    <!--
+      Scaling layer: auto-fit the 800x600 canvas to the window.
+      Runs before the game script so the canvas is correctly sized
+      from the first frame.
+    -->
+    <script>
+    // SPDX-License-Identifier: AGPL-3.0-or-later
+    (function () {
+        'use strict';
+        const VIRTUAL_W = 800;
+        const VIRTUAL_H = 600;
+        const ASPECT    = VIRTUAL_W / VIRTUAL_H;
+
+        const canvas    = document.getElementById('gameCanvas');
+        const container = document.getElementById('scaleContainer');
+
+        function fitCanvas() {
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            let displayW, displayH;
+            if (cw / ch > ASPECT) {
+                displayH = ch;
+                displayW = Math.floor(ch * ASPECT);
+            } else {
+                displayW = cw;
+                displayH = Math.floor(cw / ASPECT);
+            }
+            canvas.style.width  = displayW + 'px';
+            canvas.style.height = displayH + 'px';
+        }
+        fitCanvas();
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(fitCanvas).observe(container);
+        } else {
+            window.addEventListener('resize', fitCanvas);
+        }
+    })();
+    </script>
+    <script>
+        (function () {
+            const splash = document.getElementById('loading');
+            const progress = document.getElementById('loadingProgress');
+            const status = document.getElementById('loadingStatus');
+            const hint = document.getElementById('loadingHint');
+            const bootPips = Array.from(document.querySelectorAll('#bootPips .boot-pip'));
+            const phases = [
+                'Sealing hull compartments…',
+                'Syncing anti-sub batteries…',
+                'Calibrating vector telemetry…',
+                'Priming launch burst…'
+            ];
+            const MIN_BOOT_MS = 4200;
+            const AUTO_ENGAGE_MS = 22000;
+            const startTime = performance.now();
+            let pct = 0;
+            let frameId = null;
+            let readyPromptShown = false;
+            let autoEngaged = false;
+            let blockTimer = null;
+            const state = {
+                ready: false,
+                user: false,
+                finished: false,
+                acceptingInput: false
+            };
+
+            function setHint(text, tone) {
+                if (!hint) return;
+                hint.textContent = text;
+                hint.classList.toggle('ready', tone === 'ready');
+                hint.classList.toggle('warning', tone === 'warning');
+            }
+
+            function setPhase(index) {
+                bootPips.forEach((pip, pipIndex) => {
+                    pip.classList.toggle('active', pipIndex <= index);
+                });
+            }
+
+            function markReadyForInput() {
+                if (state.acceptingInput) return;
+                state.acceptingInput = true;
+                if (progress) progress.style.width = '100%';
+                if (status) status.textContent = 'Burst complete. Engage on command.';
+                setHint('Press any key, click, or tap now to launch.', 'ready');
+                if (splash) splash.classList.add('accepting-input');
+                readyPromptShown = true;
+                attemptComplete();
+            }
+
+            function attemptComplete() {
+                if (state.finished) return;
+                if (state.ready && state.user && state.acceptingInput) {
+                    finish();
+                }
+            }
+
+            function finish() {
+                state.finished = true;
+                if (frameId) cancelAnimationFrame(frameId);
+                if (progress) progress.style.width = '100%';
+                if (status) status.textContent = 'Transmission locked — launch in three…';
+                if (splash) {
+                    splash.classList.add('splash-complete');
+                    setTimeout(() => splash.style.display = 'none', 600);
+                }
+                cleanup();
+            }
+
+            function update(now) {
+                const elapsed = now - startTime;
+                const bootPct = Math.min(1, elapsed / MIN_BOOT_MS);
+                const phaseIndex = Math.min(phases.length - 1, Math.floor(bootPct * phases.length));
+                setPhase(phaseIndex);
+
+                if (!readyPromptShown && status) {
+                    status.textContent = phases[phaseIndex];
+                }
+
+                if (!state.acceptingInput) {
+                    pct = Math.min(state.ready ? 0.985 : 0.92, bootPct * 0.92 + (state.ready ? 0.05 : 0));
+                } else {
+                    pct = 1;
+                }
+                if (progress) progress.style.width = `${pct * 100}%`;
+
+                if (state.ready && bootPct >= 1) {
+                    markReadyForInput();
+                } else if (!state.acceptingInput && !readyPromptShown) {
+                    setHint('Stand by until the burst completes, then press any key to engage.', '');
+                }
+
+                if (!autoEngaged && elapsed >= AUTO_ENGAGE_MS && state.ready && state.acceptingInput) {
+                    autoEngaged = true;
+                    state.user = true;
+                    attemptComplete();
+                }
+
+                if (!state.finished) frameId = requestAnimationFrame(update);
+            }
+
+            let inputGuard = null;
+            if (splash) {
+                window.__gossamerSplash = {
+                    markReady() {
+                        state.ready = true;
+                        if (performance.now() - startTime >= MIN_BOOT_MS) markReadyForInput();
+                        attemptComplete();
+                    },
+                    markUserReady() {
+                        state.user = true;
+                        attemptComplete();
+                    }
+                };
+                const handleUserInput = (e) => {
+                    if (state.finished) return;
+                    e && e.preventDefault && e.preventDefault();
+                    if (!state.acceptingInput) {
+                        if (status) status.textContent = 'Stand by. Boot sequence still running…';
+                        setHint('Input is locked until the burst completes.', 'warning');
+                        if (splash) {
+                            splash.classList.add('input-blocked');
+                            if (blockTimer) clearTimeout(blockTimer);
+                            blockTimer = setTimeout(() => splash.classList.remove('input-blocked'), 260);
+                        }
+                        return;
+                    }
+                    window.__gossamerSplash.markUserReady();
+                };
+                inputGuard = handleUserInput;
+                function cleanup() {
+                    if (!inputGuard) return;
+                    window.removeEventListener('keydown', handleUserInput);
+                    window.removeEventListener('mousedown', handleUserInput);
+                    window.removeEventListener('pointerdown', handleUserInput);
+                    window.removeEventListener('touchstart', handleUserInput);
+                    if (splash) splash.removeEventListener('click', handleUserInput);
+                    inputGuard = null;
+                }
+                window.addEventListener('keydown', handleUserInput);
+                window.addEventListener('mousedown', handleUserInput);
+                window.addEventListener('pointerdown', handleUserInput);
+                window.addEventListener('touchstart', handleUserInput);
+                if (splash) splash.addEventListener('click', handleUserInput);
+            }
+            update(startTime);
+        })();
+    </script>
+
+    <!-- Game engine -->
+    <script src="gossamer/app_gossamer.js"></script>
 </body>
 </html>

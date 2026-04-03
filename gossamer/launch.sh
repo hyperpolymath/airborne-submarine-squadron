@@ -58,6 +58,10 @@ if [[ "$USE_FALLBACK" == false ]] && [[ -x "$EPHAPAX" ]] && [[ -f "$LIBGOSSAMER"
     echo "Stop from another terminal with: ./launcher.sh --stop"
     echo ""
 
+    # Export absolute page URL so main.eph resolves it correctly
+    # regardless of the invoking shell's working directory.
+    export GOSSAMER_PAGE_URL="file://${GOSSAMER_DIR}/index_gossamer.html"
+
     trap cleanup INT TERM EXIT
     "$EPHAPAX" run "$GOSSAMER_DIR/main.eph" \
         -L "$LIBGOSSAMER" \
@@ -93,13 +97,23 @@ echo "Server: http://127.0.0.1:${PORT}/"
 echo "Stop from another terminal with: ./launcher.sh --stop"
 echo ""
 
-# Serve the gossamer directory via Deno (piped to stdin for Deno 2.x compat)
+# Serve from the game root (one level up from gossamer/) so that:
+#   /gossamer/index_gossamer.html  — the game page
+#   /gossamer/app_gossamer.js      — the game engine
+#   /build/airborne-final-working.wasm — WASM co-processor
+# are all reachable from the same origin (required for WASM fetch).
 deno run --allow-net --allow-read - <<DENO_SERVER &
-const dir = "${GOSSAMER_DIR}";
+const root = "${GAME_ROOT}";
 Deno.serve({ port: ${PORT}, hostname: "127.0.0.1" }, async (req) => {
   const url = new URL(req.url);
-  let path = url.pathname === "/" ? "/index_gossamer.html" : url.pathname;
-  const file = dir + path;
+  // Default route: redirect / to the Gossamer game page
+  let path = url.pathname === "/" ? "/gossamer/index_gossamer.html" : url.pathname;
+  // Prevent path traversal above root
+  const resolved = root + path;
+  if (!resolved.startsWith(root)) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  const file = resolved;
   try {
     const data = await Deno.readFile(file);
     const ext = file.split(".").pop();
@@ -129,7 +143,7 @@ if ! kill -0 "$SERVER_PID" 2>/dev/null; then
 fi
 
 if should_auto_open; then
-    xdg-open "http://127.0.0.1:${PORT}/" 2>/dev/null || true
+    xdg-open "http://127.0.0.1:${PORT}/gossamer/index_gossamer.html" 2>/dev/null || true
 else
     echo "Auto-open skipped; visit http://127.0.0.1:${PORT}/ manually."
 fi

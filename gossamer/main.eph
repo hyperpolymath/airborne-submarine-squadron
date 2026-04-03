@@ -10,8 +10,15 @@
 //
 // Linear resource lifecycle:
 //   webview handle: create -> navigate -> run (consumed)
+//
+// Environment variables:
+//   GOSSAMER_PAGE_URL — absolute file:// URL to index_gossamer.html.
+//                       Set by launch.sh so the path resolves correctly
+//                       regardless of the working directory at invocation.
+//                       Falls back to the relative form for direct invocation.
 
 import Gossamer.Shell
+import System.Env
 
 /// Launch Airborne Submarine Squadron in a Gossamer webview shell.
 ///
@@ -21,6 +28,13 @@ import Gossamer.Shell
 /// virtual resolution — no game logic changes required.
 fn main() -> i32 {
     region app:
+        // Resolve page URL from the environment so we always get an absolute
+        // path regardless of the invoking shell's current directory.
+        let page_url = match Env.get("GOSSAMER_PAGE_URL") {
+            Some(url) => url,
+            None      => "file://index_gossamer.html",
+        }
+
         // Create a resizable, decorated desktop window (linear handle).
         let! webview = Shell.create@app({
             title: "Airborne Submarine Squadron",
@@ -32,8 +46,7 @@ fn main() -> i32 {
         })
 
         // Navigate to the Gossamer-specific game page.
-        // The file URI is resolved relative to the module location.
-        let! (webview, _) = Shell.navigate(webview, "file://index_gossamer.html")
+        let! (webview, _) = Shell.navigate(webview, page_url)
 
         // Run event loop — CONSUMES the webview handle.
         // Blocks until the user closes the window.
