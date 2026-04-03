@@ -332,7 +332,7 @@ async function launchHeadless(platform) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GIT CYCLE — add, commit outstanding, push to origin + mirrors
+// GIT CYCLE — add, commit, push branch, merge to main, push main, push mirrors
 // ─────────────────────────────────────────────────────────────────────────────
 async function gitCycle(sync) {
   log("\n── Git cycle ──");
@@ -341,34 +341,49 @@ async function gitCycle(sync) {
   const add = await run("git", ["add", "-A"]);
   if (!add.ok) { warn("git add failed: " + add.err); return; }
 
-  // Check if anything to commit
+  // Commit if anything staged
   const staged = await run("git", ["diff", "--cached", "--stat"]);
-  if (staged.out.length === 0) {
-    log("Nothing to commit — working tree clean");
-  } else {
+  if (staged.out.length > 0) {
     const msg = `chore: run.js launch cycle — platform auto-detected, self-healed artifacts`;
     const commit = await run("git", ["commit", "-m", msg]);
-    if (commit.ok) {
-      log("Committed: " + msg);
-    } else {
-      warn("git commit failed: " + commit.err);
-    }
+    if (commit.ok) log("Committed: " + msg);
+    else { warn("git commit failed: " + commit.err); return; }
+  } else {
+    log("Nothing to commit — working tree clean");
   }
 
-  // Push to origin
-  if (sync.ahead > 0 || staged.out.length > 0) {
-    log(`Pushing to ${REGISTRY.git.remote}/${sync.branch}...`);
-    const push = await run("git", ["push", REGISTRY.git.remote, sync.branch]);
-    if (push.ok) log("Pushed to origin");
-    else warn("Push failed: " + push.err);
-  } else {
-    log("Already up to date with remote");
+  // Push current branch to origin
+  const pushBranch = await run("git", ["push", REGISTRY.git.remote, sync.branch]);
+  if (pushBranch.ok) log(`Pushed ${sync.branch} → ${REGISTRY.git.remote}`);
+  else warn("Push failed: " + pushBranch.err);
+
+  // Merge to main if not already on main
+  const mainBranch = "main";
+  if (sync.branch !== mainBranch) {
+    log(`Merging ${sync.branch} → ${mainBranch}...`);
+    const checkout = await run("git", ["checkout", mainBranch]);
+    if (!checkout.ok) { warn("Could not switch to main: " + checkout.err); return; }
+
+    const merge = await run("git", ["merge", "--ff-only", sync.branch]);
+    if (merge.ok) {
+      log(`Fast-forward merged ${sync.branch} → ${mainBranch}`);
+    } else {
+      warn(`Fast-forward merge failed — trying regular merge`);
+      const mergeRegular = await run("git", ["merge", sync.branch,
+        "-m", `chore: merge ${sync.branch} → main`]);
+      if (!mergeRegular.ok) { warn("Merge failed: " + mergeRegular.err); return; }
+      log(`Merged ${sync.branch} → ${mainBranch}`);
+    }
+
+    const pushMain = await run("git", ["push", REGISTRY.git.remote, mainBranch]);
+    if (pushMain.ok) log(`Pushed ${mainBranch} → ${REGISTRY.git.remote}`);
+    else warn("Main push failed: " + pushMain.err);
   }
 
   // Push to mirrors
   for (const mirror of REGISTRY.git.mirrors) {
     log(`Pushing to mirror: ${mirror}`);
-    const mp = await run("git", ["push", mirror, sync.branch]);
+    const mp = await run("git", ["push", mirror, mainBranch]);
     if (mp.ok) log(`Pushed to ${mirror}`);
     else warn(`Mirror push failed (${mirror}): ${mp.err}`);
   }
