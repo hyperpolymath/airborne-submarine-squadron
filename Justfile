@@ -18,8 +18,12 @@ check:
 build:
   ./build.sh
 
-# Run WASM via wasmtime (CLI mode)
+# Launch the game (platform-detect, self-heal, git cycle)
 run:
+  deno run --allow-all run.js
+
+# Run WASM directly via wasmtime (CLI/headless mode)
+run-wasm:
   wasmtime build/airborne-submarine-squadron.wasm
 
 # Serve game via Deno file server on port 6860
