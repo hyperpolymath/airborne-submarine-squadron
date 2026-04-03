@@ -1,38 +1,48 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Mustfile - declarative state contract (template)
+# Mustfile - declarative state contract for Airborne Submarine Squadron
 # See: https://github.com/hyperpolymath/mustfile
 
 version: 1
 
 metadata:
-  name: project-state-contract
-  spec: v0.0.1
-  description: "Invariant checks for config, policy, gateway, logs, and schema."
+  name: airborne-submarine-squadron-contract
+  spec: v0.5.0
+  description: "Invariant checks for game build, SCM files, and project health."
   primary-owner: "JoshuaJewell (owner)"
   primary-admin: "hyperpolymath (project admin)"
-  ownership-note: "This repository is JoshuaJewell's primary space and must be treated as his first and foremost project."
 
 parameters:
-  gateway_port: "8080"
-  schema_version: "v0.0.1"
+  port: "6860"
 
 checks:
-  - name: config-valid
-    description: "config/service.yaml must be valid."
-    run: "yq -e '.' config/service.yaml >/dev/null"
+  - name: scm-files-exist
+    description: "Machine-readable SCM files must exist in .machine_readable/"
+    run: "test -f .machine_readable/STATE.scm && test -f .machine_readable/META.scm && test -f .machine_readable/ECOSYSTEM.scm"
 
-  - name: policy-compiles
-    description: "policy/policy.ncl must compile."
-    run: "nickel check policy/policy.ncl"
+  - name: ai-manifest-exists
+    description: "AI manifest must exist at root"
+    run: "test -f 0-AI-MANIFEST.a2ml"
 
-  - name: gateway-exposes-port
-    description: "Service must expose the configured port."
-    run: "bash -uc 'ss -lnt | rg \":${GATEWAY_PORT:-8080}\"'"
+  - name: gossamer-parses
+    description: "Gossamer game engine JS must parse without syntax errors"
+    run: "deno eval \"import('file://' + Deno.cwd() + '/gossamer/app_gossamer.js').catch(e => { if (!e.message.includes('document')) { console.error(e); Deno.exit(1); } })\""
 
-  - name: logs-are-json
-    description: "Logs must be JSON."
-    run: "bash -uc 'rg --files -g \"*.json\" logs | xargs -r jq -e .'"
+  - name: tray-compiles
+    description: "Rust tray binary must compile"
+    run: "cd tray && cargo check"
 
-  - name: schema-version-matches
-    description: "Schema must match version spec."
-    run: "bash -uc 'rg -n \"${SCHEMA_VERSION:-v0.0.1}\" schema'"
+  - name: deno-files-check
+    description: "Deno JS files must type-check"
+    run: "deno check run_wasm.js && deno check test_verisimdb_simple.js"
+
+  - name: well-known-present
+    description: ".well-known directory must have security.txt"
+    run: "test -f .well-known/security.txt"
+
+  - name: license-correct
+    description: "LICENSE must be AGPL-3.0-or-later"
+    run: "head -1 LICENSE | grep -q 'GNU AFFERO'"
+
+  - name: no-node-references
+    description: "No Node.js or npm references in active code"
+    run: "! grep -r 'require(' gossamer/app_gossamer.js run_wasm.js"

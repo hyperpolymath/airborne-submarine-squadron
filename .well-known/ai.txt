@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# AI Disclosure for Airborne Submarine Squadron
+#
+# This project uses AI-assisted development (Claude, Gemini, Copilot).
+# All AI-generated code is reviewed by human maintainers before merge.
+#
+# Training: This repository is licensed under AGPL-3.0-or-later.
+# AI training on this code must comply with the license terms.
+#
+# Contact: 6759885+hyperpolymath@users.noreply.github.com

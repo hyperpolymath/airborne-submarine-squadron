@@ -1,20 +1,24 @@
 ;; SPDX-License-Identifier: AGPL-3.0-or-later
-;; ECOSYSTEM.scm - Project ecosystem position
+;; ECOSYSTEM.a2ml - Ecosystem position and relationships (6a2 format)
+;; Updated: 2026-04-03
 
-(ecosystem
- (version "1.0")
- (name "airborne-submarine-squadron")
- (type "TODO: library|application|tool|framework")
- (purpose "TODO: Brief purpose statement")
+(define ecosystem
+  '((position
+     (type "game")
+     (category "arcade")
+     (monorepo "standalone")
+     (primary-owner "JoshuaJewell")
+     (admin "hyperpolymath"))
 
- (position-in-ecosystem
-  "TODO: Describe where this fits in the hyperpolymath ecosystem")
+    (related-projects
+     (gossamer "Desktop runtime framework — sister project")
+     (affinescript "Game engine language — in nextgen-languages")
+     (verisimdb "Database integration — in nextgen-databases")
+     (proven "Formal verification patterns"))
 
- (related-projects
-  ())  ;; Add related projects with relationship types
-
- (what-this-is
-  "TODO: What this project is")
-
- (what-this-is-not
-  "TODO: What this project is not"))
+    (technologies
+     (languages "JavaScript" "AffineScript" "Rust" "Zig" "Bash")
+     (runtime "Deno" "Gossamer (WebKitGTK)")
+     (build "just" "cargo" "affinescript compiler")
+     (desktop "XDG" "ksni (KDE StatusNotifierItem)")
+     (standards "AGPL-3.0-or-later" "Idris2 ABI" "Zig FFI"))))

@@ -1,0 +1,19 @@
+/* TEAM */
+Lead: Jonathan D.A. Jewell
+GitHub: hyperpolymath
+Email: j.d.a.jewell@open.ac.uk
+Location: United Kingdom
+
+Co-developer: Joshua Jewell
+GitHub: JoshuaJewell
+Role: Primary owner, gameplay design
+
+/* THANKS */
+Sopwith (1984) — inspiration for the side-scrolling arcade format
+Gossamer project — desktop runtime framework
+
+/* TECHNOLOGY */
+Languages: JavaScript, AffineScript, Rust, Zig, Bash
+Runtime: Deno, Gossamer (WebKitGTK)
+Build: just, cargo, affinescript compiler
+License: AGPL-3.0-or-later

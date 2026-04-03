@@ -2,93 +2,83 @@
 ; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 ;
 ; STATE.scm -- Airborne Submarine Squadron project state
-; Updated: 2026-03-21
+; Updated: 2026-04-03
 
 (state
   (metadata
-    (version "0.3.0")
+    (version "0.5.0")
     (name "airborne-submarine-squadron")
     (type "game")
-    (last-updated "2026-03-21"))
+    (last-updated "2026-04-03"))
 
   (project-context
-    (description "Sopwith-inspired flying submarine arcade game")
+    (description "Sopwith-inspired flying submarine arcade game with space, underwater, and land combat")
     (monorepo "games & trivia")
     (language "AffineScript")
-    (target "WASM + browser")
+    (target "WASM + browser + Gossamer desktop")
     (port 6860))
 
   (current-position
-    (phase "playable-prototype")
-    (completion-percentage 55)
-    (milestone "JS placeholder engine playable, WASM builds exist"))
+    (phase "alpha")
+    (completion-percentage 75)
+    (milestone "Full gameplay loop: atmosphere, water, space. Ships, subs, thermal layers, hangars."))
 
   (components
     (game-engine
       (status "working")
-      (details "Sopwith-style side-scrolling, gravity, thrust, terrain generation,
-                enemy AI, torpedo/bomb weapons, cooldowns, collision detection,
-                particle effects, procedural audio, HUD overlay")
-      (implementation "JavaScript placeholder in web/app_enhanced_home.js")
-      (wasm-builds "exist in build/ but not yet wired to frontend"))
-
+      (details "Gossamer variant: free flight, orbital mechanics, periscope, depth charges,
+                torpedoes (including LGT), missiles, chaff, mines with chain-cutting,
+                thermal layers with visibility rules, caterpillar drive, supply drops"))
+    (ships
+      (status "working")
+      (details "Destroyer (patrol, SAM, AA, torpedoes), Passenger (island-hopping, survivors),
+                Interceptor boats (camo, MG, bazooka), Space tourist"))
+    (submarines
+      (status "working")
+      (details "Akula-Molot hammerhead (SAM, torpedo, cloak, sonar chain, all-layer detection),
+                Delfin dolphin (fire-forget torpedo, surface MG, crew bail-out)"))
+    (hangar-system
+      (status "working")
+      (details "Health tiers (green/yellow/red/purple), point defense, explosion"))
+    (thermal-layers
+      (status "working")
+      (details "Three asymmetric layers, visibility rules, temperature gauge, hull depth restriction"))
+    (space
+      (status "working")
+      (details "Solar system with Pluto, boundary, autopilot (0-9 keys), tourist ship, no afterburners"))
     (desktop-integration
       (status "working")
-      (details "XDG .desktop file, SVG icon, install/uninstall scripts")
-      (installer "desktop/install.sh")
-      (shortcut "desktop/airborne-submarine-squadron.desktop"))
-
-    (system-tray
+      (details "XDG shortcut, system tray (ksni 0.3), install/uninstall"))
+    (save-system
       (status "working")
-      (details "Rust binary using ksni for KDE StatusNotifierItem")
-      (binary "tray/target/release/airborne-tray")
-      (features "launch browser, launch CLI, server status, stop server, quit"))
-
-    (launcher
-      (status "working")
-      (details "Unified launcher.sh with browser, CLI, tray, install modes")
-      (server "Deno inline file server")
-      (fallback "Python http.server (deprecated)"))
-
-    (affinescript-source
-      (status "compiles")
-      (details "Multiple source iterations in src/, main.as is canonical")
-      (compiler "affinescript from nextgen-languages/affinescript")))
+      (details "Save/load to localStorage, key rebinding, HALO/deep-diver-kit upgrades")))
 
   (route-to-mvp
     (milestone-1
-      (name "Wire WASM engine to browser frontend")
-      (status "not-started")
-      (details "Replace JS placeholder with compiled AffineScript WASM module"))
+      (name "v2: Trionic SubCommando")
+      (status "planned")
+      (tasks "Island platformer mode, diver mission tunnels"))
     (milestone-2
-      (name "Sound effects")
-      (status "not-started")
-      (details "Replace procedural audio with proper sound assets"))
+      (name "v3: Subterranean Labyrinth")
+      (status "planned")
+      (tasks "Underground cave system, modified sub controls"))
     (milestone-3
-      (name "More enemy types")
-      (status "not-started")
-      (details "Add destroyers, mines, aircraft, depth charges"))
-    (milestone-4
-      (name "Mission structure")
-      (status "not-started")
-      (details "Objectives, waves, boss encounters, scoring tiers"))
-    (milestone-5
-      (name "Power-ups and obstacles")
-      (status "designed")
-      (details "See powerups-design.md and obstacles-design.md")))
+      (name "Space expansion")
+      (status "planned")
+      (tasks "Radar/astrocompass, compressed scale, more vessels, dimensional travel")))
 
   (blockers-and-issues
     (blocker-1
-      (description "AffineScript compiler maturity")
+      (description "AffineScript compiler not yet mature enough for full WASM pipeline")
       (severity "medium")
-      (details "Compiler is in development in nextgen-languages/affinescript"))
+      (workaround "JS placeholder engine with prebuilt WASM artifacts"))
     (blocker-2
-      (description "WASM-JS bridge not wired")
+      (description "Gossamer desktop runtime requires WebKitGTK")
       (severity "low")
-      (details "WASM builds exist but JS frontend runs standalone")))
+      (workaround "Browser fallback works everywhere")))
 
   (critical-next-actions
-    (action-1 "Wire WASM game engine to replace JS placeholder")
-    (action-2 "Add sound asset loading")
-    (action-3 "Design and implement additional enemy types")
-    (action-4 "Integrate power-ups from powerups-design.md")))
+    (action-1 "Compress solar system scale and add radar/astrocompass")
+    (action-2 "Add mission system with hostage rescue scenarios")
+    (action-3 "Implement Trionic SubCommando platformer for mission islands")
+    (action-4 "Add more GitHub Actions workflows for CI/CD")))

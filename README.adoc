@@ -1,8 +1,8 @@
 = Airborne Submarine Squadron (ASS)
 
-image:https://img.shields.io/badge/License-Palimpsest--MPL%201.0-blue.svg[License: Palimpsest-MPL 1.0,link=https://github.com/hyperpolymath/palimpsest-license]
+image:https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg[License: AGPL-3.0-or-later,link=LICENSE]
 
-Airborne Submarine Squadron is a browser-forward take on the classic Sopwith-style arcade, rebuilt on the Gossamer launcher and wired to a Palimpsest-MPL licensed stack. The current build layers deterministic simulation, cinematic HUD telemetry, orbital warp transitions, depth-charge weapons, and leaderboard persistence inside a retro-inspired visual shell.
+Airborne Submarine Squadron is a browser-forward take on the classic Sopwith-style arcade, rebuilt on the Gossamer launcher. Features atmosphere flight, underwater combat with thermal layers and caterpillar drive, orbital space navigation, three ship types, two enemy submarine classes, mine chain-cutting, supply drops, hangar defense, and a commander ejection system.
 
 == Status
 

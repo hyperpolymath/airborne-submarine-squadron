@@ -1,22 +1,6 @@
 # Security Policy
 
-<!-- 
-============================================================================
-TEMPLATE INSTRUCTIONS (delete this block before publishing)
-============================================================================
-Replace all {{PLACEHOLDER}} values with your information:
-  Airborne Submarine Squadron     - Your project name
-  hyperpolymath            - GitHub username or org (e.g., hyperpolymath)
-  airborne-submarine-squadron             - Repository name
-  6759885+hyperpolymath@users.noreply.github.com   - Security contact email
-  {{PGP_FINGERPRINT}}  - Your PGP key fingerprint (40 chars, no spaces)
-  {{PGP_KEY_URL}}      - URL to your public PGP key
-  {{WEBSITE}}          - Your website/domain
-  2026     - Current year for copyright
-
-Optional: Remove sections that don't apply (e.g., PGP if you don't use it)
-============================================================================
--->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 We take security seriously. We appreciate your efforts to responsibly disclose vulnerabilities and will make every effort to acknowledge your contributions.
 
@@ -59,12 +43,12 @@ If you cannot use GitHub Security Advisories, you may email us directly:
 | | |
 |---|---|
 | **Email** | 6759885+hyperpolymath@users.noreply.github.com |
-| **PGP Key** | [Download Public Key]({{PGP_KEY_URL}}) |
-| **Fingerprint** | `{{PGP_FINGERPRINT}}` |
+| **PGP Key** | [Download Public Key](https://github.com/hyperpolymath.gpg) |
+| **Fingerprint** | `N/A` |
 
 ```bash
 # Import our PGP key
-curl -sSL {{PGP_KEY_URL}} | gpg --import
+curl -sSL https://github.com/hyperpolymath.gpg | gpg --import
 
 # Verify fingerprint
 gpg --fingerprint 6759885+hyperpolymath@users.noreply.github.com
@@ -370,7 +354,7 @@ When using Airborne Submarine Squadron, we recommend:
 
 ## Additional Resources
 
-- [Our PGP Public Key]({{PGP_KEY_URL}})
+- [Our PGP Public Key](https://github.com/hyperpolymath.gpg)
 - [Security Advisories](https://github.com/hyperpolymath/airborne-submarine-squadron/security/advisories)
 - [Changelog](CHANGELOG.md)
 - [Contributing Guidelines](CONTRIBUTING.md)
