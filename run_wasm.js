@@ -1,42 +1,32 @@
-// Simple WASM runner for Node.js
-const fs = require('fs');
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Simple WASM runner for Deno
+// Usage: deno run --allow-read run_wasm.js [wasmFile] [functionName]
 
-const wasmFile = process.argv[2] || 'build/airborne-submarine-squadron.wasm';
-const functionName = process.argv[3] || 'main';
+const wasmFile = Deno.args[0] || 'build/airborne-submarine-squadron.wasm';
+const functionName = Deno.args[1] || 'main';
 
-const wasmBuffer = fs.readFileSync(wasmFile);
+const wasmBuffer = await Deno.readFile(wasmFile);
 
-let importObject = {
+const importObject = {
   wasi_snapshot_preview1: {
     fd_write: () => 0,
   },
 };
 
-let wasi = null;
 try {
-  const { WASI } = require('wasi');
-  wasi = new WASI({ args: [], env: {}, preopens: {} });
-  importObject = { ...statePushImport, wasi_snapshot_preview1: wasi.wasiImport };
-} catch (_) {
-  // Fallback to stubbed fd_write if WASI isn't available.
-}
-
-WebAssembly.instantiate(wasmBuffer, importObject).then(result => {
+  const result = await WebAssembly.instantiate(wasmBuffer, importObject);
   const instance = result.instance;
-  if (wasi) {
-    wasi.initialize(instance);
-  }
-
   const exports = instance.exports;
+
   if (typeof exports[functionName] === 'function') {
     const returnValue = exports[functionName]();
     console.log(`${functionName}() returned: ${returnValue}`);
-    process.exit(0);
+    Deno.exit(0);
   } else {
     console.error(`Function ${functionName} not found in exports`);
-    process.exit(1);
+    Deno.exit(1);
   }
-}).catch(err => {
+} catch (err) {
   console.error('Error:', err);
-  process.exit(1);
-});
+  Deno.exit(1);
+}

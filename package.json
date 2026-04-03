@@ -5,8 +5,8 @@
   "main": "build/airborne-submarine-squadron.wasm",
   "scripts": {
     "build": "./build.sh",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node run_wasm.js build/airborne-submarine-squadron.wasm main",
+    "test": "deno run --allow-net test_verisimdb_simple.js",
+    "start": "./launcher.sh",
     "launch": "./launcher.sh",
     "install": "./install.sh"
   },
@@ -18,7 +18,7 @@
     "gossamer",
     "retro"
   ],
-  "author": "hyperpolymath",
+  "author": "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",

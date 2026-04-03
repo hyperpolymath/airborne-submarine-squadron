@@ -1,4 +1,4 @@
-; SPDX-License-Identifier: PMPL-1.0-or-later
+; SPDX-License-Identifier: AGPL-3.0-or-later
 ; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 ;
 ; 0-AI-MANIFEST.a2ml -- AI Agent Entry Point
@@ -11,7 +11,7 @@ version = "0.4.0"
 type = "game"
 description = "Sopwith-inspired flying submarine arcade game. Standalone repository with AffineScript -> WASM engine, browser launcher, Gossamer desktop frontend, Deno file server, and Rust system tray binary."
 author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>"
-license = "PMPL-1.0-or-later"
+license = "AGPL-3.0-or-later"
 monorepo = "none"
 
 [canonical-locations]
@@ -20,9 +20,9 @@ state = ".machine_readable/STATE.scm"
 meta = ".machine_readable/META.scm"
 ecosystem = ".machine_readable/ECOSYSTEM.scm"
 readme = "README.adoc"
-launcher = "launcher.sh"
+entry-point = "launcher.sh"
 integration-helper = "integ.sh"
-license = "LICENSE"
+license-file = "LICENSE"
 
 [key-files]
 launcher = "launcher.sh"
@@ -30,6 +30,8 @@ game-engine-js = "web/app_enhanced_home.js"
 game-page = "web/index_home.html"
 game-style = "web/style_home.css"
 affinescript-source = "src/main.as"
+gossamer-engine = "gossamer/app_gossamer.js"
+gossamer-page = "gossamer/index_gossamer.html"
 tray-binary-source = "tray/src/main.rs"
 tray-cargo = "tray/Cargo.toml"
 build-script = "build.sh"

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Airborne Submarine Squadron — Sopwith-style side-scrolling arcade
 // A flying submarine over scrolling terrain with sky, water, and land.
 
@@ -18,7 +18,13 @@ const TORPEDO_SPEED = 6;
 
 // --- Input state ---
 const keys = {};
-document.addEventListener('keydown', e => { keys[e.key] = true; e.preventDefault(); });
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === 'Escape' && world && !world.gameOver) {
+    world.paused = !world.paused;
+  }
+  e.preventDefault();
+});
 document.addEventListener('keyup', e => { keys[e.key] = false; });
 
 // --- Terrain generation ---
@@ -444,6 +450,22 @@ function draw() {
 
   // --- HUD ---
   drawHUD();
+
+  // --- Pause overlay ---
+  if (world.paused && !world.gameOver) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 40px Arial';
+    ctx.fillText('PAUSED', W / 2, H / 2 - 60);
+    ctx.font = '16px Arial';
+    ctx.fillText('Esc to resume', W / 2, H / 2 - 30);
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#bdc3c7';
+    ctx.fillText('Arrows: fly  |  Space: torpedo  |  Shift: bomb', W / 2, H / 2 + 10);
+    ctx.fillText('R: restart  |  Esc: pause', W / 2, H / 2 + 34);
+  }
 
   // --- Game over ---
   if (world.gameOver) {
