@@ -1,0 +1,50 @@
+AIRBORNE SUBMARINE SQUADRON - COMPLETE FILE LISTING
+===================================================
+
+Last Updated: $(date)
+Total Files: $(find ~/airborne-game -type f | wc -l)
+
+DIRECTORY STRUCTURE:
+└── airborne-game/
+    ├── wasm/
+    │   └── airborne-final-working.wasm      (Compiled game)
+    ├── src/
+    │   └── main_final_working.as          (Source code)
+    ├── web/
+    │   ├── app.js                         (Basic interface)
+    │   ├── app_enhanced.js                 (Enhanced interface)
+    │   ├── index.html                      (HTML launcher)
+    │   └── style.css                       (CSS styling)
+    ├── docs/
+    │   ├── GAMEPLAY.md                     (Gameplay guide)
+    │   ├── DEVELOPMENT.md                  (Development guide)
+    │   └── COMPILATION.md                  (Compilation instructions)
+    ├── notes/
+    │   ├── powerups.txt                    (Power-up notes)
+    │   ├── obstacles.txt                   (Obstacle notes)
+    │   └── todo.txt                        (Future enhancements)
+    ├── launcher.sh                        (Unified launcher)
+    ├── integ.sh                           (Desktop/menu integration helper)
+    ├── FILELIST.txt                       (This file)
+    └── README.md                          (Main documentation)
+
+FILE DETAILS:
+$HOME/airborne-game/airborne-final-working.wasm 8594 bytes 2026-03-21 15:15:35.987105564 +0000
+$HOME/airborne-game/web/app.js 12122 bytes 2026-03-21 15:24:12.448271682 +0000
+$HOME/airborne-game/web/index.html 1654 bytes 2026-03-21 15:24:12.448577237 +0000
+$HOME/airborne-game/web/style.css 2343 bytes 2026-03-21 15:24:12.448790595 +0000
+$HOME/airborne-game/web/app_enhanced.js 8684 bytes 2026-03-21 15:24:12.447856517 +0000
+$HOME/airborne-game/wasm/airborne-final-working.wasm 8594 bytes 2026-03-21 15:24:12.443403496 +0000
+$HOME/airborne-game/src/main_final_working.as 22182 bytes 2026-03-21 15:24:12.445330156 +0000
+$HOME/airborne-game/docs/GAMEPLAY.md 2767 bytes 2026-03-21 15:25:41.190276454 +0000
+$HOME/airborne-game/docs/DEVELOPMENT.md 3862 bytes 2026-03-21 15:25:41.191336491 +0000
+$HOME/airborne-game/docs/COMPILATION.md 1977 bytes 2026-03-21 15:25:41.192336529 +0000
+$HOME/airborne-game/notes/powerups.txt 1444 bytes 2026-03-21 15:25:41.193336566 +0000
+$HOME/airborne-game/notes/obstacles.txt 1415 bytes 2026-03-21 15:25:41.195321071 +0000
+$HOME/airborne-game/notes/todo.txt 1708 bytes 2026-03-21 15:25:41.196336677 +0000
+$HOME/airborne-game/README.md 3013 bytes 2026-03-21 15:25:41.188336380 +0000
+$HOME/airborne-game/launcher.sh 5468 bytes 2026-03-22 18:34:00.000000000 +0000
+$HOME/airborne-game/integ.sh 225 bytes 2026-03-31 15:22:00.000000000 +0000
+$HOME/airborne-game/FILELIST.txt 2753 bytes 2026-03-21 15:25:41.225337757 +0000
+
+TOTAL SIZE: 116K
