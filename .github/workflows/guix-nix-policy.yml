@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Governance file check — verifies minimum repository hygiene files exist.
+# This repo does not use Guix/Nix; this workflow enforces governance baselines instead.
+
+name: Governance Policy
+
+on:
+  push:
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  governance-files:
+    name: Governance Files Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Check required governance files
+        run: |
+          MISSING=0
+
+          for f in SECURITY.md CONTRIBUTING.md CODE_OF_CONDUCT.md .editorconfig; do
+            if [ ! -f "$f" ]; then
+              echo "MISSING: $f"
+              MISSING=$((MISSING + 1))
+            else
+              echo "OK: $f"
+            fi
+          done
+
+          if [ "$MISSING" -gt 0 ]; then
+            echo ""
+            echo "ERROR: $MISSING governance file(s) missing. Please add them."
+            exit 1
+          fi
+
+          echo ""
+          echo "All governance files present."

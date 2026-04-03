@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Workflow linter — checks that all workflow files meet basic RSR standards:
+# SPDX headers present, permissions declared, no obvious hardcoded secrets.
+
+name: Workflow Linter
+
+on:
+  push:
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  lint-workflows:
+    name: Lint GitHub Actions Workflows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Check workflow standards
+        run: |
+          FAIL=0
+          WORKFLOWS=$(find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null)
+
+          if [ -z "$WORKFLOWS" ]; then
+            echo "No workflow files found."
+            exit 0
+          fi
+
+          for wf in $WORKFLOWS; do
+            echo "Checking: $wf"
+
+            # Must have SPDX header
+            if ! grep -q "SPDX-License-Identifier:" "$wf"; then
+              echo "  FAIL: Missing SPDX-License-Identifier header"
+              FAIL=$((FAIL + 1))
+            fi
+
+            # Must declare permissions
+            if ! grep -q "permissions:" "$wf"; then
+              echo "  FAIL: Missing permissions declaration"
+              FAIL=$((FAIL + 1))
+            fi
+
+            # Check for obvious hardcoded secrets patterns (AWS keys, etc.)
+            if grep -qE 'AKIA[0-9A-Z]{16}|password\s*=\s*['"'"'"][^'"'"'"]{8,}' "$wf"; then
+              echo "  FAIL: Possible hardcoded secret detected"
+              FAIL=$((FAIL + 1))
+            fi
+          done
+
+          if [ "$FAIL" -gt 0 ]; then
+            echo ""
+            echo "ERROR: $FAIL workflow linting issue(s) found."
+            exit 1
+          fi
+
+          echo ""
+          echo "All workflow files pass linting."

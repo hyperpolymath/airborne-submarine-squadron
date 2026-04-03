@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Mirror repository to GitLab and Bitbucket on every push to main.
+
+name: Mirror
+
+on:
+  push:
+    branches: ["main"]
+
+permissions: read-all
+
+jobs:
+  mirror:
+    name: Mirror to GitLab and Bitbucket
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387
+        with:
+          ssh-private-key: |
+            ${{ secrets.GITLAB_SSH_KEY }}
+            ${{ secrets.BITBUCKET_SSH_KEY }}
+
+      - name: Push to GitLab
+        if: ${{ secrets.GITLAB_TOKEN != '' }}
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@gitlab.com/hyperpolymath/airborne-submarine-squadron.git" 2>/dev/null || true
+          git push gitlab --mirror
+
+      - name: Push to Bitbucket
+        if: ${{ secrets.BITBUCKET_TOKEN != '' }}
+        env:
+          BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
+        run: |
+          git remote add bitbucket "https://x-token-auth:${BITBUCKET_TOKEN}@bitbucket.org/hyperpolymath/airborne-submarine-squadron.git" 2>/dev/null || true
+          git push bitbucket --mirror

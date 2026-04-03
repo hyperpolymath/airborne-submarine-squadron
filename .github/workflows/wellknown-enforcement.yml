@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# .well-known enforcement — verifies security.txt is present.
+
+name: Well-Known Enforcement
+
+on:
+  push:
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  wellknown:
+    name: .well-known/security.txt Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Check .well-known/security.txt
+        run: |
+          if [ ! -f ".well-known/security.txt" ]; then
+            echo "ERROR: .well-known/security.txt is missing."
+            echo "Add a security contact file per RFC 9116."
+            exit 1
+          fi
+
+          SIZE=$(wc -c < ".well-known/security.txt")
+          if [ "$SIZE" -lt 10 ]; then
+            echo "ERROR: .well-known/security.txt is empty or trivial."
+            exit 1
+          fi
+
+          echo "OK: .well-known/security.txt present (${SIZE} bytes)."

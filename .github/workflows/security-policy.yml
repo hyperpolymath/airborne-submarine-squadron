@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Security policy check — verifies SECURITY.md exists and has content.
+
+name: Security Policy
+
+on:
+  push:
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  security-policy:
+    name: SECURITY.md Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Check SECURITY.md
+        run: |
+          if [ ! -f SECURITY.md ]; then
+            echo "ERROR: SECURITY.md is missing. Add a security policy."
+            exit 1
+          fi
+
+          # Must have at least some meaningful content (>= 50 bytes)
+          SIZE=$(wc -c < SECURITY.md)
+          if [ "$SIZE" -lt 50 ]; then
+            echo "ERROR: SECURITY.md exists but appears empty or trivial (${SIZE} bytes)."
+            exit 1
+          fi
+
+          echo "OK: SECURITY.md present and has content (${SIZE} bytes)."

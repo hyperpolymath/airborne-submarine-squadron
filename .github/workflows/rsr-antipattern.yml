@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# RSR antipattern check — fails if banned tooling artifacts are detected.
+# Banned: npm/node lockfiles, node_modules, .nvmrc, tsconfig.json, npm: imports.
+
+name: RSR Antipattern
+
+on:
+  push:
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  antipattern:
+    name: RSR Antipattern Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Check for banned artifacts
+        run: |
+          FAIL=0
+
+          # Banned lockfiles and config files
+          for f in package-lock.json .nvmrc tsconfig.json; do
+            if [ -f "$f" ]; then
+              echo "BANNED: $f found in repository root"
+              FAIL=$((FAIL + 1))
+            fi
+          done
+
+          # node_modules directory
+          if [ -d "node_modules" ]; then
+            echo "BANNED: node_modules/ directory found — never commit dependencies"
+            FAIL=$((FAIL + 1))
+          fi
+
+          # npm: imports in JS/MJS files
+          if grep -rn --include="*.js" --include="*.mjs" 'import.*from.*['"'"'"]npm:' . 2>/dev/null | grep -v '^\./node_modules/'; then
+            echo "BANNED: npm: import specifiers found in JS/MJS files"
+            FAIL=$((FAIL + 1))
+          fi
+
+          if [ "$FAIL" -gt 0 ]; then
+            echo ""
+            echo "ERROR: $FAIL RSR antipattern(s) detected. Remove banned artifacts."
+            exit 1
+          fi
+
+          echo "No RSR antipatterns detected."

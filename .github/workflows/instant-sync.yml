@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Instant sync — lightweight forge propagation on every push to any branch.
+# Keeps GitLab and Bitbucket mirrors up to date without waiting for the main-only mirror.
+
+name: Instant Sync
+
+on:
+  push:
+
+permissions: read-all
+
+jobs:
+  sync:
+    name: Forge Sync
+    runs-on: ubuntu-latest
+    # Only sync non-main branches here; main is handled by mirror.yml with --mirror
+    if: github.ref != 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Push branch to GitLab
+        if: ${{ secrets.GITLAB_TOKEN != '' }}
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@gitlab.com/hyperpolymath/airborne-submarine-squadron.git" 2>/dev/null || true
+          git push gitlab "HEAD:refs/heads/${BRANCH}" --force-with-lease || true
+
+      - name: Push branch to Bitbucket
+        if: ${{ secrets.BITBUCKET_TOKEN != '' }}
+        env:
+          BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git remote add bitbucket "https://x-token-auth:${BITBUCKET_TOKEN}@bitbucket.org/hyperpolymath/airborne-submarine-squadron.git" 2>/dev/null || true
+          git push bitbucket "HEAD:refs/heads/${BRANCH}" --force-with-lease || true

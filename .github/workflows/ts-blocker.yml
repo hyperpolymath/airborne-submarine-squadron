@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# TypeScript blocker — fails if any .ts or .tsx files are found.
+# TypeScript is banned per RSR policy; use ReScript instead.
+
+name: TypeScript Blocker
+
+on:
+  push:
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  block-typescript:
+    name: Block TypeScript Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Check for TypeScript files
+        run: |
+          TS_FILES=$(find . \
+            -not -path "./.git/*" \
+            -not -path "./node_modules/*" \
+            \( -name "*.ts" -o -name "*.tsx" \) \
+            2>/dev/null)
+
+          if [ -n "$TS_FILES" ]; then
+            echo "BANNED TypeScript files found:"
+            echo "$TS_FILES"
+            echo ""
+            echo "ERROR: TypeScript is banned. Convert to ReScript (.res) instead."
+            exit 1
+          fi
+
+          echo "No TypeScript files found."

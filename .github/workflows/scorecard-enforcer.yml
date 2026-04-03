@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Scorecard enforcer — basic hygiene gate on pull requests.
+# Checks that minimum security hygiene requirements are met before merge.
+
+name: Scorecard Enforcer
+
+on:
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  enforce:
+    name: Security Hygiene Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Basic hygiene checks
+        run: |
+          FAIL=0
+
+          # SECURITY.md must exist and have content
+          if [ ! -f SECURITY.md ]; then
+            echo "FAIL: SECURITY.md missing"
+            FAIL=$((FAIL + 1))
+          else
+            echo "OK: SECURITY.md present"
+          fi
+
+          # LICENSE must exist
+          if [ ! -f LICENSE ] && [ ! -f LICENSE.txt ]; then
+            echo "FAIL: LICENSE / LICENSE.txt missing"
+            FAIL=$((FAIL + 1))
+          else
+            echo "OK: License file present"
+          fi
+
+          # CONTRIBUTING.md should exist
+          if [ ! -f CONTRIBUTING.md ]; then
+            echo "FAIL: CONTRIBUTING.md missing"
+            FAIL=$((FAIL + 1))
+          else
+            echo "OK: CONTRIBUTING.md present"
+          fi
+
+          # No executable scripts without shebangs (basic check)
+          BAD_SCRIPTS=$(find . -not -path "./.git/*" -name "*.sh" -perm /111 \
+            -exec sh -c '[ "$(head -c 2 "$1")" != "#!" ] && echo "$1"' _ {} \; 2>/dev/null)
+          if [ -n "$BAD_SCRIPTS" ]; then
+            echo "WARN: Shell scripts without shebangs:"
+            echo "$BAD_SCRIPTS"
+            # Warning only, not a hard failure
+          fi
+
+          if [ "$FAIL" -gt 0 ]; then
+            echo ""
+            echo "ERROR: $FAIL hygiene check(s) failed."
+            echo "Resolve these before merging to maintain scorecard score."
+            exit 1
+          fi
+
+          echo ""
+          echo "All hygiene checks passed."
