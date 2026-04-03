@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 //
 // System tray icon for Airborne Submarine Squadron.
@@ -6,6 +6,9 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+use ksni::blocking::TrayMethods;
+use ksni::menu::StandardItem;
 
 const PID_FILE: &str = "/tmp/airborne-server.pid";
 const PORT_FILE: &str = "/tmp/airborne-server.port";
@@ -49,6 +52,7 @@ fn server_port() -> Option<u16> {
 }
 
 /// The tray icon definition.
+#[derive(Debug)]
 struct AirborneTray;
 
 impl ksni::Tray for AirborneTray {
@@ -90,15 +94,16 @@ impl ksni::Tray for AirborneTray {
         };
 
         vec![
-            ksni::MenuItem::Standard(ksni::menu::StandardItem {
+            StandardItem {
                 label: "Launch in Browser".to_string(),
                 activate: Box::new(|_| {
                     let launcher = launcher_path();
                     let _ = Command::new(&launcher).arg("--browser").spawn();
                 }),
                 ..Default::default()
-            }),
-            ksni::MenuItem::Standard(ksni::menu::StandardItem {
+            }
+            .into(),
+            StandardItem {
                 label: "Launch CLI Mode".to_string(),
                 activate: Box::new(|_| {
                     let launcher = launcher_path();
@@ -117,14 +122,16 @@ impl ksni::Tray for AirborneTray {
                         });
                 }),
                 ..Default::default()
-            }),
+            }
+            .into(),
             ksni::MenuItem::Separator,
-            ksni::MenuItem::Standard(ksni::menu::StandardItem {
+            StandardItem {
                 label: status_label,
                 enabled: false,
                 ..Default::default()
-            }),
-            ksni::MenuItem::Standard(ksni::menu::StandardItem {
+            }
+            .into(),
+            StandardItem {
                 label: "Stop Server".to_string(),
                 enabled: running,
                 activate: Box::new(|_| {
@@ -132,10 +139,12 @@ impl ksni::Tray for AirborneTray {
                     let _ = Command::new(&launcher).arg("--stop").output();
                 }),
                 ..Default::default()
-            }),
+            }
+            .into(),
             ksni::MenuItem::Separator,
-            ksni::MenuItem::Standard(ksni::menu::StandardItem {
+            StandardItem {
                 label: "Quit".to_string(),
+                icon_name: "application-exit".to_string(),
                 activate: Box::new(|_| {
                     // Stop server if running, then exit
                     let launcher = launcher_path();
@@ -143,13 +152,16 @@ impl ksni::Tray for AirborneTray {
                     std::process::exit(0);
                 }),
                 ..Default::default()
-            }),
+            }
+            .into(),
         ]
     }
 }
 
 fn main() {
-    let service = ksni::TrayService::new(AirborneTray);
-    let _handle = service.handle();
-    let _ = service.run();
+    let _handle = AirborneTray.spawn().unwrap();
+    // Block forever — tray runs in background thread
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(3600));
+    }
 }
