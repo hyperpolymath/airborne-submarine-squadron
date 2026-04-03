@@ -6831,7 +6831,7 @@ function draw() {
     ctx.fillStyle='#bdc3c7'; ctx.font='18px Arial';
     ctx.fillText('Press R to restart', W/2, H/2+60);
     drawLeaderboardPanel(W / 2 - 160, H / 2 + 92, 'Leaderboard');
-    if (keys['r']||keys['R']) world = initWorld();
+    if (keyJustPressed['r']||keyJustPressed['R']) world = initWorld();
   }
 
   // Level complete
@@ -6846,7 +6846,7 @@ function draw() {
     ctx.fillStyle='#bdc3c7'; ctx.font='18px Arial';
     ctx.fillText('Press R to play again', W/2, H/2+70);
     drawLeaderboardPanel(W / 2 - 160, H / 2 + 96, 'Leaderboard');
-    if (keys['r']||keys['R']) world = initWorld();
+    if (keyJustPressed['r']||keyJustPressed['R']) world = initWorld();
   }
 
   // Pause
@@ -7404,6 +7404,113 @@ function drawDamageDiagram() {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CRASH LOGGING — captures unhandled errors and promise rejections.
+// Stores up to 20 entries in localStorage under 'ass_crash_logs'.
+// Also POSTs to /crash-report when the Deno dev server is running so
+// reports are written to the on-disk logs/ folder.
+// Console helpers: ASS_dumpCrashLog(), ASS_downloadCrashLog(), ASS_clearCrashLog()
+// ─────────────────────────────────────────────────────────────────────────────
+(function () {
+  'use strict';
+  const STORAGE_KEY  = 'ass_crash_logs';
+  const MAX_ENTRIES  = 20;
+
+  function getCrashLogs() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  }
+
+  function saveCrashLog(entry) {
+    try {
+      const logs = getCrashLogs();
+      logs.unshift(entry);
+      if (logs.length > MAX_ENTRIES) logs.length = MAX_ENTRIES;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+    } catch { /* storage unavailable */ }
+    // Best-effort POST to Deno dev server crash-report endpoint
+    try {
+      fetch('/crash-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+        keepalive: true,
+      }).catch(() => {});
+    } catch { /* server not running */ }
+  }
+
+  function worldSnapshot() {
+    try {
+      if (!world) return null;
+      return {
+        tick:     world.tick,
+        score:    world.score,
+        kills:    world.kills,
+        mode:     world.mode,
+        gameOver: world.gameOver,
+        paused:   world.paused,
+        subX:     world.sub && world.sub.worldX,
+        subY:     world.sub && world.sub.y,
+      };
+    } catch { return null; }
+  }
+
+  function buildEntry(msg, source, lineno, colno, error) {
+    return {
+      timestamp:     new Date().toISOString(),
+      message:       String(msg),
+      source:        source || 'unknown',
+      lineno:        lineno || 0,
+      colno:         colno  || 0,
+      stack:         error && error.stack ? error.stack : null,
+      worldSnapshot: worldSnapshot(),
+      userAgent:     navigator.userAgent,
+    };
+  }
+
+  window.onerror = function (msg, source, lineno, colno, error) {
+    saveCrashLog(buildEntry(msg, source, lineno, colno, error));
+    return false; // preserve default browser error handling
+  };
+
+  window.onunhandledrejection = function (event) {
+    const err = event.reason;
+    saveCrashLog(buildEntry(
+      err instanceof Error ? err.message : String(err),
+      'unhandled-promise', 0, 0,
+      err instanceof Error ? err : null
+    ));
+  };
+
+  /** Print stored crash logs to the browser console. */
+  window.ASS_dumpCrashLog = function () {
+    const logs = getCrashLogs();
+    if (logs.length === 0) { console.info('[ASS] No crash logs stored.'); return logs; }
+    console.group(`[ASS] Crash logs (${logs.length} entries)`);
+    logs.forEach((l, i) => console.info(`[${i}] ${l.timestamp} — ${l.message}`, l));
+    console.groupEnd();
+    return logs;
+  };
+
+  /** Download stored crash logs as a JSON file. */
+  window.ASS_downloadCrashLog = function () {
+    const logs = getCrashLogs();
+    const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = `ass-crash-log-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  };
+
+  /** Clear stored crash logs from localStorage. */
+  window.ASS_clearCrashLog = function () {
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    console.info('[ASS] Crash logs cleared.');
+  };
+})();
 
 // Start
 init().catch(console.error);

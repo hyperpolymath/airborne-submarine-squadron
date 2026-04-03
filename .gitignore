@@ -7,6 +7,10 @@
 # Backups
 .backup/
 
+# Crash logs written by the Deno dev server crash-report endpoint
+# Track the directory via logs/.gitkeep but exclude the JSON dumps
+logs/*.json
+
 # IDE / AI agent configs (per-user, not tracked)
 .claude/
 .q/

@@ -250,6 +250,25 @@ async function findFreePort() {
   throw new Error("No free port found in range 6860–6874");
 }
 
+// Release a locked port by killing whatever process holds it.
+// Gracefully no-ops on failure so it never blocks startup.
+async function freePort(port, os) {
+  try {
+    if (os === "linux") {
+      await run("fuser", ["-k", `${port}/tcp`]);
+    } else if (os === "darwin") {
+      const pids = await run("lsof", ["-t", "-i", `tcp:${port}`]);
+      if (pids.ok && pids.out) {
+        for (const pid of pids.out.split("\n").filter(Boolean)) {
+          await run("kill", ["-9", pid.trim()]);
+        }
+      }
+    }
+    // Brief pause to let the OS reclaim the port
+    await new Promise(r => setTimeout(r, 250));
+  } catch { /* best-effort: ignore all errors */ }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LAUNCH STRATEGIES (native → deno → headless)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -277,23 +296,56 @@ async function launchDeno(platform) {
   if (!platform.denoAvailable) return false;
   log("Launching via Deno file server...");
 
+  // Release any stale process holding the primary port before probing
+  await freePort(REGISTRY.ports.primary, platform.os);
+
   const port = await findFreePort();
   const url  = `http://127.0.0.1:${port}/`;
 
-  // Inline Deno file server — no install step
+  // Inline Deno file server with crash-report endpoint.
+  // POST /crash-report → writes JSON to logs/<timestamp>.json on disk.
+  // All other requests → static file server.
   const serverScript = `
     import { serveDir } from "https://deno.land/std@0.224.0/http/file_server.ts";
-    const handler = (req) => serveDir(req, { fsRoot: ".", quiet: true });
-    const server = Deno.serve({ port: ${port}, hostname: "127.0.0.1" }, handler);
-    console.log("ASS game server: ${url}");
+    await Deno.mkdir("logs", { recursive: true });
+    const CORS = { "Access-Control-Allow-Origin": "*" };
+    const handler = async (req) => {
+      const { pathname } = new URL(req.url);
+      if (req.method === "POST" && pathname === "/crash-report") {
+        try {
+          const body = await req.json();
+          const ts   = new Date().toISOString().replace(/[:.]/g, "-");
+          await Deno.writeTextFile(\`logs/crash-\${ts}.json\`, JSON.stringify(body, null, 2));
+          return new Response("ok", { status: 200, headers: CORS });
+        } catch (e) {
+          return new Response(e.message, { status: 500, headers: CORS });
+        }
+      }
+      if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+      return serveDir(req, { fsRoot: ".", quiet: true });
+    };
+    Deno.serve({ port: ${port}, hostname: "127.0.0.1" }, handler);
+    console.log("ASS game server: ${url}  |  crash reports: POST /crash-report");
   `;
   const tmpServer = await Deno.makeTempFile({ suffix: ".js" });
   await Deno.writeTextFile(tmpServer, serverScript);
 
   const server = new Deno.Command("deno", {
-    args: ["run", "--allow-net", "--allow-read", tmpServer],
+    args: ["run", "--allow-net", "--allow-read", "--allow-write", tmpServer],
     stdin: "null", stdout: "inherit", stderr: "inherit",
   }).spawn();
+
+  // Kill the child server when this process receives SIGINT or SIGTERM
+  let serverKilled = false;
+  function killServer() {
+    if (serverKilled) return;
+    serverKilled = true;
+    try { server.kill("SIGTERM"); } catch { /* already gone */ }
+  }
+  try {
+    Deno.addSignalListener("SIGINT",  killServer);
+    Deno.addSignalListener("SIGTERM", killServer);
+  } catch { /* Windows / unsupported signal — best-effort */ }
 
   // Give the server a moment to start
   await new Promise(r => setTimeout(r, 800));
