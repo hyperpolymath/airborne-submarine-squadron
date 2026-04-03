@@ -1,4 +1,17 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Build artefacts
 /build/
 *.wasm
 !dist/airborne-submarine-squadron.wasm
+
+# Backups
 .backup/
+
+# IDE / AI agent configs (per-user, not tracked)
+.claude/
+.q/
+.junie/
+.clinerules
+.cursorrules
+.windsurfrules
+.github/copilot-instructions.md

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 = Airborne Submarine Squadron - Technical Explanation
 
 This document explains the technical architecture, design decisions, and implementation details of Airborne Submarine Squadron.

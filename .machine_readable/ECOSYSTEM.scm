@@ -1,4 +1,4 @@
-; SPDX-License-Identifier: PMPL-1.0-or-later
+; SPDX-License-Identifier: AGPL-3.0-or-later
 ; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 ;
 ; ECOSYSTEM.scm -- Airborne Submarine Squadron ecosystem relationships
@@ -67,7 +67,7 @@
       (target-os "Linux (Fedora, KDE Plasma, Wayland)")))
 
   (standards
-    (license "PMPL-1.0-or-later")
+    (license "AGPL-3.0-or-later")
     (abi-ffi "Idris2 ABI + Zig FFI (standard hyperpolymath pattern)")
     (desktop "XDG Desktop Entry Specification")
     (tray "KDE StatusNotifierItem (via ksni crate)")))

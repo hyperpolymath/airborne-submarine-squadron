@@ -1,5 +1,5 @@
 K9!
-# SPDX-License-Identifier: PMPL-1.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Example Kennel-level K9 component: Project metadata
 # Security Level: Kennel (pure data, no execution)
 # No signature required
@@ -40,7 +40,7 @@ K9!
       organization = "The Open University",
     },
 
-    license = "PMPL-1.0-or-later",
+    license = "AGPL-3.0-or-later",
 
     keywords = [
       "rhodium-standard",

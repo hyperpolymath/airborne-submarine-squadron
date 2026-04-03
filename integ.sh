@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: PMPL-1.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Advanced Integration System — Reflective, Homoiconic, Self-Healing
 
 set -euo pipefail
@@ -122,7 +122,7 @@ show_version() {
     echo "Reflective, Homoiconic, Self-Healing Desktop Integration"
     echo "Platform: $(detect_platform)"
     echo "Location: $SCRIPT_DIR"
-    echo "License: PMPL-1.0-or-later"
+    echo "License: AGPL-3.0-or-later"
 }
 
 # --- Main Execution ---

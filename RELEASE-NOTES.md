@@ -5,7 +5,7 @@
 **Version**: Alpha-1
 **Tag**: `alpha-1`
 **Date**: March 31, 2025
-**License**: PMPL-1.0-or-later
+**License**: AGPL-3.0-or-later
 
 ## 🚀 What's New
 
@@ -172,14 +172,14 @@ cd airborne-submarine-squadron
 ### Licensing Updates
 
 #### New Dependency: zatty
-- **License**: PMPL-1.0-or-later (same as main project)
+- **License**: AGPL-3.0-or-later (same as main project)
 - **Purpose**: Terminal detection functionality
 - **Location**: Local path dependency (`../../zatty`)
 - **Status**: Fully compatible with project licensing
 
 #### Dependency Changes
 - **Removed**: clap v2.34.0 (and its atty transitive dependency)
-- **Added**: zatty v0.1.0 (local, PMPL-1.0-or-later)
+- **Added**: zatty v0.1.0 (local, AGPL-3.0-or-later)
 - **Result**: Cleaner dependency tree, no external atty usage
 
 ### License Compliance
@@ -190,7 +190,7 @@ All dependencies now comply with the project's licensing requirements:
 |------------|---------|--------|
 | ksni | MIT | ✅ Compatible |
 | libc | MIT/Apache-2.0 | ✅ Compatible |
-| zatty | PMPL-1.0-or-later | ✅ Native |
+| zatty | AGPL-3.0-or-later | ✅ Native |
 | dbus | MIT/Apache-2.0 | ✅ Compatible |
 
 **Note**: All transitive dependencies have been verified for license compatibility.

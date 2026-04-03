@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: PMPL-1.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Install Airborne Submarine Squadron desktop shortcut + menu entry.
 # Enhanced with fault tolerance and self-diagnostics.
 

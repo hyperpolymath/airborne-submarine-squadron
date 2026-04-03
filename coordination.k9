@@ -1,0 +1,165 @@
+K9!
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# coordination.k9 — AI Coordination Protocol for Airborne Submarine Squadron
+#
+# This file is the single source of truth for all AI agent behaviour.
+# Do NOT edit generated files (.cursorrules, AGENTS.md, etc.) directly.
+# Edit this file, then re-generate.
+#
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath)
+
+---
+metadata:
+  schema: k9-coordination
+  schema_version: 1.0.0
+  generated_by: k9-coordination-generator
+  last_updated: 2026-04-03
+
+project:
+  name: "Airborne Submarine Squadron"
+  description: "Sopwith-inspired arcade game where a zeppelin launches attack submarines that fly, dive, and torpedo. Browser-based with system tray integration."
+  license: AGPL-3.0-or-later
+  repo: "hyperpolymath/airborne-submarine-squadron"
+  languages:
+    - JavaScript
+    - AffineScript
+    - Rust
+    - HTML
+    - CSS
+  build_system: just
+  runtime: deno
+
+build_commands:
+  just build: "Build AffineScript to WASM"
+  just serve: "Start Deno file server on port 6860"
+  just install: "Install desktop integration (XDG .desktop file)"
+  just tray: "Build and run Rust system tray binary"
+
+invariants:
+  - id: no-typescript
+    rule: "Do not introduce TypeScript files anywhere"
+    reason: "Vanilla JavaScript and AffineScript are the chosen languages — TypeScript is banned across all hyperpolymath repos"
+    severity: critical
+
+  - id: no-tauri-electron
+    rule: "Do not introduce Tauri, Electron, or any desktop framework"
+    reason: "Architecture is deliberately browser + system tray binary (Gossamer frontend + Rust ksni tray). This is intentional, not a gap to fill."
+    severity: critical
+
+  - id: deno-only-runtime
+    rule: "Deno is the only permitted JS runtime — no Node.js, npm, Bun, pnpm, or yarn"
+    reason: "Deno is the standard runtime across all hyperpolymath repos. The file server uses Deno."
+    severity: critical
+
+  - id: no-npm-package-managers
+    rule: "Do not create package.json, package-lock.json, node_modules, bun.lockb, or yarn.lock"
+    reason: "All dependencies managed through Deno — no npm ecosystem"
+    severity: critical
+
+  - id: port-6860
+    rule: "Default development port is 6860"
+    reason: "686 references the Type 686 attack submarine — this is a deliberate thematic choice, not arbitrary"
+    severity: moderate
+
+  - id: affinescript-engine
+    rule: "The game engine will be AffineScript compiled to WASM — do not replace with a JS game engine"
+    reason: "AffineScript is a hyperpolymath language (from nextgen-languages). The JS in web/ is a placeholder until WASM build is wired."
+    severity: critical
+
+  - id: standalone-repo
+    rule: "This is a standalone git repository — do not merge into a monorepo"
+    reason: "Co-developed with son, AGPL-licensed (exception to PMPL), independent history"
+    severity: critical
+
+  - id: agpl-license
+    rule: "This project is AGPL-3.0-or-later — do not change the license"
+    reason: "Co-developed with son, AGPL chosen deliberately. This is an exception to the normal PMPL-1.0-or-later policy."
+    severity: critical
+
+protected:
+  - path: gossamer/
+    reason: "Gossamer frontend — HTML5 Canvas game rendering and UI"
+  - path: tray/
+    reason: "Rust system tray binary using ksni (KDE StatusNotifierItem)"
+  - path: src/
+    reason: "AffineScript source — main.as is the game engine source"
+  - path: web/
+    reason: "Browser-side JS — placeholder engine, will be replaced by WASM but structure stays"
+  - path: build/
+    reason: "WASM build artifacts from AffineScript compilation"
+  - path: launcher.sh
+    reason: "Unified launcher script — entry point for the whole application"
+  - path: .machine_readable/
+    reason: "Canonical location for all A2ML state files — never move to root"
+  - path: coordination.k9
+    reason: "This file — source of truth for AI coordination"
+
+architecture:
+  - id: browser-plus-tray
+    decision: "Game runs in browser window, with a separate Rust system tray binary for desktop integration"
+    reason: "Lightweight, no heavy framework dependency, works on Wayland/KDE natively via ksni"
+    alternatives_rejected:
+      - Tauri
+      - Electron
+      - native GTK application
+
+  - id: affinescript-to-wasm
+    decision: "Game logic written in AffineScript, compiled to WASM, loaded by browser"
+    reason: "AffineScript is a hyperpolymath language with linear types — proves resource safety in game logic"
+    alternatives_rejected:
+      - Pure JavaScript game engine
+      - Rust compiled to WASM
+      - Unity/Godot
+
+  - id: gossamer-frontend
+    decision: "Gossamer provides the desktop window (WebKitGTK-based)"
+    reason: "Gossamer is the hyperpolymath desktop runtime — shared with PanLL and other projects"
+
+  - id: deno-file-server
+    decision: "Deno serves static files during development"
+    reason: "Simple, no dependencies, matches ecosystem standard. Python http.server was deprecated."
+    alternatives_rejected:
+      - Python http.server
+      - Node.js
+      - nginx
+
+do_not_create:
+  - pattern: "**/*.ts"
+    reason: "TypeScript is banned — use vanilla JS or AffineScript"
+  - pattern: "Dockerfile"
+    reason: "Use Containerfile (Podman, not Docker)"
+  - pattern: "package.json"
+    reason: "npm is banned — use deno.json"
+  - pattern: "package-lock.json"
+    reason: "npm lock files banned"
+  - pattern: "node_modules/**"
+    reason: "npm ecosystem banned"
+  - description: "Any heavyweight game framework (Phaser, PixiJS, Three.js)"
+    reason: "Game engine is AffineScript→WASM — JS frameworks are not needed"
+  - description: "Alternative launcher or desktop entry system"
+    reason: "launcher.sh + .desktop file is the intended approach"
+  - description: "Electron or Tauri wrapper"
+    reason: "Gossamer + Rust tray is the architecture"
+
+terminology:
+  - correct: "attack submarine"
+    incorrect:
+      - submarine
+      - plane
+      - aircraft
+    context: "The flying vehicles are attack submarines launched from a zeppelin — this is the core game concept"
+
+ports:
+  dev-server: 6860
+
+ecosystem:
+  depends_on:
+    - name: gossamer
+      role: "Desktop window runtime (WebKitGTK + Zig)"
+    - name: nextgen-languages
+      role: "Contains AffineScript compiler (affinescript subdir)"
+  related:
+    - name: idaptik
+      role: "Sister game project — also uses Gossamer, also co-developed with son"
+    - name: proven
+      role: "Formal verification — AffineScript type proofs"

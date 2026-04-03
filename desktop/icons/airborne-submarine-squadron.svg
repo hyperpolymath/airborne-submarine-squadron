@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <!-- SPDX-License-Identifier: PMPL-1.0-or-later -->
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
   <!-- Airborne Submarine Squadron icon — submarine with wings -->
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
