@@ -69,9 +69,9 @@
 
   (blockers-and-issues
     (blocker-1
-      (description "AffineScript compiler not yet mature enough for full WASM pipeline")
-      (severity "medium")
-      (workaround "JS placeholder engine with prebuilt WASM artifacts"))
+      (description "AffineScript compiler WASM pipeline now working — src/main.as compiles to WASM 1.0")
+      (severity "resolved")
+      (workaround "none — src/main.as compiles cleanly; build/airborne-final-working.wasm updated 2026-04-03"))
     (blocker-2
       (description "Gossamer desktop runtime requires WebKitGTK")
       (severity "low")

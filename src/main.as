@@ -220,9 +220,13 @@ fn enemy_drift(env: Environment, tick: Int) -> Int {
   };
 }
 
+fn env_speed(env: Environment) -> Int {
+  if is_air(env) { return 2; } else { return 1; };
+}
+
 fn step_enemy(enemy: Enemy, env: Environment, tick: Int) -> Enemy {
   if enemy.active {
-    let speed = if is_air(env) { 2; } else { 1; };
+    let speed = env_speed(env);
     let drift = enemy_drift(env, tick);
     let nx = enemy.x - speed;
     let ny = clamp(enemy.y + drift, 40, ground_y() - 20);
@@ -404,7 +408,7 @@ fn build_snapshot(
   mission_ticks: Int,
   mission_complete: Bool,
   mission_failed: Bool
-) -> Int {
+) -> Array[Int] {
   return [
     29,
     tick,
@@ -546,8 +550,8 @@ fn step(world: World, input: Input) -> World {
   let kills_gain =
     kill_count(enemy_a2, enemy_a4) +
     kill_count(enemy_b2, enemy_b4) +
-    (if sub_col_a.2 { 1; } else { 0; }) +
-    (if sub_col_b.2 { 1; } else { 0; });
+    bool_to_int(sub_col_a.2) +
+    bool_to_int(sub_col_b.2);
 
   let score_gain =
     score_kill(enemy_a2, enemy_a4) +
@@ -590,7 +594,7 @@ fn run_mission(world: World) -> World {
   return run_steps(world, world.mission.objective.max_ticks);
 }
 
-fn init_state() -> Int {
+fn init_state() -> Array[Int] {
   let world = init_world();
   return build_snapshot(
     world.tick,
@@ -602,17 +606,17 @@ fn init_state() -> Int {
     world.sub.health,
     world.weapons.ammo,
     world.weapons.cooldown,
-    bool_to_int(world.proj.a.active),
+    world.proj.a.active,
     world.proj.a.x,
     world.proj.a.y,
-    bool_to_int(world.proj.b.active),
+    world.proj.b.active,
     world.proj.b.x,
     world.proj.b.y,
-    bool_to_int(world.enemies.a.active),
+    world.enemies.a.active,
     world.enemies.a.x,
     world.enemies.a.y,
     world.enemies.a.health,
-    bool_to_int(world.enemies.b.active),
+    world.enemies.b.active,
     world.enemies.b.x,
     world.enemies.b.y,
     world.enemies.b.health,
@@ -620,8 +624,8 @@ fn init_state() -> Int {
     world.kills,
     world.mission.objective.kills_needed,
     world.mission.objective.max_ticks,
-    bool_to_int(world.mission.objective.completed),
-    bool_to_int(world.mission.objective.failed)
+    world.mission.objective.completed,
+    world.mission.objective.failed
   );
 }
 
@@ -660,7 +664,7 @@ fn step_state(
   fire: Int,
   fire_alt: Int,
   toggle_env: Int
-) -> Int {
+) -> Array[Int] {
   let world = world_from_parts(
     tick,
     env,
@@ -717,17 +721,17 @@ fn step_state(
     updated.sub.health,
     updated.weapons.ammo,
     updated.weapons.cooldown,
-    bool_to_int(updated.proj.a.active),
+    updated.proj.a.active,
     updated.proj.a.x,
     updated.proj.a.y,
-    bool_to_int(updated.proj.b.active),
+    updated.proj.b.active,
     updated.proj.b.x,
     updated.proj.b.y,
-    bool_to_int(updated.enemies.a.active),
+    updated.enemies.a.active,
     updated.enemies.a.x,
     updated.enemies.a.y,
     updated.enemies.a.health,
-    bool_to_int(updated.enemies.b.active),
+    updated.enemies.b.active,
     updated.enemies.b.x,
     updated.enemies.b.y,
     updated.enemies.b.health,
@@ -735,12 +739,12 @@ fn step_state(
     updated.kills,
     updated.mission.objective.kills_needed,
     updated.mission.objective.max_ticks,
-    bool_to_int(updated.mission.objective.completed),
-    bool_to_int(updated.mission.objective.failed)
+    updated.mission.objective.completed,
+    updated.mission.objective.failed
   );
 }
 
-fn hud(world: World) -> () -{ IO }-> () {
+fn hud(world: World) -{ IO }-> () {
   if is_air(world.env) {
     println("ENV: AIR");
   } else {
@@ -768,7 +772,7 @@ fn hud(world: World) -> () -{ IO }-> () {
   };
 }
 
-fn debug_main() -> () -{ IO }-> () {
+fn debug_main() -{ IO }-> () {
   println("Airborne Submarine Squadron (AffineScript)");
   println("WASM-first rewrite: core model booting...");
   let world = init_world();
@@ -777,7 +781,7 @@ fn debug_main() -> () -{ IO }-> () {
   println("OK");
 }
 
-fn main() -> Int {
+fn main() -> Array[Int] {
   let world = init_world();
   let world2 = run_mission(world);
   let ptr = build_snapshot(
