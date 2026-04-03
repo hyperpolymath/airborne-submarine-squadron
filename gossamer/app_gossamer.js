@@ -6408,9 +6408,9 @@ function draw() {
 
     const hpPct = r.hp / r.maxHp;
 
-    // Tier 1 wobble offset
-    r.wobblePhase += 0.008 * dt;
-    const wobbleX = r.wobbleRange ? Math.sin(r.wobblePhase) * r.wobbleRange : 0;
+    // Tier 1 wobble offset (tick-driven — draw() has no dt)
+    const wobblePhase = world.tick * 0.008 + r.x * 0.1;
+    const wobbleX = r.wobbleRange ? Math.sin(wobblePhase) * r.wobbleRange : 0;
     const wrx = rx + wobbleX;
 
     if (r.tier === 1) {
@@ -6503,7 +6503,7 @@ function draw() {
         ctx.globalAlpha = 0.4;
         ctx.fillStyle = '#aaa';
         for (let p = 0; p < 3; p++) {
-          const smokeAge = (25 - r.cooldown + p * 3) * 0.4;
+          const smokeAge = Math.max(0, (25 - r.cooldown + p * 3) * 0.4);
           ctx.beginPath();
           ctx.arc(rx - 8 + p * 8, ry - 22 - smokeAge * 3, 2 + smokeAge, 0, TWO_PI);
           ctx.fill();
