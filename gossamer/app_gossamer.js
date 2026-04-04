@@ -5461,6 +5461,55 @@ function damageAsteroid(space, asteroid, damage) {
   }
 }
 
+function fireOrbitalProjectile(space, sub, type) {
+  const speed  = type === 'torpedo' ? ORB_PROJ_TORPEDO_SPEED : ORB_PROJ_MISSILE_SPEED;
+  const maxAge = type === 'torpedo' ? ORB_PROJ_TORPEDO_LIFE  : ORB_PROJ_MISSILE_LIFE;
+  space.projectiles.push({
+    x:      space.shipX + Math.cos(space.shipAngle) * 20,
+    y:      space.shipY + Math.sin(space.shipAngle) * 20,
+    vx:     space.shipVx + Math.cos(space.shipAngle) * speed,
+    vy:     space.shipVy + Math.sin(space.shipAngle) * speed,
+    type,
+    age:    0,
+    maxAge,
+    active: true,
+  });
+}
+
+function updateOrbitalProjectiles(space, bodies, dt) {
+  const survivors = [];
+  for (const p of space.projectiles) {
+    if (!p.active || p.age > p.maxAge) continue;
+    // Gravity
+    for (const body of bodies) {
+      const dx = body.x - p.x;
+      const dy = body.y - p.y;
+      const distSq = Math.max(dx * dx + dy * dy, body.radius ** 2);
+      const dist   = Math.sqrt(distSq);
+      const accel  = (body.gm || 0) / distSq;
+      p.vx += (dx / dist) * accel * dt;
+      p.vy += (dy / dist) * accel * dt;
+    }
+    p.x += p.vx * dt * 4;
+    p.y += p.vy * dt * 4;
+    p.age++;
+
+    // Asteroid collision
+    let hit = false;
+    for (const a of space.asteroids) {
+      if (Math.hypot(p.x - a.x, p.y - a.y) < a.radius + 3) {
+        damageAsteroid(space, a, 1);
+        hit = true;
+        break;
+      }
+    }
+    space.asteroids = space.asteroids.filter(a => a.hp > 0);
+
+    if (!hit) survivors.push(p);
+  }
+  space.projectiles = survivors;
+}
+
 function updateAsteroids(space, bodies, sub, dt) {
   const next = [];
   for (const a of space.asteroids) {
@@ -5561,6 +5610,14 @@ function updateOrbitMode(dt) {
     space.shipVy += Math.sin(space.shipAngle) * thrust * dt * 4;
   }
 
+  // Orbital weapons
+  if (keyJustPressed['Control'] && space.projectiles.length < 8) {
+    fireOrbitalProjectile(space, sub, 'torpedo');
+  }
+  if (keyJustPressed['Enter'] && space.projectiles.length < 8) {
+    fireOrbitalProjectile(space, sub, 'missile');
+  }
+
   // Space bar: immediate full stop
   if (keys[' ']) {
     space.shipVx *= Math.pow(0.85, dt);
@@ -5656,6 +5713,7 @@ function updateOrbitMode(dt) {
   space.shipX += space.shipVx * dt * 4;
   space.shipY += space.shipVy * dt * 4;
   updateAsteroids(space, bodies, sub, dt);
+  updateOrbitalProjectiles(space, bodies, dt);
   space.cameraX += (space.shipX - space.cameraX) * SPACE_CAMERA_SMOOTH * dt * 4;
   space.cameraY += (space.shipY - space.cameraY) * SPACE_CAMERA_SMOOTH * dt * 4;
 
@@ -7201,6 +7259,18 @@ function drawWarpMenu() {
   ctx.fillText('Press F or Esc to close this menu', W/2, H/2 + 78);
 }
 
+function drawOrbitalProjectiles(space) {
+  for (const p of space.projectiles) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.fillStyle = p.type === 'torpedo' ? '#38bdf8' : '#f97316';
+    ctx.beginPath();
+    ctx.arc(0, 0, p.type === 'torpedo' ? 3 : 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 function drawAsteroids(space) {
   for (const a of space.asteroids) {
     ctx.save();
@@ -7352,6 +7422,7 @@ function drawOrbitScene() {
     ctx.restore();
   }
 
+  drawOrbitalProjectiles(space);
   drawAsteroids(space);
   ctx.restore(); // End camera transform
 
