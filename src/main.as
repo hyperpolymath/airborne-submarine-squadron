@@ -125,17 +125,17 @@ fn clamp_velocity(v: Int) -> Int {
 fn apply_drag(env: Environment, v: Int) -> Int {
   if is_air(env) {
     if v > 0 {
-      return v - 1;
+      return clamp(v - 1, 0, v);
     } else if v < 0 {
-      return v + 1;
+      return clamp(v + 1, v, 0);
     } else {
       return v;
     };
   } else {
     if v > 0 {
-      return v - 2;
+      return clamp(v - 2, 0, v);
     } else if v < 0 {
-      return v + 2;
+      return clamp(v + 2, v, 0);
     } else {
       return v;
     };
@@ -153,15 +153,17 @@ fn integrate(sub: Submarine, env: Environment) -> Submarine {
   let vx2 = clamp_velocity(sub.vx);
   let vx3 = apply_drag(env, vx2);
   let vy3 = apply_drag(env, vy2);
-  return { x: sub.x + vx3, y: sub.y + vy3, vx: vx3, vy: vy3, health: sub.health };
+  return { x: sub.x + vx2, y: sub.y + vy2, vx: vx3, vy: vy3, health: sub.health };
 }
 
 fn apply_bounds(sub: Submarine) -> Submarine {
-  let x2 = clamp(sub.x, 0, world_width());
+  let x2 = clamp(sub.x, 0, world_width() - 1);
   let y2 = clamp(sub.y, 0, ground_y());
   return { x: x2, y: y2, vx: sub.vx, vy: sub.vy, health: sub.health };
 }
 
+// Auto-toggles environment every 120 ticks. Note: receives the post-increment tick from step(),
+// so a snapshot with tick=119 will trigger an auto-toggle on the next step_state call.
 fn toggle_env(env: Environment, tick: Int, requested: Bool) -> Environment {
   if requested {
     if is_air(env) {
@@ -210,7 +212,7 @@ fn spawn_enemy(enemy: Enemy, tick: Int, modv: Int, x: Int, y: Int) -> Enemy {
   };
 }
 
-fn enemy_drift(env: Environment, tick: Int) -> Int {
+fn enemy_drift(tick: Int) -> Int {
   let period = 90;
   let phase = tick % period;
   if phase < (period / 2) {
@@ -227,7 +229,7 @@ fn env_speed(env: Environment) -> Int {
 fn step_enemy(enemy: Enemy, env: Environment, tick: Int) -> Enemy {
   if enemy.active {
     let speed = env_speed(env);
-    let drift = enemy_drift(env, tick);
+    let drift = enemy_drift(tick);
     let nx = enemy.x - speed;
     let ny = clamp(enemy.y + drift, 40, ground_y() - 20);
     if nx < -20 {
@@ -480,8 +482,8 @@ fn world_from_parts(
     sub: { x: sub_x, y: sub_y, vx: sub_vx, vy: sub_vy, health: sub_health },
     weapons: { torpedoes: 0, missiles: 0, depth_charges: 0, ammo: ammo, cooldown: cooldown },
     proj: {
-      a: { x: proj_a_x, y: proj_a_y, vx: 0, vy: 0, active: int_to_bool(proj_a_active) },
-      b: { x: proj_b_x, y: proj_b_y, vx: 0, vy: 0, active: int_to_bool(proj_b_active) }
+      a: { x: proj_a_x, y: proj_a_y, vx: 7, vy: 0, active: int_to_bool(proj_a_active) },
+      b: { x: proj_b_x, y: proj_b_y, vx: 7, vy: 0, active: int_to_bool(proj_b_active) }
     },
     enemies: {
       a: { x: enemy_a_x, y: enemy_a_y, health: enemy_a_health, active: int_to_bool(enemy_a_active) },
@@ -549,9 +551,7 @@ fn step(world: World, input: Input) -> World {
 
   let kills_gain =
     kill_count(enemy_a2, enemy_a4) +
-    kill_count(enemy_b2, enemy_b4) +
-    bool_to_int(sub_col_a.2) +
-    bool_to_int(sub_col_b.2);
+    kill_count(enemy_b2, enemy_b4);
 
   let score_gain =
     score_kill(enemy_a2, enemy_a4) +
@@ -582,7 +582,7 @@ fn run_steps(world: World, remaining: Int) -> World {
     if w.mission.objective.completed || w.mission.objective.failed {
       r = 0;
     } else {
-      let input = sample_input(w.tick + 1);
+      let input = sample_input(w.tick + 1); // +1 matches the tick step() will produce
       w = step(w, input);
       r = r - 1;
     };

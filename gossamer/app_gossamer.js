@@ -5505,8 +5505,9 @@ function updateComets(space, sub, dt) {
 function updateDebrisClouds(space, bodies, sub, dt) {
   for (const c of space.debrisClouds) {
     if (c.collected) continue;
-    // Gravity
+    // Solar gravity only — same reason as asteroids: planetary GMs destabilise these orbits
     for (const body of bodies) {
+      if (body.id !== 'sun') continue;
       const dx = body.x - c.x;
       const dy = body.y - c.y;
       const distSq = Math.max(dx * dx + dy * dy, body.radius ** 2);
@@ -5620,8 +5621,10 @@ function updateOrbitalProjectiles(space, bodies, dt) {
 function updateAsteroids(space, bodies, sub, dt) {
   const next = [];
   for (const a of space.asteroids) {
-    // Gravity from all bodies
+    // Solar gravity only — planetary GMs are tuned for SOI transitions, not N-body stability.
+    // Jupiter (gm=22) at r=780 would kick outer-belt asteroids out of orbit on close passes.
     for (const body of bodies) {
+      if (body.id !== 'sun') continue;
       const dx = body.x - a.x;
       const dy = body.y - a.y;
       const distSq = Math.max(dx * dx + dy * dy, (body.radius + a.radius) ** 2);
@@ -5633,25 +5636,34 @@ function updateAsteroids(space, bodies, sub, dt) {
     a.x += a.vx * dt * 4;
     a.y += a.vy * dt * 4;
 
-    // Ship collision
+    // Ship collision — asteroid is immovable, bounce the ship off it
     const dxS = space.shipX - a.x;
     const dyS = space.shipY - a.y;
-    if (Math.hypot(dxS, dyS) < a.radius + ORBITAL_COLLISION_RADIUS) {
-      const closingSpeed = Math.hypot(space.shipVx - a.vx, space.shipVy - a.vy);
-      damageRandomPart(sub.parts, ASTEROID_COLLISION_DMG * closingSpeed);
-      SFX.damage();
-      addExplosion(a.x, a.y, 'small');
-      world.caveMessage = { text: `ASTEROID IMPACT`, timer: 80 };
-      // Push ship away
-      const mag = Math.max(1, Math.hypot(dxS, dyS));
+    const shipDist = Math.hypot(dxS, dyS);
+    if (shipDist < a.radius + ORBITAL_COLLISION_RADIUS) {
+      const mag = Math.max(1, shipDist);
       const nx = dxS / mag;
       const ny = dyS / mag;
-      space.shipVx += nx * closingSpeed * 0.5;
-      space.shipVy += ny * closingSpeed * 0.5;
-      continue; // remove this asteroid on collision
+      // Relative velocity along surface normal (negative = ship approaching)
+      const vRel = (space.shipVx - a.vx) * nx + (space.shipVy - a.vy) * ny;
+      if (vRel < 0) {
+        if (-vRel > 0.2) {
+          damageRandomPart(sub.parts, ASTEROID_COLLISION_DMG * (-vRel));
+          SFX.damage();
+          addExplosion(a.x, a.y, 'small');
+          world.caveMessage = { text: 'ASTEROID IMPACT', timer: 80 };
+        }
+        // Cancel approach component — asteroid orbit is never disturbed
+        space.shipVx -= vRel * nx;
+        space.shipVy -= vRel * ny;
+      }
+      // Push ship clear of overlap
+      const overlap = a.radius + ORBITAL_COLLISION_RADIUS - shipDist;
+      space.shipX += nx * overlap;
+      space.shipY += ny * overlap;
     }
 
-    next.push(a);
+    next.push(a); // asteroid always survives
   }
   space.asteroids = next;
 }
