@@ -5482,7 +5482,10 @@ function updateDebrisClouds(space, bodies, sub, dt) {
         if (c.type === 'hull') {
           const parts = sub.parts;
           const keys  = Object.keys(parts).filter(k => typeof parts[k] === 'number' && parts[k] < 100);
-          if (keys.length) parts[keys[Math.floor(Math.random() * keys.length)]] = Math.min(100, parts[keys[0]] + 20);
+          if (keys.length) {
+            const ki = Math.floor(Math.random() * keys.length);
+            parts[keys[ki]] = Math.min(100, parts[keys[ki]] + 20);
+          }
         } else {
           world.sub.ammo = Math.min((world.sub.ammo || 0) + 30, 200);
         }
