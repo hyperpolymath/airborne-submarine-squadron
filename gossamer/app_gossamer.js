@@ -154,10 +154,13 @@ const GUN_POST_BULLET_LIFE = 60;
 const MISSION_TYPES = {
   patrol:  { timed: false, label: 'PATROL' },
   strike:  { timed: true, duration: 6000, label: 'STRIKE' },
-  hostage: { timed: true, duration: 4000, label: 'HOSTAGE RESCUE', mandatory: true },
+  hostage: { timed: true, duration: 5400, label: 'HOSTAGE RESCUE', mandatory: true, hostageCount: 3 },
   escort:  { timed: true, duration: 8000, label: 'ESCORT' },
 };
 const DIVING_BELL_RADIUS = 12;
+const HOSTAGE_RESCUE_RANGE = 60;         // How close sub must be to rescue
+const HOSTAGE_SCORE_BONUS = 1000;        // Points per rescued hostage
+const HOSTAGE_FLARE_INTERVAL = 120;      // Ticks between signal flares
 
 const AFTERBURNER_MAX_CHARGE = 100;
 const AFTERBURNER_DRAIN = 1.4;
@@ -2811,8 +2814,14 @@ function startMission(typeKey) {
     timer: def.duration || 0,
     active: true,
     failed: false,
+    completed: false,
   };
-  if (def.timed) {
+  // Spawn hostages for rescue missions
+  if (typeKey === 'hostage' && def.hostageCount) {
+    world.hostages = spawnHostages(def.hostageCount);
+    const count = world.hostages.length;
+    world.caveMessage = { text: `MISSION: RESCUE ${count} HOSTAGES — ${Math.round(def.duration / 60)}s`, timer: 150 };
+  } else if (def.timed) {
     world.caveMessage = { text: `MISSION: ${def.label} — ${Math.round(def.duration / 60)}s`, timer: 120 };
   }
 }
@@ -2857,7 +2866,122 @@ function drawMissionTimer() {
 
   ctx.fillStyle = '#94a3b8';
   ctx.font = '9px Arial';
-  ctx.fillText(m.label, W / 2, 38);
+  // Show hostage rescue progress if applicable
+  if (m.type === 'hostage' && world.hostages && world.hostages.length > 0) {
+    const rescued = world.hostages.filter(h => h.rescued).length;
+    const total = world.hostages.length;
+    ctx.fillText(`${m.label} — ${rescued}/${total}`, W / 2, 38);
+  } else {
+    ctx.fillText(m.label, W / 2, 38);
+  }
+}
+
+// ============================================================
+// HOSTAGE RESCUE SYSTEM
+// Places hostages on random islands when a hostage mission starts.
+// Sub must approach each island to rescue. All must be rescued
+// before the timer expires or the mission fails (game over).
+// ============================================================
+
+function spawnHostages(count) {
+  const islands = world.terrain.islands;
+  if (islands.length === 0) return [];
+  // Pick distinct islands — shuffle and take first N
+  const shuffled = [...islands].sort(() => Math.random() - 0.5);
+  const chosen = shuffled.slice(0, Math.min(count, shuffled.length));
+  return chosen.map(isl => ({
+    x: isl.x,
+    y: WATER_LINE - isl.h - 6,   // Standing on top of island
+    island: isl,
+    rescued: false,
+    rescueAnim: 0,                // Fade-out animation timer after rescue
+    flareTimer: Math.random() * HOSTAGE_FLARE_INTERVAL, // Staggered flares
+  }));
+}
+
+function updateHostages(dt) {
+  if (!world.hostages || world.hostages.length === 0) return;
+  const sub = world.sub;
+  for (const h of world.hostages) {
+    if (h.rescued) {
+      h.rescueAnim = Math.max(0, h.rescueAnim - dt);
+      continue;
+    }
+    // Signal flare timer
+    h.flareTimer += dt;
+    // Rescue proximity check — sub must be near the island at water level
+    const dx = Math.abs(sub.worldX - h.x);
+    const dy = Math.abs(sub.y - h.y);
+    if (dx < HOSTAGE_RESCUE_RANGE && dy < HOSTAGE_RESCUE_RANGE + 30 && sub.floating) {
+      h.rescued = true;
+      h.rescueAnim = 60;
+      world.score += HOSTAGE_SCORE_BONUS;
+      world.caveMessage = { text: 'HOSTAGE RESCUED! +1000pts', timer: 80 };
+      SFX.pickup?.() ?? SFX.damage();
+      // Check if all rescued
+      const remaining = world.hostages.filter(hh => !hh.rescued).length;
+      if (remaining === 0) {
+        world.caveMessage = { text: 'ALL HOSTAGES RESCUED — MISSION COMPLETE!', timer: 150 };
+        world.mission.active = false;
+        world.mission.completed = true;
+        world.score += HOSTAGE_SCORE_BONUS * 2; // Completion bonus
+      } else {
+        world.caveMessage = { text: `HOSTAGE RESCUED — ${remaining} REMAINING`, timer: 80 };
+      }
+    }
+  }
+}
+
+function drawHostages() {
+  if (!world.hostages || world.hostages.length === 0) return;
+  for (const h of world.hostages) {
+    const sx = toScreen(h.x);
+    if (sx < -40 || sx > W + 40) continue;
+    if (h.rescued) {
+      // Fade-out "+RESCUED" text
+      if (h.rescueAnim > 0) {
+        const alpha = h.rescueAnim / 60;
+        ctx.fillStyle = `rgba(46, 204, 113, ${alpha})`;
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('RESCUED', sx, h.y - 15 - (60 - h.rescueAnim) * 0.3);
+      }
+      continue;
+    }
+    // Draw hostage figure (small person waving)
+    const bobY = Math.sin(world.tick * 0.06 + h.x) * 1.5;
+    const hy = h.y + bobY;
+    // Body
+    ctx.fillStyle = '#f39c12';
+    ctx.fillRect(sx - 2, hy - 8, 4, 8);
+    // Head
+    ctx.fillStyle = '#ffeaa7';
+    ctx.beginPath();
+    ctx.arc(sx, hy - 11, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Waving arm
+    const armAngle = Math.sin(world.tick * 0.12 + h.x) * 0.6;
+    ctx.strokeStyle = '#f39c12';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx + 2, hy - 6);
+    ctx.lineTo(sx + 2 + Math.cos(armAngle - 1) * 6, hy - 6 + Math.sin(armAngle - 1) * 6);
+    ctx.stroke();
+    // Signal flare (periodic red glow above head)
+    if (h.flareTimer % HOSTAGE_FLARE_INTERVAL < 30) {
+      const flareAlpha = 1 - (h.flareTimer % HOSTAGE_FLARE_INTERVAL) / 30;
+      const flareY = hy - 18 - (h.flareTimer % HOSTAGE_FLARE_INTERVAL) * 0.5;
+      ctx.fillStyle = `rgba(255, 60, 60, ${flareAlpha * 0.8})`;
+      ctx.beginPath();
+      ctx.arc(sx, flareY, 3 + flareAlpha * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // "HELP" label
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 8px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('HELP', sx, hy - 18);
+  }
 }
 
 // ============================================================
@@ -4651,7 +4775,8 @@ function initWorld() {
     gunPost: null,
     gunPostBullets: [],
     subInCave: null,     // Reference to cave the sub is hiding in
-    mission: { type: 'patrol', timer: 0, active: false, failed: false },
+    mission: { type: 'patrol', timer: 0, active: false, failed: false, completed: false },
+    hostages: [],
     // WASM co-processor (AffineScript physics kernel, airborne-final-working.wasm).
     // Populated asynchronously by init() after the module loads.
     wasm: null,
@@ -4947,6 +5072,10 @@ function updatePauseMenu() {
   if (keyJustPressed['g'] || keyJustPressed['G']) {
     world.settings.nemesisSub = !world.settings.nemesisSub;
     saveSettings(world.settings);
+  }
+  // Start hostage rescue mission (M key) — only if no mission active
+  if ((keyJustPressed['m'] || keyJustPressed['M']) && (!world.mission || !world.mission.active)) {
+    startMission('hostage');
   }
   // Save game
   if (keyJustPressed['s'] || keyJustPressed['S']) {
@@ -6556,6 +6685,7 @@ function update(dt) {
   updateHangars(dt);
   updateDestroyer(dt);
   updateMissionTimer(dt);
+  updateHostages(dt);
   updatePassengerShip(dt);
   updateInterceptors(dt);
   updateAkulaMolot(dt);
@@ -6931,7 +7061,8 @@ function drawPauseOverlay() {
   ctx.fillText(`Deep diver kit: ${world.settings.deepDiverKit ? 'ON' : 'OFF'}  (D to toggle)`, 420, 288);
   ctx.fillText(`Supply crates: ${getSupplyFrequency(world.settings).label}  (C to cycle)`, 420, 308);
   ctx.fillText(`Nemesis sub: ${world.settings.nemesisSub ? 'ON' : 'OFF'}  (G to toggle)`, 420, 328);
-  ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 348);
+  ctx.fillText(`Hostage rescue: M to start mission`, 420, 348);
+  ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 368);
 
   // --- Game actions panel ---
   ctx.fillStyle = 'rgba(8,15,30,0.82)';
@@ -7348,6 +7479,7 @@ function draw() {
     drawAmmoStations(world);
     drawMines(world);
     drawChaffs(world);
+    drawHostages();
     drawDestroyer();
     drawPassengerShip();
     drawInterceptors();
