@@ -98,6 +98,14 @@ test-regression:
 test-compat:
   deno test --allow-all test/compatibility_test.js
 
+# Run chaos/resilience tests
+test-chaos:
+  deno test --allow-all test/chaos_test.js
+
+# Run mission-specific tests
+test-missions:
+  deno test --allow-all test/mission_test.js
+
 # Run benchmarks (Six Sigma baselines)
 bench:
   deno bench --allow-all test/bench.js

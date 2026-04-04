@@ -122,3 +122,38 @@ Deno.test("property: velocityToMph is non-negative for all velocity combinations
     assert(mph >= 0, `velocityToMph(${vx}, ${vy}, ${mode}) = ${mph} — negative`);
   }
 });
+
+// ── 8. Mission durations are all multiples of 60 (whole seconds) ────
+Deno.test("property: all MISSION_TYPES durations divide evenly by 60", async () => {
+  const src = await Deno.readTextFile(extract.ROOT + "gossamer/app_gossamer.js");
+  // Only match durations inside the MISSION_TYPES block (between { and };)
+  const missionBlock = src.match(/const MISSION_TYPES\s*=\s*\{[\s\S]*?\};/);
+  assert(missionBlock, "Could not find MISSION_TYPES block");
+  const durations = [...missionBlock[0].matchAll(/duration:\s*(\d+)/g)].map(m => parseInt(m[1]));
+  assert(durations.length >= 3, `Expected at least 3 durations, found ${durations.length}`);
+  for (const d of durations) {
+    assertEquals(d % 60, 0,
+      `Duration ${d} is not a whole number of seconds (${d}/60 = ${d/60})`);
+  }
+});
+
+// ── 9. All enemy score rewards are multiples of 100 ─────────────────
+Deno.test("property: enemy score rewards are multiples of 100", async () => {
+  const src = await Deno.readTextFile(extract.ROOT + "gossamer/enemies.js");
+  const scores = [...src.matchAll(/world\.score\s*\+=\s*(\d+)/g)].map(m => parseInt(m[1]));
+  for (const s of scores) {
+    assertEquals(s % 100, 0,
+      `Score reward ${s} is not a multiple of 100`);
+  }
+});
+
+// ── 10. Spawn thresholds are monotonically increasing ───────────────
+Deno.test("property: aircraft spawn thresholds increase with difficulty", async () => {
+  const src = await Deno.readTextFile(extract.ROOT + "gossamer/enemies.js");
+  const berkutScore = parseInt(src.match(/BERKUT_SPAWN_SCORE\s*=\s*(\d+)/)?.[1] || '0');
+  const nemesisScore = parseInt(src.match(/NEMESIS_SPAWN_SCORE\s*=\s*(\d+)/)?.[1] || '0');
+  // Lightning threshold is inline in the update function
+  const lightningScore = 1000; // Hardcoded in updateAirInterceptors
+  assert(lightningScore < berkutScore, `Lightning (${lightningScore}) should spawn before Berkut (${berkutScore})`);
+  assert(berkutScore < nemesisScore, `Berkut (${berkutScore}) should spawn before Nemesis (${nemesisScore})`);
+});

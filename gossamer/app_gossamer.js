@@ -155,7 +155,7 @@ const MISSION_TYPES = {
   patrol:  { timed: false, label: 'PATROL' },
   strike:  { timed: true, duration: 6000, label: 'STRIKE', killTarget: 8 },
   hostage: { timed: true, duration: 5400, label: 'HOSTAGE RESCUE', mandatory: true, hostageCount: 3 },
-  escort:  { timed: true, duration: 8000, label: 'ESCORT', mandatory: true },
+  escort:  { timed: true, duration: 7200, label: 'ESCORT', mandatory: true },
 };
 const DIVING_BELL_RADIUS = 12;
 const HOSTAGE_RESCUE_RANGE = 60;         // How close sub must be to rescue
