@@ -2644,7 +2644,7 @@ function initDebrisClouds() {
   const zones = [330, 450, 570, 700]; // orbital radii for cloud centres
   return zones.slice(0, DEBRIS_CLOUD_COUNT).map((orbitR, i) => {
     const angle = (i / DEBRIS_CLOUD_COUNT) * Math.PI * 2 + 0.7;
-    const speed = Math.sqrt(SOLAR_GM / orbitR);
+    const speed = Math.sqrt(SOLAR_GM / (2 * orbitR));
     const particles = Array.from({ length: DEBRIS_PARTICLES }, () => ({
       dx: (Math.random() - 0.5) * 40,
       dy: (Math.random() - 0.5) * 40,
@@ -2668,7 +2668,7 @@ function initAsteroids() {
   for (let i = 0; i < ASTEROID_COUNT; i++) {
     const orbitR = ASTEROID_BELT_MIN + Math.random() * (ASTEROID_BELT_MAX - ASTEROID_BELT_MIN);
     const angle  = Math.random() * Math.PI * 2;
-    const speed  = Math.sqrt(SOLAR_GM / orbitR) * (0.92 + Math.random() * 0.16);
+    const speed  = Math.sqrt(SOLAR_GM / (2 * orbitR)) * (0.92 + Math.random() * 0.16);
     const radius = 4 + Math.random() * 14;
     asteroids.push({
       x:  Math.cos(angle) * orbitR,
