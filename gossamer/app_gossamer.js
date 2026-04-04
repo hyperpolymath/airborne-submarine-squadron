@@ -5472,14 +5472,13 @@ function fireOrbitalProjectile(space, sub, type) {
     type,
     age:    0,
     maxAge,
-    active: true,
   });
 }
 
 function updateOrbitalProjectiles(space, bodies, dt) {
   const survivors = [];
   for (const p of space.projectiles) {
-    if (!p.active || p.age > p.maxAge) continue;
+    if (p.age > p.maxAge) continue;
     // Gravity
     for (const body of bodies) {
       const dx = body.x - p.x;
