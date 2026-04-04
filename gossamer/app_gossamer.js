@@ -2621,6 +2621,27 @@ function nearestSolarBody(space, bodies) {
   return best ? { body: best, distance: bestDist } : null;
 }
 
+function initAsteroids() {
+  const asteroids = [];
+  for (let i = 0; i < ASTEROID_COUNT; i++) {
+    const orbitR = ASTEROID_BELT_MIN + Math.random() * (ASTEROID_BELT_MAX - ASTEROID_BELT_MIN);
+    const angle  = Math.random() * Math.PI * 2;
+    const speed  = Math.sqrt(SOLAR_GM / orbitR) * (0.92 + Math.random() * 0.16);
+    const radius = 4 + Math.random() * 14;
+    asteroids.push({
+      x:  Math.cos(angle) * orbitR,
+      y:  Math.sin(angle) * orbitR,
+      vx: -Math.sin(angle) * speed,
+      vy:  Math.cos(angle) * speed,
+      radius,
+      hp: radius < 7 ? 1 : radius < 12 ? 2 : 3,
+      id: i,
+      color: `hsl(${25 + Math.random() * 20},${30 + Math.random() * 20}%,${28 + Math.random() * 18}%)`,
+    });
+  }
+  return asteroids;
+}
+
 function createOrbitState() {
   const originId = (world.lastSolarBodyId && world.lastSolarBodyId !== 'sun')
     ? world.lastSolarBodyId : 'earth';
@@ -2658,6 +2679,10 @@ function createOrbitState() {
       visible: true,
       dwellTimer: 0,
     },
+    asteroids: initAsteroids(),
+    debrisClouds: [],
+    comets: [],
+    projectiles: [],
   };
 }
 
