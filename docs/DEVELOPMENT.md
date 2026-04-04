@@ -26,7 +26,7 @@ airborne-submarine-squadron/
 ├── launcher.sh           # Unified launcher (browser / CLI / tray / Gossamer / desktop install)
 ├── build.sh              # AffineScript → WASM build script
 ├── Justfile              # Task runner (just build, just run, just web, etc.)
-└── .machine_readable/    # STATE.scm, META.scm, ECOSYSTEM.scm
+└── .machine_readable/    # STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml
 ```
 
 ## Running the Game

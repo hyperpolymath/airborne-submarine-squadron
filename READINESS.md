@@ -13,7 +13,7 @@ Assessed against [CRG v2.0](https://github.com/hyperpolymath/standards/blob/main
 | RSR compliance        | ⚠️ Partial | Missing `hypatia-scan.yml`; core workflows present |
 | Test matrix           | ⚠️ Partial | `test_types.as`, `test_verisimdb_simple.js` exist but no structured test runner |
 | **All tests and benches pass** | ⚠️ Unverified | Grade D requires this — see below |
-| Scope documented      | ✅ | STATE.scm, ROADMAP.adoc, README.adoc |
+| Scope documented      | ✅ | STATE.a2ml, ROADMAP.adoc, README.adoc |
 | No regressions on own project | ✅ | Runs from repo root via `deno run --allow-all run.js` |
 
 ## Grade D Requirements (CRG v2.0)

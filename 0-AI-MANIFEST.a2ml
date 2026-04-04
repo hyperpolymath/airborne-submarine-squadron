@@ -26,15 +26,15 @@
   (context-tiers
     (tier-0 "Always load: this file + .claude/CLAUDE.md")
     (tier-1 "Load if working on code: README.adoc, EXPLAINME.adoc, Justfile, READINESS.md")
-    (tier-2 "Load on demand: .machine_readable/STATE.scm, docs/")
+    (tier-2 "Load on demand: .machine_readable/STATE.a2ml, docs/")
     (tier-3 "Never load unless asked: gossamer/app_gossamer.js (7500+ lines), build/"))
 
   (canonical-locations
     (ai-manifest     "0-AI-MANIFEST.a2ml"                    "THIS FILE")
     (ai-instructions ".claude/CLAUDE.md"                     "Claude-specific patterns")
-    (state           ".machine_readable/STATE.scm")
-    (meta            ".machine_readable/META.scm")
-    (ecosystem       ".machine_readable/ECOSYSTEM.scm")
+    (state           ".machine_readable/STATE.a2ml")
+    (meta            ".machine_readable/META.a2ml")
+    (ecosystem       ".machine_readable/ECOSYSTEM.a2ml")
     (readiness       "READINESS.md"                          "CRG v2.0 grade assessment")
     (web-entry       "index.html"                            "Root game entry — no redirect")
     (game-engine     "gossamer/app_gossamer.js"              "Gossamer v2 JS engine + crash logger")
@@ -60,7 +60,7 @@
     (rule "No Tauri or Electron — browser plus ksni tray binary only")
     (rule "No npm, bun, pnpm, yarn — Deno only for JS runtime")
     (rule "No Node.js — Deno only")
-    (rule "Machine-readable files MUST be in .machine_readable/ — never in root (A2ML preferred; SCM legacy)")
+    (rule "Machine-readable files MUST be in .machine_readable/ — never in root (A2ML format only, SCM migrated)")
     (rule "Crash logs in logs/ are gitignored — do NOT commit crash-*.json files")
     (rule "src/main.as is the ONLY canonical AffineScript source")
     (rule "gossamer/app_gossamer.js is the current game engine — do not replace"))
@@ -68,10 +68,10 @@
   (lifecycle
     (on-enter
       (step "Read THIS file first")
-      (step "Read .machine_readable/STATE.scm for current status and blockers")
+      (step "Read .machine_readable/STATE.a2ml for current status and blockers")
       (step "Read READINESS.md for CRG grade and open blockers"))
     (on-exit
-      (step "Update .machine_readable/STATE.scm with any progress made")
+      (step "Update .machine_readable/STATE.a2ml with any progress made")
       (step "Commit and push — full git cycle")))
 
   (format-meta

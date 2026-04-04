@@ -194,7 +194,7 @@ airborne-submarine-squadron/
 ├── launcher.sh           # Unified launcher
 ├── build.sh              # AffineScript -> WASM build script
 ├── Justfile              # Task runner
-└── .machine_readable/    # STATE.scm, META.scm, ECOSYSTEM.scm
+└── .machine_readable/    # STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml
 ----
 
 == Build Notes

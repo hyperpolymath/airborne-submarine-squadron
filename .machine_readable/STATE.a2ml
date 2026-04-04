@@ -1,12 +1,12 @@
 ; SPDX-License-Identifier: AGPL-3.0-or-later
 ; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 ;
-; STATE.scm -- Airborne Submarine Squadron project state
+; STATE.a2ml -- Airborne Submarine Squadron project state
 ; Updated: 2026-04-04
 
 (state
   (metadata
-    (version "0.5.0")
+    (version "0.6.0")
     (name "airborne-submarine-squadron")
     (type "game")
     (last-updated "2026-04-04"))
@@ -22,24 +22,47 @@
 
   (current-position
     (phase "alpha")
-    (completion-percentage 77)
-    (milestone "Full gameplay loop: atmosphere, water, space. Ships, subs, thermal layers, hangars.
-                Crash logging, port management, and CRG assessment added 2026-04-04."))
+    (completion-percentage 85)
+    (milestone "Major gameplay overhaul 2026-04-04: four aircraft types, commander HP,
+                end-of-mission scoring, mine variety, balance pass, HUD improvements."))
 
   (components
     (game-engine
       (status "working")
       (details "Gossamer variant: free flight, orbital mechanics, periscope, depth charges,
                 torpedoes (including LGT), missiles, chaff, mines with chain-cutting,
-                thermal layers with visibility rules, caterpillar drive, supply drops"))
+                thermal layers with visibility rules, caterpillar drive, supply drops.
+                Supply frequency setting (none/few/normal/many/unlimited).
+                Commander HP (3 hearts) with injury/death system.
+                End-of-mission scoring screen with full component breakdown."))
+    (aircraft-system
+      (status "working")
+      (details "Four aircraft types implemented 2026-04-04:
+                1. Sopwith Camel — passive biplane, transforms to Red Baron on hit,
+                   acrobatic combat (loops, Immelmann, chandelle, barrel roll, strafing),
+                   Sopwith-style tracer fire, one per level, 5000pts.
+                2. Su-47 Berkut (Air Supremacy) — spawns at 3000pts, intelligent AI
+                   state machine, MG/rockets/seekers/bombs/chaff, commands interceptors.
+                3. English Electric Lightning (Interceptors) — squadrons of 2-3,
+                   MG + unguided rockets, Berkut-coordinated when both on screen.
+                4. Nemesis mini-sub — toggle or auto at 5000pts, mirrors player,
+                   flies and swims (not deep/space), torpedoes + MG.
+                Generic aircraft reduced: spawn timer doubled, max 3 on screen."))
     (ships
       (status "working")
       (details "Destroyer (patrol, SAM, AA, torpedoes), Passenger (island-hopping, survivors),
                 Interceptor boats (camo, MG, bazooka), Space tourist"))
     (submarines
       (status "working")
-      (details "Akula-Molot hammerhead (SAM, torpedo, cloak, sonar chain, all-layer detection),
+      (details "Akula-Molot hammerhead — torpedo active bug FIXED, speed 0.6→0.8,
+                SAM cooldown 140→90, torpedo cooldown 180→110, wider engage ranges.
                 Delfin dolphin (fire-forget torpedo, surface MG, crew bail-out)"))
+    (mines
+      (status "working")
+      (details "Three mine zones implemented 2026-04-04:
+                - Middle zone (40%): long chains 100-180, easier to cut (wide target)
+                - Deep zone (30%): short chains 15-45, harder to cut without detonating
+                - Standard (30%): original 30-60 chains"))
     (hangar-system
       (status "working")
       (details "Health tiers (green/yellow/red/purple), point defense, explosion"))
@@ -48,27 +71,33 @@
       (details "Three asymmetric layers, visibility rules, temperature gauge, hull depth restriction"))
     (space
       (status "working")
-      (details "Solar system with Pluto, boundary, autopilot (0-9 keys), tourist ship, no afterburners"))
+      (details "Solar system with Pluto, boundary, autopilot (0-9 keys), tourist ship, no afterburners.
+                HUD fixed: solar map only in orbit, flight instruments red in space."))
+    (hud
+      (status "working")
+      (details "Fuel gauge (afterburner charge) replaces old HP bar.
+                Graded 4-segment HP bar under damage diagram.
+                Commander HP display with hearts and status label.
+                Clearer wings (swept-back) and rudder (V-tail) in damage diagram.
+                E key disembark no longer triggers eject warning.
+                Supply crate frequency in settings (C to cycle).
+                Nemesis sub toggle (G to toggle)."))
     (desktop-integration
       (status "working")
       (details "XDG shortcut, system tray (ksni 0.3), install/uninstall"))
     (save-system
       (status "working")
-      (details "Save/load to localStorage, key rebinding, HALO/deep-diver-kit upgrades"))
+      (details "Save/load to localStorage, key rebinding, HALO/deep-diver-kit upgrades,
+                commander HP saved/restored"))
     (crash-logging
       (status "working")
       (details "window.onerror + onunhandledrejection capture errors with world snapshot.
                 Stored in localStorage (ass_crash_logs, max 20 entries).
-                POST /crash-report sends to Deno dev server → logs/<timestamp>.json on disk.
-                Console helpers: ASS_dumpCrashLog(), ASS_downloadCrashLog(), ASS_clearCrashLog().
-                Implemented 2026-04-04 in gossamer/app_gossamer.js."))
+                POST /crash-report sends to Deno dev server."))
     (dev-server
       (status "working")
       (details "run.js Deno file server on port 6860 (fallback 6870-6874).
-                freePort() kills stale processes via fuser (Linux) / lsof+kill (macOS) before probe.
-                SIGINT/SIGTERM handlers kill child server on exit.
-                POST /crash-report endpoint writes JSON to logs/ directory.
-                Fixed 2026-04-04 — was leaving orphan processes locking the port.")))
+                freePort() kills stale processes. POST /crash-report endpoint.")))
 
   (route-to-mvp
     (milestone-1
@@ -103,5 +132,6 @@
     (action-1 "Add hypatia-scan.yml workflow from RSR template (required for RSR compliance)")
     (action-2 "Wire test_types.as and test_verisimdb_simple.js to justfile 'test' recipe")
     (action-3 "Verify all declared tests pass — this locks CRG grade D per READINESS.md")
-    (action-4 "Compress solar system scale and add radar/astrocompass")
-    (action-5 "Add mission system with hostage rescue scenarios")))
+    (action-4 "Playtest aircraft balance — Berkut/Lightning/Nemesis spawn thresholds")
+    (action-5 "Add mission system with hostage rescue scenarios")
+    (action-6 "Consider modular split of app_gossamer.js if it grows further")))
