@@ -5436,6 +5436,31 @@ function updateDiverMode(sub, dt) {
   }
 }
 
+function damageAsteroid(space, asteroid, damage) {
+  asteroid.hp -= damage;
+  if (asteroid.hp > 0) return;
+  addExplosion(asteroid.x, asteroid.y, asteroid.radius > 10 ? 'big' : 'small');
+  // Spawn fragments if large enough
+  if (asteroid.radius >= 7) {
+    const fragCount = asteroid.radius >= 12 ? 3 : 2;
+    for (let i = 0; i < fragCount; i++) {
+      const spreadAngle = (Math.random() - 0.5) * Math.PI;
+      const speed = Math.hypot(asteroid.vx, asteroid.vy) * 0.6;
+      const baseAngle = Math.atan2(asteroid.vy, asteroid.vx) + spreadAngle;
+      space.asteroids.push({
+        x: asteroid.x + Math.cos(baseAngle) * asteroid.radius,
+        y: asteroid.y + Math.sin(baseAngle) * asteroid.radius,
+        vx: Math.cos(baseAngle) * speed,
+        vy: Math.sin(baseAngle) * speed,
+        radius: asteroid.radius / fragCount,
+        hp: 1,
+        id: Math.random(),
+        color: asteroid.color,
+      });
+    }
+  }
+}
+
 function updateAsteroids(space, bodies, sub, dt) {
   const next = [];
   for (const a of space.asteroids) {
