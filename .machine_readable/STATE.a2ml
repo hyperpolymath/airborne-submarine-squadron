@@ -22,7 +22,7 @@
 
   (current-position
     (phase "alpha")
-    (completion-percentage 91)
+    (completion-percentage 93)
     (milestone "Major gameplay + infrastructure overhaul 2026-04-04: four aircraft types,
                 commander HP, scoring, damage-aware cruise, pressure system, mine variety,
                 desktop shortcut fixed, Deno crash resolved, port 6880."))
@@ -146,11 +146,11 @@
       (workaround "Game tested via unit/property/fuzz; E2E marked N/A in blitz")))
 
   (critical-next-actions
-    (action-1 "Wire VeriSimDB integration for game state persistence")
-    (action-2 "Multi-platform CI (Linux + macOS) for CRG grade B")
-    (action-3 "Add strike and escort mission types (timer + kill objectives)")
-    (action-4 "Further modular split: extract HUD/rendering (~1000 lines) from app_gossamer.js")
-    (action-5 "Playtest hostage rescue mission difficulty + aircraft balance curve in-game"))
+    (action-1 "Playtest all 3 mission types + aircraft balance in-game with son")
+    (action-2 "CRG B assessment — chaos/resilience tests, coverage feedback on fuzz")
+    (action-3 "Island platformer mode for v2 milestone (Trionic SubCommando)")
+    (action-4 "Radar/astrocompass for space expansion milestone")
+    (action-5 "Consider extracting controls/keybinds into controls.js (~300 lines)"))
 
   (session-history
     ("2026-04-04" "Claude Opus 4.6" "Full blitz test suite: 94 tests + 6 benchmarks across 10 categories.
@@ -160,4 +160,9 @@
                    0→1000→3500→6000), hostage rescue missions implemented (3 hostages, 90s timer,
                    signal flares, M key trigger, +1000pts per rescue). Modular split: enemies.js
                    extracted (9100→6556 main, 2583 enemies). AffineScript parser fix upstream
-                   (inline variant types). 96 tests passing.")))
+                   (inline variant types). 96 tests passing.")
+    ("2026-04-04" "Claude Opus 4.6" "Infrastructure + missions: VeriSimDB wired (leaderboard, settings,
+                   saves, crash logs with localStorage fallback). Multi-platform CI (Linux+macOS).
+                   Strike missions (8 kills, 100s, +500/kill) and escort missions (protect ship, 133s,
+                   +4000). M key cycles missions. hud.js extracted (6616→5706 main, 945 hud).
+                   Game engine now 4 modules: core 5706 + enemies 2583 + hud 945 + verisimdb 163.")))
