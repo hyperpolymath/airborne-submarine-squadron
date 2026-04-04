@@ -2621,6 +2621,25 @@ function nearestSolarBody(space, bodies) {
   return best ? { body: best, distance: bestDist } : null;
 }
 
+function initComets() {
+  return [
+    { a: 900,  ecc: 0.82, peri: 0.7,  phase: 0.0,  period: 700, radius: 9,  trail: [] },
+    { a: 1100, ecc: 0.75, peri: 2.3,  phase: 3.14, period: 950, radius: 7,  trail: [] },
+  ];
+}
+
+function cometPosition(c, time) {
+  const angle = c.phase + (time * SPACE_TIME_SCALE / c.period) * Math.PI * 2;
+  const b  = c.a * Math.sqrt(1 - c.ecc * c.ecc);
+  const ex = -c.a * c.ecc + c.a * Math.cos(angle);
+  const ey = b * Math.sin(angle);
+  return {
+    x: ex * Math.cos(c.peri) - ey * Math.sin(c.peri),
+    y: ex * Math.sin(c.peri) + ey * Math.cos(c.peri),
+    angle,
+  };
+}
+
 function initDebrisClouds() {
   const zones = [330, 450, 570, 700]; // orbital radii for cloud centres
   return zones.slice(0, DEBRIS_CLOUD_COUNT).map((orbitR, i) => {
@@ -2704,7 +2723,7 @@ function createOrbitState() {
     },
     asteroids: initAsteroids(),
     debrisClouds: initDebrisClouds(),
-    comets: [],
+    comets: initComets(),
     projectiles: [],
   };
 }
@@ -5459,6 +5478,30 @@ function updateDiverMode(sub, dt) {
   }
 }
 
+function updateComets(space, sub, dt) {
+  for (const c of space.comets) {
+    const pos = cometPosition(c, space.time);
+    // Update trail (store last 30 positions)
+    c.trail.push({ x: pos.x, y: pos.y });
+    if (c.trail.length > 30) c.trail.shift();
+
+    // Ship collision
+    if (Math.hypot(space.shipX - pos.x, space.shipY - pos.y) < c.radius + ORBITAL_COLLISION_RADIUS) {
+      damageRandomPart(sub.parts, 60);
+      damageRandomPart(sub.parts, 60);
+      addExplosion(pos.x, pos.y, 'big');
+      SFX.damage();
+      world.caveMessage = { text: 'COMET STRIKE — CRITICAL DAMAGE', timer: 200 };
+      // Deflect ship
+      const dx = space.shipX - pos.x;
+      const dy = space.shipY - pos.y;
+      const mag = Math.max(1, Math.hypot(dx, dy));
+      space.shipVx += (dx / mag) * 4;
+      space.shipVy += (dy / mag) * 4;
+    }
+  }
+}
+
 function updateDebrisClouds(space, bodies, sub, dt) {
   for (const c of space.debrisClouds) {
     if (c.collected) continue;
@@ -5777,6 +5820,7 @@ function updateOrbitMode(dt) {
   space.shipY += space.shipVy * dt * 4;
   updateAsteroids(space, bodies, sub, dt);
   updateDebrisClouds(space, bodies, sub, dt);
+  updateComets(space, sub, dt);
   updateOrbitalProjectiles(space, bodies, dt);
   space.cameraX += (space.shipX - space.cameraX) * SPACE_CAMERA_SMOOTH * dt * 4;
   space.cameraY += (space.shipY - space.cameraY) * SPACE_CAMERA_SMOOTH * dt * 4;
@@ -7323,6 +7367,31 @@ function drawWarpMenu() {
   ctx.fillText('Press F or Esc to close this menu', W/2, H/2 + 78);
 }
 
+function drawComets(space) {
+  for (const c of space.comets) {
+    if (c.trail.length < 2) continue;
+    const pos = c.trail[c.trail.length - 1];
+    // Trail
+    for (let i = 1; i < c.trail.length; i++) {
+      const t0 = c.trail[i - 1];
+      const t1 = c.trail[i];
+      ctx.globalAlpha = (i / c.trail.length) * 0.6;
+      ctx.strokeStyle = '#7dd3fa';
+      ctx.lineWidth   = 1.5 * (i / c.trail.length);
+      ctx.beginPath();
+      ctx.moveTo(t0.x, t0.y);
+      ctx.lineTo(t1.x, t1.y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // Head
+    ctx.fillStyle = '#e0f2fe';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, c.radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function drawDebrisClouds(space) {
   for (const c of space.debrisClouds) {
     if (c.collected) continue;
@@ -7510,6 +7579,7 @@ function drawOrbitScene() {
     ctx.restore();
   }
 
+  drawComets(space);
   drawDebrisClouds(space);
   drawOrbitalProjectiles(space);
   drawAsteroids(space);
