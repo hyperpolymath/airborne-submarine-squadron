@@ -28,8 +28,8 @@ TRAY_BIN="$SCRIPT_DIR/tray/target/release/airborne-tray"
 
 find_free_port() {
     local port
-    # Default port 6860 — a nod to the 686 attack sub
-    for port in 6860 $(seq 6861 6869); do
+    # Default port 6880 — after 688 attack sub
+    for port in 6880 $(seq 6881 6884); do
         if ! ss -tlnH "sport = :$port" 2>/dev/null | grep -q .; then
             echo "$port"
             return 0
@@ -150,9 +150,9 @@ _kill_pid_aggressive() {
 }
 
 _release_game_ports() {
-    # Aggressively release all game ports (6860–6869 main, 6870–6899 gossamer).
+    # Aggressively release all game ports (6880–6884).
     # Uses fuser to SIGKILL any process still holding the port.
-    for port in $(seq 6860 6899); do
+    for port in $(seq 6880 6884); do
         if ss -tlnH "sport = :$port" 2>/dev/null | grep -q .; then
             fuser -k "${port}/tcp" 2>/dev/null || true
         fi

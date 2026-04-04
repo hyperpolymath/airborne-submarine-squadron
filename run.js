@@ -53,7 +53,7 @@ const REGISTRY = {
     "checkGitSync",   // fetch + ahead/behind + dirty check
     "selfHeal",       // copy dist→build WASM if missing
     "detectVersions", // git tags + WASM artifact dates
-    "findPort",       // probe 6860 then fallbacks
+    "findPort",       // probe 6880 then fallbacks
     "launchNative",   // Ephapax + libgossamer.so
     "launchDeno",     // Deno file server + xdg-open
     "launchHeadless", // wasmtime CLI mode
@@ -355,11 +355,20 @@ async function launchDeno(platform) {
     Deno.addSignalListener("SIGTERM", shutdown);
   } catch { /* Windows — signals not fully supported */ }
 
+  // Open the Gossamer entry point (not root index.html)
+  const gameUrl = `${url}gossamer/index_gossamer.html`;
   if (platform.browserCmd) {
-    log(`Opening browser at ${url}`);
-    await run(platform.browserCmd, [url]);
+    log(`Opening Gossamer at ${gameUrl}`);
+    // Fire and forget — don't await xdg-open (it can block or spawn duplicates)
+    try {
+      const p = new Deno.Command(platform.browserCmd, {
+        args: [gameUrl],
+        stdout: "null", stderr: "null",
+      });
+      p.spawn();
+    } catch { log(`Could not open browser — visit ${gameUrl} manually`); }
   } else {
-    log(`Server running at ${url} — open in your browser`);
+    log(`Server running — open ${gameUrl} in your browser`);
   }
 
   await server.finished;

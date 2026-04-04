@@ -47,7 +47,7 @@ cleanup() {
     # Aggressively release the Deno server port so a new launch never
     # finds it occupied.  Run unconditionally — the port might be held
     # by a Deno process whose PID file was already cleaned up.
-    for port in 6860 $(seq 6861 6869) $(seq 6870 6899); do
+    for port in 6880 $(seq 6881 6884); do
         if ss -tlnH "sport = :$port" 2>/dev/null | grep -q .; then
             # fuser sends SIGKILL to all processes bound to the port.
             fuser -k "${port}/tcp" 2>/dev/null || true
@@ -101,12 +101,12 @@ if [[ "$USE_FALLBACK" == false ]]; then
     [[ ! -f "$LIBGOSSAMER" ]] && echo "  Missing: $LIBGOSSAMER"
 fi
 
-# Find a free port (default 6870 to avoid collision with main game on 6860)
-PORT=6870
+# Find a free port (default 6880 — after 688 attack sub)
+PORT=6880
 while ss -tlnp 2>/dev/null | grep -q ":${PORT} " 2>/dev/null; do
     PORT=$((PORT + 1))
-    if [[ $PORT -gt 6899 ]]; then
-        echo "ERROR: No free port in range 6870-6899"
+    if [[ $PORT -gt 6884 ]]; then
+        echo "ERROR: No free port in range 6880-6884"
         exit 1
     fi
 done
