@@ -165,6 +165,9 @@ Deno.test("mutation: baseline — original constants have expected values", () =
   assertEquals(C.ORBIT_TRIGGER_SPEED_MPH, 88);
   assertEquals(C.HULL_DEEP_THRESHOLD, 0.4);
   assertEquals(C.FIRE_COOLDOWN, 15);
+  // Note: BERKUT_HP, BERKUT_SPAWN_SCORE, NEMESIS_SPAWN_SCORE etc. are NOT
+  // extracted by _extract.js (they use uppercase names but aren't in the
+  // CONST_NAMES list). Balance changes don't affect mutation baselines.
 });
 
 // Test each non-equivalent mutation is killed

@@ -1500,9 +1500,9 @@ function drawSopwith() {
 // Spawns once score exceeds threshold. Controls nearby interceptors.
 // ============================================================
 const BERKUT_SPEED = 3.5;
-const BERKUT_HP = 8;
+const BERKUT_HP = 7;
 const BERKUT_SCORE = 8000;
-const BERKUT_SPAWN_SCORE = 3000;
+const BERKUT_SPAWN_SCORE = 3500;
 const BERKUT_MG_COOLDOWN = 5;
 const BERKUT_ROCKET_COOLDOWN = 60;
 const BERKUT_SEEKER_COOLDOWN = 120;
@@ -1783,8 +1783,8 @@ const LIGHTNING_SPEED = 2.8;
 const LIGHTNING_HP = 3;
 const LIGHTNING_SCORE = 1500;
 const LIGHTNING_MG_COOLDOWN = 8;
-const LIGHTNING_ROCKET_COOLDOWN = 80;
-const LIGHTNING_SQUAD_SPAWN_INTERVAL = 500;
+const LIGHTNING_ROCKET_COOLDOWN = 90;
+const LIGHTNING_SQUAD_SPAWN_INTERVAL = 600;
 
 function spawnLightningSquad() {
   const count = 2 + Math.floor(Math.random() * 2); // 2 or 3
@@ -1817,7 +1817,7 @@ function updateAirInterceptors(dt) {
   // Spawn new squadrons periodically (max 1 active squad of 3)
   const aliveCount = world.airInterceptors.filter(l => l.alive).length;
   world.airInterceptorTimer += dt;
-  if (aliveCount === 0 && world.airInterceptorTimer > LIGHTNING_SQUAD_SPAWN_INTERVAL && world.score > 500) {
+  if (aliveCount === 0 && world.airInterceptorTimer > LIGHTNING_SQUAD_SPAWN_INTERVAL && world.score > 1000) {
     world.airInterceptors = spawnLightningSquad();
     world.airInterceptorTimer = 0;
     world.caveMessage = { text: 'LIGHTNING SQUADRON INCOMING', timer: 80 };
@@ -1990,8 +1990,8 @@ const NEMESIS_SPEED_AIR = 2.2;
 const NEMESIS_SPEED_WATER = 1.4;
 const NEMESIS_HP = 6;
 const NEMESIS_SCORE = 6000;
-const NEMESIS_SPAWN_SCORE = 5000;
-const NEMESIS_TORPEDO_COOLDOWN = 100;
+const NEMESIS_SPAWN_SCORE = 6000;
+const NEMESIS_TORPEDO_COOLDOWN = 120;
 const NEMESIS_MG_COOLDOWN = 10;
 
 function spawnNemesis() {
@@ -6573,7 +6573,9 @@ function updateEnemies(dt) {
   world.enemyTimer += hidden ? dt * 0.2 : dt;
   // Cap active aircraft to keep skies clear
   const airCount = world.enemies.filter(e => e.type !== 'ship').length;
-  if (!hidden && world.enemyTimer > 160 && airCount < 3) {
+  // Spawn timer scales with score: 160 base, min 80 at high scores
+  const spawnDelay = Math.max(80, 160 - Math.floor(world.score / 500) * 10);
+  if (!hidden && world.enemyTimer > spawnDelay && airCount < 3) {
     world.enemyTimer = 0;
     const side = Math.random() < 0.7 ? sub.facing : -sub.facing;
     const spawnX = sub.worldX + side * (W * 0.6 + Math.random() * 200);
