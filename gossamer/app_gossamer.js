@@ -1256,6 +1256,8 @@ function saveLeaderboard(entries) {
   } catch {
     // Ignore storage failures; the in-memory leaderboard still works.
   }
+  // Mirror to VeriSimDB (fire-and-forget)
+  if (typeof verisimdbSaveLeaderboard === 'function') verisimdbSaveLeaderboard(entries.slice(0, 5));
 }
 
 function loadSettings() {
@@ -1277,6 +1279,7 @@ function saveSettings(settings) {
   } catch {
     // Ignore storage failures and keep running.
   }
+  if (typeof verisimdbSaveSettings === 'function') verisimdbSaveSettings(settings);
 }
 
 function currentSubSkin(settings) {
@@ -2486,6 +2489,7 @@ function saveGameState() {
       },
     };
     window.localStorage.setItem('ass_save_state', JSON.stringify(snapshot));
+    if (typeof verisimdbSaveGame === 'function') verisimdbSaveGame(snapshot);
     world.caveMessage = { text: 'Game saved', timer: 90 };
     return true;
   } catch {
@@ -6556,6 +6560,8 @@ function drawDamageDiagram() {
         keepalive: true,
       }).catch(() => {});
     } catch { /* server not running */ }
+    // Mirror to VeriSimDB
+    if (typeof verisimdbLogCrash === 'function') verisimdbLogCrash(entry);
   }
 
   function worldSnapshot() {
