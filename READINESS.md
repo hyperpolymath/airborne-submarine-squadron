@@ -4,6 +4,8 @@
 
 ## Current Grade: **C (Alpha-stable)**
 
+**Current Grade:** C
+
 **Assessor:** Claude (blitz assessment)
 **Test suite:** 94 tests, 0 failures, 8 test files + 6 benchmarks
 **Assessment date:** 2026-04-04
