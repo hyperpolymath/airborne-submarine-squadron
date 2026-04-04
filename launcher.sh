@@ -201,10 +201,10 @@ launch_browser() {
 
     sleep 0.5
     if should_auto_open; then
-        echo "Opening http://127.0.0.1:$port/"
-        xdg-open "http://127.0.0.1:$port/" 2>/dev/null &
+        echo "Opening http://127.0.0.1:$port/gossamer/index_gossamer.html"
+        xdg-open "http://127.0.0.1:$port/gossamer/index_gossamer.html" 2>/dev/null &
     else
-        echo "Server ready at http://127.0.0.1:$port/"
+        echo "Server ready at http://127.0.0.1:$port/gossamer/index_gossamer.html"
         echo "Auto-open skipped (set up a GUI session or unset AIRBORNE_NO_OPEN)"
     fi
 
@@ -240,7 +240,14 @@ launch_tray() {
 }
 
 launch_gossamer() {
-    exec bash "$SCRIPT_DIR/gossamer/launch.sh" "${@}"
+    # Use run.js as the canonical launcher — it handles port management,
+    # opens the Gossamer HTML entry point, and cleans up on exit.
+    if command -v deno >/dev/null 2>&1; then
+        exec deno run --allow-all "$SCRIPT_DIR/run.js" --no-git
+    else
+        # Fallback to gossamer/launch.sh if Deno isn't available
+        exec bash "$SCRIPT_DIR/gossamer/launch.sh" "${@}"
+    fi
 }
 
 do_install() {
