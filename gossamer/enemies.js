@@ -956,20 +956,26 @@ const NEMESIS_TORPEDO_COOLDOWN = 120;
 const NEMESIS_MG_COOLDOWN = 10;
 
 function spawnNemesis() {
-  const side = Math.random() < 0.5 ? 1 : -1;
+  // Always emerge from the hidden underwater lair, never the player's hangar.
+  const lair = world.terrain.nemesisLair;
+  const lairX = lair ? lair.x : world.terrain.startPort.x + 3000;
+  const lairY = lair ? lair.y : WATER_LINE + 145;
   return {
-    x: world.sub.worldX + side * W * 0.8,
-    y: WATER_LINE - 20,
-    vx: -side * NEMESIS_SPEED_AIR,
-    vy: 0,
+    x: lairX,
+    y: lairY,
+    vx: 0,
+    vy: -NEMESIS_SPEED_WATER * 0.6,   // Rising slowly from depth
     hp: NEMESIS_HP,
     alive: true,
-    torpedoCooldown: 50,
-    mgCooldown: 20,
+    torpedoCooldown: 80,
+    mgCooldown: 40,
     bullets: [],
-    inWater: false,
-    state: 'hunt',    // hunt, dive, surface, flee
+    inWater: true,
+    state: 'emerging',   // emerging → hunt, dive, surface, flee
     stateTimer: 0,
+    // Lair position cached so we can reveal it once the nemesis is spotted
+    lairX,
+    lairY,
   };
 }
 
@@ -978,7 +984,8 @@ function updateNemesis(dt) {
   const shouldSpawn = world.settings.nemesisSub || world.score >= NEMESIS_SPAWN_SCORE;
   if (!world.nemesis && shouldSpawn) {
     world.nemesis = spawnNemesis();
-    world.caveMessage = { text: 'WARNING: NEMESIS SUB DETECTED', timer: 120 };
+    // Announce after a short delay (the nemesis is deep; player won't see it yet)
+    world.caveMessage = { text: 'DEEP SONAR CONTACT — UNKNOWN VESSEL', timer: 140 };
   }
   const nm = world.nemesis;
   if (!nm || !nm.alive) return;
@@ -987,6 +994,29 @@ function updateNemesis(dt) {
   nm.torpedoCooldown = Math.max(0, nm.torpedoCooldown - dt);
   nm.mgCooldown = Math.max(0, nm.mgCooldown - dt);
   nm.inWater = nm.y > WATER_LINE;
+
+  // ── EMERGING state: rise from the lair before engaging ──────────────────
+  if (nm.state === 'emerging') {
+    nm.vy = -NEMESIS_SPEED_WATER * 0.55;   // Slow, menacing ascent
+    nm.vx *= 0.92;                          // Bleed off any lateral drift
+    nm.x += nm.vx * dt;
+    nm.y += nm.vy * dt;
+    // Reveal lair on the map as soon as the nemesis breaks the thermocline
+    if (nm.y < WATER_LINE + 80 && world.terrain.nemesisLair) {
+      world.terrain.nemesisLair.revealed = true;
+    }
+    // Transition to hunt once at the waterline
+    if (nm.y <= WATER_LINE + 5) {
+      nm.y = WATER_LINE + 5;
+      nm.vy = 0;
+      nm.state = 'hunt';
+      nm.stateTimer = 0;
+      world.caveMessage = { text: 'WARNING: NEMESIS SUB SURFACING', timer: 150 };
+    }
+    return;  // No combat while emerging
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const dist = Math.hypot(sub.worldX - nm.x, sub.y - nm.y);
   const angleToSub = Math.atan2(sub.y - nm.y, sub.worldX - nm.x);
   const speed = nm.inWater ? NEMESIS_SPEED_WATER : NEMESIS_SPEED_AIR;
@@ -1084,6 +1114,149 @@ function updateNemesis(dt) {
   nm.y = clamp(nm.y, 25, THERMAL_LAYER_2_MAX - 20);
   if (nm.x < 50) { nm.x = 50; nm.vx = Math.abs(nm.vx); }
   if (nm.x > TERRAIN_LENGTH - 50) { nm.x = TERRAIN_LENGTH - 50; nm.vx = -Math.abs(nm.vx); }
+}
+
+// ── NEMESIS LAIR ─────────────────────────────────────────────────────────────
+// Draws the hidden underwater cavern from which the nemesis sub emerges.
+// Visible only when the player is close enough (thermal layer reveals it)
+// OR after the nemesis has surfaced and the lair has been revealed.
+function drawNemesisLair() {
+  const lair = world.terrain && world.terrain.nemesisLair;
+  if (!lair) return;
+
+  const sx = toScreen(lair.x);
+  if (sx < -lair.w - 20 || sx > W + lair.w + 20) return;
+  // Only visible when sub is below the waterline (underwater view) AND
+  // in the right vertical range, OR once the lair has been revealed.
+  const sub = world.sub;
+  const subUnderwater = sub && sub.y > WATER_LINE;
+  if (!lair.revealed && !subUnderwater) return;
+
+  const cx = sx;
+  const cy = lair.y;
+  const hw = lair.w / 2;   // half-width
+  const hh = lair.h / 2;   // half-height
+  const t  = world.tick;
+
+  ctx.save();
+
+  // ── Outer rock formation / cliff face ──
+  ctx.fillStyle = '#1a1218';
+  ctx.beginPath();
+  ctx.moveTo(cx - hw - 30, cy + hh + 30);
+  ctx.lineTo(cx - hw - 20, cy - hh - 18);
+  ctx.lineTo(cx - hw + 10, cy - hh - 24);
+  ctx.lineTo(cx - 8,       cy - hh - 6);   // Cave mouth top-left
+  ctx.lineTo(cx + 8,       cy - hh - 6);   // Cave mouth top-right
+  ctx.lineTo(cx + hw - 10, cy - hh - 24);
+  ctx.lineTo(cx + hw + 20, cy - hh - 18);
+  ctx.lineTo(cx + hw + 30, cy + hh + 30);
+  ctx.closePath();
+  ctx.fill();
+
+  // Rock texture — darker shadow on left face
+  const rockGrad = ctx.createLinearGradient(cx - hw - 30, cy, cx + hw + 30, cy);
+  rockGrad.addColorStop(0,   'rgba(10,6,14,0.8)');
+  rockGrad.addColorStop(0.4, 'rgba(28,18,34,0.4)');
+  rockGrad.addColorStop(1,   'rgba(10,6,14,0.7)');
+  ctx.fillStyle = rockGrad;
+  ctx.beginPath();
+  ctx.moveTo(cx - hw - 30, cy + hh + 30);
+  ctx.lineTo(cx - hw - 20, cy - hh - 18);
+  ctx.lineTo(cx + hw + 20, cy - hh - 18);
+  ctx.lineTo(cx + hw + 30, cy + hh + 30);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Cave mouth opening — deep void ──
+  const voidGrad = ctx.createRadialGradient(cx, cy, 4, cx, cy, hw * 0.9);
+  voidGrad.addColorStop(0,   'rgba(80,0,0,0.5)');    // faint red core
+  voidGrad.addColorStop(0.5, 'rgba(20,0,10,0.85)');
+  voidGrad.addColorStop(1,   'rgba(5,0,5,1)');
+  ctx.fillStyle = voidGrad;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, hw * 0.72, hh * 0.62, 0, 0, TWO_PI);
+  ctx.fill();
+
+  // ── Red glow from inside — pulses ominously ──
+  const glowAlpha = 0.12 + 0.06 * Math.sin(t * 0.04);
+  const glowGrad = ctx.createRadialGradient(cx, cy, 2, cx, cy, hw * 0.85);
+  glowGrad.addColorStop(0,   `rgba(220,20,20,${glowAlpha * 2.5})`);
+  glowGrad.addColorStop(0.5, `rgba(160,0,0,${glowAlpha})`);
+  glowGrad.addColorStop(1,   'rgba(80,0,0,0)');
+  ctx.fillStyle = glowGrad;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, hw, hh + 10, 0, 0, TWO_PI);
+  ctx.fill();
+
+  // ── Jagged stalactites hanging from cave roof ──
+  ctx.fillStyle = '#120d18';
+  const stalCount = 7;
+  for (let i = 0; i < stalCount; i++) {
+    const stalX  = cx - hw * 0.55 + i * (hw * 1.1 / (stalCount - 1));
+    const stalH  = 8 + ((i * 3 + 5) % 12);  // deterministic irregular heights
+    const stalW  = 3 + (i % 3);
+    ctx.beginPath();
+    ctx.moveTo(stalX - stalW, cy - hh * 0.55);
+    ctx.lineTo(stalX,         cy - hh * 0.55 + stalH);
+    ctx.lineTo(stalX + stalW, cy - hh * 0.55);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ── Evil antenna / relay tower above the cave mouth ──
+  const antBase = cy - hh - 22;
+  ctx.strokeStyle = '#3a1a2a';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx, antBase); ctx.lineTo(cx, antBase - 28); ctx.stroke();
+  // Cross arms
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx - 9, antBase - 8);  ctx.lineTo(cx + 9, antBase - 8);  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 6, antBase - 16); ctx.lineTo(cx + 6, antBase - 16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 3, antBase - 22); ctx.lineTo(cx + 3, antBase - 22); ctx.stroke();
+  // Blinking red beacon at the tip
+  if (t % 40 < 20) {
+    ctx.fillStyle = '#ef4444';
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(cx, antBase - 28, 2, 0, TWO_PI); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // ── Bubble vent — trickle of bubbles from the lair ──
+  // Use deterministic phase so bubbles don't flicker randomly each frame
+  for (let b = 0; b < 4; b++) {
+    const phase  = (t * 0.7 + b * 22) % 60;
+    const bubX   = cx + (b % 2 === 0 ? -1 : 1) * (4 + b * 3);
+    const bubY   = cy - hh * 0.5 - phase * 0.9;
+    const bubR   = 1.5 + (b % 3) * 0.8;
+    const bubA   = Math.max(0, 0.4 - phase / 90);
+    if (bubA <= 0) continue;
+    ctx.fillStyle = `rgba(133,193,233,${bubA})`;
+    ctx.beginPath(); ctx.arc(bubX, bubY, bubR, 0, TWO_PI); ctx.fill();
+  }
+
+  // ── Label (only when revealed / close enough) ──
+  if (lair.revealed) {
+    ctx.font = 'bold 9px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(239,68,68,0.75)';
+    ctx.fillText('NEMESIS LAIR', cx, cy - hh - 36);
+  } else {
+    // Unknown contact marker — a question mark with sonar ring
+    const sonarAlpha = 0.15 + 0.08 * Math.sin(t * 0.03);
+    ctx.strokeStyle = `rgba(239,68,68,${sonarAlpha})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, hw * 1.2 + Math.sin(t * 0.02) * 6, 0, TWO_PI);
+    ctx.stroke();
+    ctx.font = '10px Arial';
+    ctx.fillStyle = `rgba(239,68,68,${sonarAlpha * 2.5})`;
+    ctx.textAlign = 'center';
+    ctx.fillText('?', cx, cy - hh - 30);
+  }
+
+  ctx.restore();
 }
 
 function drawNemesis() {

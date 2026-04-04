@@ -517,6 +517,16 @@ function generateTerrain(length) {
     hp: HANGAR_MAX_HP, destroyed: false,
     pointDefenseCooldown: 0, criticalTimer: 0,
   };
+
+  // Nemesis underwater lair — hidden deep in the thermocline, far from the player's hangar.
+  // Placed at ~68% of terrain length so it feels distant and discoverable.
+  const nemesisLair = {
+    x: Math.round(length * 0.68 + (Math.random() - 0.5) * length * 0.06),
+    y: WATER_LINE + 145,   // Deep in thermocline — THERMAL_LAYER_2_MAX is WATER_LINE+195
+    w: 110,                // Width of the cave mouth
+    h: 52,                 // Height of the cavern opening
+    revealed: false,       // Flips true once the player gets close enough to see it
+  };
   // Акула-Молот enemy submarine — one per level, deadly
   const akulaMolot = {
     x: length * 0.5 + (Math.random() - 0.5) * length * 0.3,
@@ -600,7 +610,7 @@ function generateTerrain(length) {
     survivors: [],
   } : null;
 
-  return { ground, islands, caves, radars, startPort, endPort, destroyer, passengerShip, interceptors, akulaMolot, delfins, sunkenSupplies, diverHoles };
+  return { ground, islands, caves, radars, startPort, endPort, nemesisLair, destroyer, passengerShip, interceptors, akulaMolot, delfins, sunkenSupplies, diverHoles };
 }
 
 // --- Hangar constants ---
@@ -4871,6 +4881,9 @@ function draw() {
     ctx.fillText(port.name, px, barY - 12);
   }
 
+  // --- NEMESIS LAIR ---
+  drawNemesisLair();
+
   // --- RADAR TOWERS ---
   for (const r of world.terrain.radars) {
     const rx = toScreen(r.x);
@@ -5723,3 +5736,33 @@ function drawEnemy(e) {
     console.group(`[ASS] Crash logs (${logs.length} entries)`);
     logs.forEach((l, i) => console.info(`[${i}] ${l.timestamp} — ${l.message}`, l));
     console.groupEnd();
+    return logs;
+  };
+
+  window.ASS_downloadCrashLog = function () {
+    const logs = getCrashLogs();
+    const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `ass-crash-log-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  window.ASS_clearCrashLog = function () {
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    console.info('[ASS] Crash log cleared.');
+  };
+}());
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STARTUP — kick off the async init() once the DOM is ready.
+// document.currentScript is captured at parse time (inside init) so WASM URL
+// resolution works correctly regardless of how the page is served.
+// ─────────────────────────────────────────────────────────────────────────────
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => init());
+} else {
+  init();
+}
