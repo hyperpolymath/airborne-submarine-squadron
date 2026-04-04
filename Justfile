@@ -106,6 +106,14 @@ test-chaos:
 test-missions:
   deno test --allow-all test/mission_test.js
 
+# Run integration tests (game state machines, multi-system)
+test-integration:
+  deno test --allow-all test/integration_test.js
+
 # Run benchmarks (Six Sigma baselines)
 bench:
   deno bench --allow-all test/bench.js
+
+# Run enhanced benchmarks (game loop throughput)
+bench-gameloop:
+  deno bench --allow-all test/bench/gameloop_benchmark.js

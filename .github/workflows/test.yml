@@ -38,6 +38,17 @@ jobs:
       - name: Run benchmarks
         run: deno bench --allow-all test/bench.js
 
+      - name: Generate coverage report
+        run: deno test --allow-all --coverage=./cov/ test/
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
+        with:
+          files: ./cov/
+          flags: unittests
+          name: codecov-${{ matrix.os }}
+          fail_ci_if_error: false
+
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
