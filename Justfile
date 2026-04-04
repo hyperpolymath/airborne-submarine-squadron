@@ -26,9 +26,9 @@ run:
 run-wasm:
   wasmtime build/airborne-submarine-squadron.wasm
 
-# Serve game via Deno file server on port 6860
+# Serve game via Deno file server on port 6880
 web:
-  deno run --allow-net --allow-read https://deno.land/std/http/file_server.ts --port 6860
+  deno run --allow-net --allow-read jsr:@std/http@1/file-server --port 6880
 
 # Launch via unified launcher (default: browser)
 launch:

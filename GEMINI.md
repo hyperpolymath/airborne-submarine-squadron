@@ -22,7 +22,7 @@ Sopwith-inspired arcade game where a zeppelin launches attack submarines that fl
 | Command | Description |
 |---------|-------------|
 | `just build` | Build AffineScript to WASM |
-| `just serve` | Start Deno file server on port 6860 |
+| `just serve` | Start Deno file server on port 6880 |
 | `just install` | Install desktop integration (XDG .desktop file) |
 | `just tray` | Build and run Rust system tray binary |
 
@@ -55,11 +55,11 @@ or contradict deliberate architectural decisions.
 
 **Why:** All dependencies managed through Deno — no npm ecosystem
 
-### [MODERATE] port-6860
+### [MODERATE] port-6880
 
-**Rule:** Default development port is 6860
+**Rule:** Default development port is 6880
 
-**Why:** 686 references the Type 686 attack submarine — this is a deliberate thematic choice, not arbitrary
+**Why:** 686 references the Type 688 attack submarine — this is a deliberate thematic choice, not arbitrary
 
 ### [CRITICAL] affinescript-engine
 
@@ -152,7 +152,7 @@ Use the correct terms for this project:
 
 | Service | Port |
 |---------|------|
-| dev-server | 6860 |
+| dev-server | 6880 |
 
 ## Ecosystem Context
 

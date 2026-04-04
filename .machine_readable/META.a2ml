@@ -49,11 +49,11 @@
                   works natively with the developer's Fedora + KDE setup."))
 
     (adr-005
-      (title "Port 6860 -- 686 attack sub reference")
+      (title "Port 6880 -- 686 attack sub reference")
       (status "accepted")
       (date "2026-03-21")
-      (rationale "The default port 6860 is a thematic nod to the Type 686
-                  attack submarine. The launcher tries ports 6860-6869 before
+      (rationale "The default port 6880 is a thematic nod to the Type 688
+                  attack submarine. The launcher tries ports 6880-6869 before
                   falling back to 8000 if all are occupied."))
 
     (adr-006
@@ -97,7 +97,7 @@
                   (1) freePort() runs fuser -k (Linux) or lsof+kill (macOS) to release the
                   primary port before probing — handles orphaned processes from past sessions.
                   (2) SIGINT/SIGTERM listeners call server.kill() so the child is cleaned up
-                  when the parent exits normally. The findFreePort() fallback range (6870-6874)
+                  when the parent exits normally. The findFreePort() fallback range (6881-6874)
                   remains as a last resort if port release fails.")))
 
   (development-practices

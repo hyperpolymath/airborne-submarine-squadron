@@ -64,7 +64,7 @@ Deno.test("contract: LICENSE is AGPL-3.0-or-later", async () => {
   );
 });
 
-// ── 4. Port 6880 in REGISTRY (K9 invariant: port-6860, updated) ────
+// ── 4. Port 6880 in REGISTRY (K9 invariant: port-6880) ─────────────
 Deno.test("contract: run.js REGISTRY uses port 6880", async () => {
   const src = await Deno.readTextFile(ROOT + "run.js");
   assert(src.includes("primary:  6880") || src.includes("primary: 6880"),

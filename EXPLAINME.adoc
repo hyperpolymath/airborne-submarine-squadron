@@ -1,0 +1,161 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+= Airborne Submarine Squadron — Show Me The Receipts
+:toc:
+:icons: font
+
+The README makes claims. This file backs them up.
+
+== AffineScript/WASM Core
+
+[quote, README]
+____
+The core game logic is implemented in AffineScript and compiled to WebAssembly.
+____
+
+`src/main.as` is the canonical AffineScript source. `build.sh` invokes the
+AffineScript compiler (looked up first on `$PATH` as `affinescript`, then as
+`dune exec` from a sibling `nextgen-languages/affinescript` checkout). When
+no compiler is present at all, the script copies the pre-built artifact from
+`dist/airborne-submarine-squadron.wasm` into `build/` so playtesting works
+without a full toolchain. The WASM module exports a `main` symbol consumed by
+`run_wasm.js` and by the Gossamer launcher.
+https://webassembly.org/docs/[WebAssembly spec]
+
+**Caveat:** The AffineScript compiler lives in a separate sibling repo
+(`nextgen-languages/affinescript`). CI does not build from source yet — the
+`dist/` artifact is committed. The physics engine (orbit, depth-charge loop)
+and full test wiring are still in progress per `READINESS.md`.
+
+- Implementation: `src/main.as`
+- Pre-built artifact: `dist/airborne-submarine-squadron.wasm`
+- Build entry point: `build.sh`
+- Learn more: https://github.com/hyperpolymath/nextgen-languages
+
+== Gossamer Launcher (Browser + Desktop)
+
+[quote, README]
+____
+This repo now hosts a playable Gossamer frontend that wraps the AffineScript/WASM
+core and the launcher/installer ecosystem.
+____
+
+`gossamer/` contains the JS engine and HTML harness. `gossamer/launch.sh` starts
+the desktop player; `launcher.sh --browser` starts a Deno file-server and opens
+the browser view. `run.js` is the Deno dev-server wrapper: it probes port 6880
+(thematic nod to the Type 688 attack submarine) with automatic fallback to
+6881–6874, kills any stale holder via `fuser -k`/`lsof`, and registers
+`SIGINT`/`SIGTERM` handlers so the child server is cleaned up on exit.
+https://deno.com/[Deno runtime]
+
+**Caveat:** The Gossamer panel is on the roadmap for Groove/Burble integration
+but not yet wired. `gossamer/main.eph` (Ephapax linear-type component) is a
+stub.
+
+- Implementation: `gossamer/`, `run.js`, `launcher.sh`
+- Dev server: `run.js` (Deno)
+
+== Rust System Tray
+
+[quote, README]
+____
+tray/ — Rust system tray binary (ksni)
+____
+
+`tray/src/` is a Rust crate using the `ksni` crate (KDE Status Notifier Item
+protocol) to embed a persistent system-tray icon on Linux desktops. `tray/Cargo.toml`
+and `tray/Cargo.lock` pin dependencies. `install.sh` and `integ.sh` register
+`.desktop` entries and XDG menu icons. Icon assets are provided in PNG, SVG, and
+ICO formats under `desktop/icons/`.
+https://crates.io/crates/ksni[ksni crate]
+
+**Caveat:** Windows tray support is manual-only (no automatic Start-menu
+registration). macOS and RISC-V tray integration are future work.
+
+- Implementation: `tray/src/`, `tray/Cargo.toml`
+- Installer: `install.sh`, `integ.sh`
+- Icons: `desktop/icons/`
+
+== Crash Logging and Diagnostics
+
+[quote, README]
+____
+The dev server runs on port 6880. POST /crash-report accepts JSON from the
+browser and writes logs/crash-<timestamp>.json to disk.
+____
+
+`window.onerror` and `window.onunhandledrejection` in `index.html` capture all
+uncaught browser errors and store them in `localStorage` under `ass_crash_logs`
+(max 20 entries, newest first). If the Deno dev server is running, they are also
+POSTed to `/crash-report` which writes `logs/crash-<timestamp>.json`. Three
+browser-console helpers expose the data: `ASS_dumpCrashLog()`,
+`ASS_downloadCrashLog()`, `ASS_clearCrashLog()`.
+
+**Caveat:** `logs/` is `.gitignore`d (tracked via `logs/.gitkeep`). Crashes
+collected without the Deno server running are localStorage-only and lost on
+browser clear.
+
+- Implementation: `index.html` (event listeners), `run.js` (POST handler)
+- Log output: `logs/crash-<timestamp>.json`
+
+== Self-Healing Installer
+
+[quote, README]
+____
+Self-Healing: Automatic file verification and backup restoration.
+____
+
+`integ.sh` runs pre-installation health checks, detects the current platform
+(Linux x86_64/ARM, Windows, RISC-V, Minix), backs up critical files to
+`.backup/`, then installs icons and desktop entries. If required tools are
+missing the script degrades gracefully and reports which features were skipped.
+
+**Caveat:** Windows support requires manual shortcut creation. RISC-V and Minix
+support is aspirational.
+
+- Implementation: `integ.sh`, `install.sh`
+- Backups: `.backup/`
+
+== Dogfooded Across The Account
+
+[cols="1,2"]
+|===
+| Technology | Also Used In
+
+| **AffineScript** | https://github.com/hyperpolymath/nextgen-languages (compiler lives here)
+| **Gossamer launcher** | https://github.com/hyperpolymath/gossamer
+| **Zig FFI layer** | https://github.com/hyperpolymath/idaptik (ABI/FFI standard)
+| **Deno runtime** | https://github.com/hyperpolymath/session-sentinel
+| **Rust tray (ksni)** | https://github.com/hyperpolymath/ambientops (session-sentinel tray)
+| **Burble (planned)** | https://github.com/hyperpolymath/burble
+|===
+
+== File Map
+
+[cols="1,2"]
+|===
+| Path | Proves
+
+| `src/main.as` | Canonical AffineScript game logic (physics, weapons, damage, leaderboard)
+| `dist/airborne-submarine-squadron.wasm` | Pre-built WASM artifact (used when compiler absent)
+| `build/` | Output directory for compiled WASM
+| `gossamer/` | Gossamer v2 JS engine + HTML harness + `launch.sh`
+| `index.html` | Web entry point: loads WASM, mounts HUD, registers crash hooks
+| `run.js` | Deno dev-server: port management, crash-report endpoint, signal cleanup
+| `run_wasm.js` | Minimal Node WASM runner (`main` export)
+| `tray/src/` | Rust system-tray binary (ksni / KDE StatusNotifierItem)
+| `tray/Cargo.toml` | Rust dependency manifest
+| `build.sh` | AffineScript → WASM build pipeline
+| `launcher.sh` | Unified launcher: browser mode, Gossamer mode, tray, stop
+| `install.sh` | XDG desktop entry + icon installation
+| `integ.sh` | Enhanced installer: platform detection, health checks, self-healing
+| `desktop/icons/` | PNG / SVG / ICO icon assets
+| `ffi/` | Zig FFI layer (ABI/FFI standard skeleton)
+| `contractiles/` | Contractile specifications
+| `test/` | Test files (wiring to justfile pending)
+| `test_types.as` | AffineScript type smoke tests
+| `test_verisimdb_simple.js` | VeriSimDB smoke test
+| `logs/` | Crash log output directory (gitignored, tracked via .gitkeep)
+| `.machine_readable/` | STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml
+| `Justfile` | Task runner (build, type-check, clean)
+| `docs/` | Developer notes, telemetry writeups, feature docs
+|===

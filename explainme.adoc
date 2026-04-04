@@ -166,7 +166,7 @@ Performance tracking includes:
 
 The `run.js` Deno script manages the local development server:
 
-* **Port**: 6860 by default (thematic nod to the Type 686 attack submarine), with automatic fallback to 6870–6874
+* **Port**: 6880 by default (thematic nod to the Type 688 attack submarine), with automatic fallback to 6881–6874
 * **Port release**: Before probing, `freePort()` kills any stale process holding the primary port via `fuser -k` (Linux) or `lsof`+`kill` (macOS) — prevents the "port locked on second run" problem
 * **Signal handling**: `SIGINT`/`SIGTERM` listeners call `server.kill()` so the child Deno server is cleaned up when `run.js` exits, releasing the port for next time
 * **Crash report endpoint**: `POST /crash-report` accepts JSON from the browser and writes `logs/crash-<timestamp>.json` to disk

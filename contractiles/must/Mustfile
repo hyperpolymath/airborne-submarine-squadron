@@ -12,7 +12,7 @@ metadata:
   primary-admin: "hyperpolymath (project admin)"
 
 parameters:
-  port: "6860"
+  port: "6880"
 
 checks:
   - name: scm-files-exist
