@@ -631,31 +631,62 @@ function generateTerrain(length) {
     survivors: [],
   } : null;
 
-  // Motorcyclists — 1-2 normal bikes per island, plus Evel Knievel on one island
+  // Island variety — assign types for different visuals and defences
+  // Types: residential (houses, few defenders), industrial (cranes, moderate),
+  //        military (bunkers, heavy defenders, radar priority)
+  for (const isl of islands) {
+    const roll = Math.random();
+    if (isl.missionIsland) {
+      isl.type = 'military'; // Mission islands are always military
+    } else if (roll < 0.4) {
+      isl.type = 'residential';
+    } else if (roll < 0.7) {
+      isl.type = 'industrial';
+    } else {
+      isl.type = 'military';
+    }
+  }
+
+  // Motorcyclists — sparse: only military islands get bikes (1 each), occasional industrial (30% chance)
   const motorcyclists = [];
   for (const isl of islands) {
     if (isl.h < 15) continue; // Need enough surface to ride on
-    const bikeCount = 1 + Math.floor(Math.random() * 2); // 1 or 2
-    for (let b = 0; b < bikeCount; b++) {
-      motorcyclists.push({
-        x: isl.x + (Math.random() - 0.5) * isl.topW * 0.6,
-        y: WATER_LINE - isl.h - 4,
-        vx: (Math.random() < 0.5 ? 1 : -1) * MOTORCYCLE_SPEED,
-        hp: MOTORCYCLE_HP,
-        alive: true,
-        island: isl,
-        isEvel: false,
-        mgCooldown: 20 + Math.random() * 30,
-        bullets: [],
-        jumping: false,
-        jumpVy: 0,
-        jumpTrail: [],
-      });
-    }
+    // Only military and some industrial islands have motorcyclists
+    if (isl.type === 'residential') continue;
+    if (isl.type === 'industrial' && Math.random() > 0.3) continue;
+    // One bike per island, no more
+    motorcyclists.push({
+      x: isl.x + (Math.random() - 0.5) * isl.topW * 0.6,
+      y: WATER_LINE - isl.h - 4,
+      vx: (Math.random() < 0.5 ? 1 : -1) * MOTORCYCLE_SPEED,
+      hp: MOTORCYCLE_HP,
+      alive: true,
+      island: isl,
+      isEvel: false,
+      mgCooldown: 20 + Math.random() * 30,
+      bullets: [],
+      jumping: false,
+      jumpVy: 0,
+      jumpTrail: [],
+    });
   }
-  // Evel Knievel — one special motorcyclist who can jump between islands
+  // Evel Knievel — one per level. Starts on a military island near a mission island.
+  // High initial cooldown so he doesn't jump immediately on startup.
   if (islands.length >= 2) {
-    const evelIsland = islands[Math.floor(Math.random() * islands.length)];
+    // Prefer an island near (but not on) a mission island
+    const missionIslands = islands.filter(i => i.missionIsland);
+    let evelIsland;
+    if (missionIslands.length > 0) {
+      const mi = missionIslands[0];
+      // Find nearest non-mission island to the mission island
+      let bestDist = Infinity;
+      for (const isl of islands) {
+        if (isl === mi || isl.h < 15) continue;
+        const d = Math.abs(isl.x - mi.x);
+        if (d < bestDist && d > 100) { bestDist = d; evelIsland = isl; }
+      }
+    }
+    if (!evelIsland) evelIsland = islands[Math.floor(Math.random() * islands.length)];
     motorcyclists.push({
       x: evelIsland.x,
       y: WATER_LINE - evelIsland.h - 4,
@@ -668,9 +699,13 @@ function generateTerrain(length) {
       bullets: [],
       jumping: false,
       jumpVy: 0,
-      jumpTrail: [],      // Matrix trail positions for slow-mo effect
-      jumpCooldown: 200,  // Ticks between jumps
+      jumpTrail: [],        // Matrix trail positions for slow-mo effect
+      jumpCooldown: 600,    // HIGH initial cooldown — no immediate jump on startup
       targetIsland: null,
+      swimming: false,       // True when in water after missed jump
+      swimTarget: null,      // Island swimming toward
+      captured: false,       // True if player captured him (hostage rescue style)
+      capturedBy: null,      // Reference to captor
     });
   }
 
@@ -696,6 +731,7 @@ const SUPPLY_DROP_INTERVAL = 600;
 const SUPPLY_DROP_FALL_SPEED = 0.8;
 const SUPPLY_DROP_COLLECT_RADIUS = 28;
 const SUPPLY_DROP_PUSH_SPEED = 1.8;
+const SUPPLY_DROP_BREAK_SPEED = 3.5;  // Hit a crate faster than this and it disintegrates
 const SUPPLY_DROP_FLOAT_CHANCE = 0.6;
 const SUPPLY_DROP_PARACHUTE_HEIGHT = 25;
 
@@ -718,14 +754,44 @@ function spawnSupplyDrop() {
   };
 }
 
-function collectSupply(sub) {
-  const refillTorpedo = 6;
-  const refillMissile = 3;
-  const refillDepthCharge = 2;
-  sub.torpedoAmmo = Math.min(START_TORPEDOES, sub.torpedoAmmo + refillTorpedo);
-  sub.missileAmmo = Math.min(START_MISSILES, sub.missileAmmo + refillMissile);
-  sub.depthChargeAmmo = Math.min(START_DEPTH_CHARGES, sub.depthChargeAmmo + refillDepthCharge);
-  ticker('Supply collected', 50);
+function collectSupply(sub, isSeabed) {
+  if (isSeabed) {
+    // Seabed crates yield special items — rare and valuable
+    const specials = [
+      { type: 'railgun', msg: 'Seabed cache: +3 RAILGUN rounds' },
+      { type: 'bbomb', msg: 'Seabed cache: +2 BOUNCING BOMBS' },
+      { type: 'repair', msg: 'Seabed cache: HULL REPAIR KIT' },
+      { type: 'mega', msg: 'Seabed cache: FULL RESUPPLY' },
+    ];
+    const pick = specials[Math.floor(Math.random() * specials.length)];
+    if (pick.type === 'railgun') {
+      sub.railgunAmmo = Math.min(RAILGUN_MAX_AMMO, (sub.railgunAmmo || 0) + 3);
+    } else if (pick.type === 'bbomb') {
+      sub.bouncingBombAmmo = Math.min(BBOMB_MAX_AMMO, (sub.bouncingBombAmmo || 0) + 2);
+    } else if (pick.type === 'repair') {
+      // Repair all parts by 30%
+      for (const key of Object.keys(sub.parts)) {
+        if (sub.parts[key] && typeof sub.parts[key].hp === 'number') {
+          sub.parts[key].hp = Math.min(sub.parts[key].maxHp || 100, sub.parts[key].hp + 30);
+        }
+      }
+    } else if (pick.type === 'mega') {
+      sub.torpedoAmmo = START_TORPEDOES;
+      sub.missileAmmo = START_MISSILES;
+      sub.depthChargeAmmo = START_DEPTH_CHARGES;
+      sub.railgunAmmo = RAILGUN_MAX_AMMO;
+      sub.bouncingBombAmmo = BBOMB_MAX_AMMO;
+    }
+    midNotice(pick.msg, 100);
+  } else {
+    const refillTorpedo = 6;
+    const refillMissile = 3;
+    const refillDepthCharge = 2;
+    sub.torpedoAmmo = Math.min(START_TORPEDOES, sub.torpedoAmmo + refillTorpedo);
+    sub.missileAmmo = Math.min(START_MISSILES, sub.missileAmmo + refillMissile);
+    sub.depthChargeAmmo = Math.min(START_DEPTH_CHARGES, sub.depthChargeAmmo + refillDepthCharge);
+    ticker('Supply collected', 50);
+  }
   SFX.embark();
 }
 
@@ -775,13 +841,19 @@ function updateAmmoStations(world, dt) {
       drop.x += drop.vx * dt;
       drop.vx *= 0.98;
 
-      // Sub slow contact = collect, fast = push
+      // Sub slow contact = collect, medium = push, fast = disintegrate
       if (!sub.disembarked) {
         const dist = Math.hypot(sub.worldX - drop.x, sub.y - drop.y);
         if (dist < SUPPLY_DROP_COLLECT_RADIUS) {
           const speed = Math.hypot(sub.vx, sub.vy);
-          if (speed < SUPPLY_DROP_PUSH_SPEED) {
-            collectSupply(sub);
+          if (speed >= SUPPLY_DROP_BREAK_SPEED) {
+            // Too fast — crate smashes apart
+            drop.state = 'collected'; // Remove it
+            addParticles(drop.x, drop.y, 8, '#92400e');
+            addParticles(drop.x, drop.y, 4, '#d4a053');
+            ticker('Crate destroyed!', 40);
+          } else if (speed < SUPPLY_DROP_PUSH_SPEED) {
+            collectSupply(sub, false);
             drop.state = 'collected';
           } else {
             // Push it away
@@ -793,26 +865,79 @@ function updateAmmoStations(world, dt) {
     } else if (drop.state === 'sinking') {
       drop.y += drop.vy * dt;
       drop.vy *= 0.995;
+      // Sub can push or break sinking crates but NOT collect — diver only underwater
+      if (!sub.disembarked && sub.y > WATER_LINE) {
+        const dist = Math.hypot(sub.worldX - drop.x, sub.y - drop.y);
+        if (dist < SUPPLY_DROP_COLLECT_RADIUS) {
+          const speed = Math.hypot(sub.vx, sub.vy);
+          if (speed >= SUPPLY_DROP_BREAK_SPEED) {
+            // Smashed it
+            drop.state = 'collected';
+            addParticles(drop.x, drop.y, 8, '#92400e');
+            addParticles(drop.x, drop.y, 4, '#85c1e9');
+            ticker('Crate destroyed!', 40);
+          } else if (speed > 0.3) {
+            // Push the crate — any contact knocks it around
+            const dx = drop.x - sub.worldX;
+            const dy = drop.y - sub.y;
+            const pushForce = speed * 0.4;
+            if (!drop.vx) drop.vx = 0;
+            drop.vx += (dx > 0 ? 1 : -1) * pushForce;
+            drop.vy += (dy > 0 ? 0.5 : -0.3) * pushForce;
+            addParticles(drop.x, drop.y, 2, '#85c1e9');
+          }
+        }
+      }
+      // Apply horizontal drift from pushes
+      if (drop.vx) {
+        drop.x += drop.vx * dt;
+        drop.vx *= 0.96; // Water drag
+      }
       const groundY = getGroundY(drop.x);
       if (drop.y >= groundY - 6) {
         drop.state = 'sunk';
         drop.y = groundY - 6;
+        drop.vx = 0;
       }
     } else if (drop.state === 'sunk') {
-      // Diver can pick it up with F
+      // Sub can push/break seabed crates but NOT collect — diver only
+      if (!sub.disembarked && sub.y > WATER_LINE) {
+        const dist = Math.hypot(sub.worldX - drop.x, sub.y - drop.y);
+        if (dist < SUPPLY_DROP_COLLECT_RADIUS) {
+          const speed = Math.hypot(sub.vx, sub.vy);
+          if (speed >= SUPPLY_DROP_BREAK_SPEED) {
+            drop.state = 'collected';
+            addParticles(drop.x, drop.y, 10, '#b8860b');
+            addParticles(drop.x, drop.y, 5, '#fcd34d');
+            ticker('Seabed crate destroyed!', 50);
+          } else if (speed > 0.3) {
+            // Push along the seabed
+            const dx = drop.x - sub.worldX;
+            if (!drop.vx) drop.vx = 0;
+            drop.vx += (dx > 0 ? 1 : -1) * speed * 0.3;
+            addParticles(drop.x, drop.y, 1, '#85c1e9');
+          }
+        }
+      }
+      // Diver picks it up with F — seabed crates yield special items
       if (sub.disembarked && sub.diverMode) {
         const dist = Math.hypot(sub.pilotX - drop.x, sub.pilotY - drop.y);
         if (dist < 30 && (keyJustPressed['f'] || keyJustPressed['F'])) {
-          collectSupply(sub);
+          collectSupply(sub, true);
           drop.state = 'collected';
         }
+      }
+      // Seabed drift from pushes
+      if (drop.vx) {
+        drop.x += drop.vx * dt;
+        drop.vx *= 0.92; // Heavier drag on seabed
       }
     } else if (drop.state === 'landed') {
       // Pilot on foot can pick up with F
       if (sub.disembarked && !sub.diverMode) {
         const dist = Math.hypot(sub.pilotX - drop.x, sub.pilotY - drop.y);
         if (dist < 30 && (keyJustPressed['f'] || keyJustPressed['F'])) {
-          collectSupply(sub);
+          collectSupply(sub, false);
           drop.state = 'collected';
         }
       }
@@ -853,21 +978,34 @@ function drawAmmoStations(world) {
       ctx.stroke();
     }
 
-    // Crate body
-    const glow = drop.state === 'floating' ? 0.7 + 0.3 * Math.sin(world.tick * 0.08 + drop.pulse) : 0.8;
+    // Crate body — seabed crates glow gold (special items)
+    const isSeabed = drop.state === 'sunk';
+    const glow = drop.state === 'floating' ? 0.7 + 0.3 * Math.sin(world.tick * 0.08 + drop.pulse)
+      : isSeabed ? 0.6 + 0.4 * Math.sin(world.tick * 0.06 + drop.pulse) : 0.8;
     ctx.globalAlpha = glow;
-    ctx.fillStyle = '#92400e';
+    if (isSeabed) {
+      // Gold glow halo for seabed special crates
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.15)';
+      ctx.beginPath(); ctx.arc(sx, sy, 14, 0, TWO_PI); ctx.fill();
+    }
+    ctx.fillStyle = isSeabed ? '#b8860b' : '#92400e';
     ctx.fillRect(sx - 8, sy - 6, 16, 12);
-    ctx.strokeStyle = '#78350f';
+    ctx.strokeStyle = isSeabed ? '#daa520' : '#78350f';
     ctx.lineWidth = 1;
     ctx.strokeRect(sx - 8, sy - 6, 16, 12);
     // Cross strapping
-    ctx.strokeStyle = '#d4a053';
+    ctx.strokeStyle = isSeabed ? '#fcd34d' : '#d4a053';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(sx - 8, sy - 6); ctx.lineTo(sx + 8, sy + 6);
     ctx.moveTo(sx + 8, sy - 6); ctx.lineTo(sx - 8, sy + 6);
     ctx.stroke();
+    // Star on seabed crates
+    if (isSeabed) {
+      ctx.fillStyle = '#fcd34d';
+      ctx.font = '8px Arial'; ctx.textAlign = 'center';
+      ctx.fillText('\u2605', sx, sy + 3);
+    }
     // Pickup hint when in range
     if ((drop.state === 'landed' || drop.state === 'sunk') && world.sub.disembarked) {
       const dist = Math.hypot(world.sub.pilotX - drop.x, world.sub.pilotY - drop.y);
@@ -881,6 +1019,110 @@ function drawAmmoStations(world) {
 
     ctx.restore();
   }
+}
+
+// ── Evel Knievel Cameratron — mini-frame popup showing close-up of his jump ──
+// When Evel jumps, a small inset frame appears in the corner like a TV cameratron
+// showing a zoomed view of him mid-leap. Purely cosmetic, adds drama.
+function drawEvelCameratron() {
+  const cam = world._evelCameratron;
+  if (!cam || !cam.active) return;
+  cam.timer += 1;
+  if (cam.timer > cam.maxTimer) { cam.active = false; return; }
+  const evel = cam.evel;
+  if (!evel || (!evel.alive && !evel.swimming)) { cam.active = false; return; }
+
+  const fadeIn = Math.min(1, cam.timer / 15);
+  const fadeOut = cam.timer > cam.maxTimer - 30 ? (cam.maxTimer - cam.timer) / 30 : 1;
+  const alpha = fadeIn * fadeOut;
+  if (alpha <= 0) return;
+
+  // Frame position — top-right corner
+  const fw = 120, fh = 80;
+  const fx = W - fw - 12, fy = 12;
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.95;
+
+  // Frame background
+  ctx.fillStyle = '#111';
+  ctx.fillRect(fx - 2, fy - 2, fw + 4, fh + 4);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(fx, fy, fw, fh);
+
+  // Clip to frame
+  ctx.beginPath();
+  ctx.rect(fx, fy, fw, fh);
+  ctx.clip();
+
+  // Zoomed view centred on Evel (3x zoom)
+  const zoom = 3;
+  const centerX = fx + fw / 2;
+  const centerY = fy + fh / 2;
+
+  ctx.translate(centerX, centerY);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-evel.x * 0 - toScreen(evel.x) + toScreen(evel.x), 0);
+
+  // Simple representation of Evel in the frame
+  const evelDir = evel.vx >= 0 ? 1 : -1;
+  // Sky gradient
+  ctx.fillStyle = '#1a1a3a';
+  ctx.fillRect(-fw, -fh, fw * 2, fh * 2);
+  // Water line
+  ctx.fillStyle = '#1a3a5c';
+  const waterInFrame = (WATER_LINE - evel.y) || 20;
+  ctx.fillRect(-fw, waterInFrame, fw * 2, fh);
+
+  // Evel himself (zoomed)
+  ctx.save();
+  ctx.scale(evelDir, 1);
+  // Bike
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(-8, 2, 16, 4);
+  ctx.fillStyle = '#94a3b8';
+  ctx.beginPath(); ctx.arc(-6, 6, 3, 0, TWO_PI); ctx.fill();
+  ctx.beginPath(); ctx.arc(6, 6, 3, 0, TWO_PI); ctx.fill();
+  // Exhaust
+  if (evel.jumping) {
+    ctx.fillStyle = '#f97316';
+    ctx.beginPath(); ctx.moveTo(-10, 3); ctx.lineTo(-16, 4); ctx.lineTo(-10, 5); ctx.fill();
+  }
+  // Rider
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(-2, -6, 4, 8);
+  ctx.beginPath(); ctx.arc(0, -8, 3.5, 0, TWO_PI); ctx.fill();
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(1, -9, 3, 2);
+  // Cape
+  ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-2, -5);
+  ctx.quadraticCurveTo(-8 - Math.sin(world.tick * 0.1) * 3, -8, -6 - Math.sin(world.tick * 0.15) * 4, -3);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore(); // Undo zoom transform
+
+  // Frame border + label
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(fx - 2, fy - 2, fw + 4, fh + 4);
+  // "CAMERATRON" label
+  ctx.fillStyle = '#ef4444';
+  ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center';
+  ctx.fillText('CAMERATRON', fx + fw / 2, fy + fh + 10);
+  // Blinking REC dot
+  if (Math.floor(cam.timer / 15) % 2 === 0) {
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(fx + 8, fy + 8, 3, 0, TWO_PI); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '7px Arial'; ctx.textAlign = 'left';
+    ctx.fillText('REC', fx + 14, fy + 11);
+  }
+
+  ctx.restore();
 }
 
 function generateMines(terrain) {
@@ -2396,6 +2638,7 @@ function initWorld() {
     // Red Arrow squadron — two smaller wingmen subs
     squadron: createSquadron(),
     squadronMode: 'off',       // off by default; Q to cycle: general, aqua, aero, terra, astro
+    _evelCameratron: null,     // Cameratron popup state for Evel Knievel jumps
     score: 0,
     kills: 0,
     // Weapon selection: 1 = torpedo/pistol, 2 = missile/grenade, 3 = depth charge, 9 = PPC
@@ -2940,10 +3183,17 @@ function emergencyEject(sub) {
         landed: false,
         dead: false,
       };
-      // Sub is now uncrewed — it will fly on under physics until it crashes
-      // Don't set disembarked — the sub physics loop still runs, just no input
+      // Sub is now uncrewed — damaged from eject, will crash and sink
       sub.disembarked = false; // Sub is NOT docked — it's flying uncrewed
-      midNotice(halo ? 'HALO EJECT — CHUTE DEPLOYS LOW' : 'EMERGENCY EJECT — COMMANDER AWAY', 150);
+      sub._wrecked = true;     // Mark as wrecked — physics will make it crash and sink
+      sub._wreckTimer = 0;     // Timer for wreck sequence
+      // Eject blast damages the sub
+      for (const key of Object.keys(sub.parts)) {
+        if (sub.parts[key] && typeof sub.parts[key].hp === 'number') {
+          sub.parts[key].hp = Math.max(1, sub.parts[key].hp - 20);
+        }
+      }
+      midNotice(halo ? 'HALO EJECT — CHUTE DEPLOYS LOW' : 'EMERGENCY EJECT — SUB ABANDONED', 150);
       SFX.disembark();
     }
   }
@@ -2977,10 +3227,39 @@ function updateAirEject(dt) {
     addParticles(sub.worldX, sub.y, 25, '#e74c3c');
     SFX.explodeBig();
   }
-  // Sub hits water
+  // Sub hits water — wrecked subs sink to the ocean floor
   if (sub.y >= WATER_LINE && sub.vy > 0) {
     addParticles(sub.worldX, WATER_LINE, 10, '#85c1e9');
-    sub.vy *= 0.3;
+    SFX.waterSplash();
+    if (sub._wrecked) {
+      // Wrecked sub sinks — slow descent with bubbles
+      sub.vy = 0.5; // Steady sink rate
+      sub.vx *= 0.3; // Water slows horizontal
+      sub._sinking = true;
+    } else {
+      sub.vy *= 0.3;
+    }
+  }
+  // Sinking wreck continues to the ocean floor
+  if (sub._sinking) {
+    sub.vy = Math.min(sub.vy + 0.02 * dt, 0.8); // Accelerate slowly
+    sub.vx *= 0.97; // Water drag
+    sub.angle += 0.003 * dt; // Slow tumble
+    sub.worldX += sub.vx * dt;
+    sub.y += sub.vy * dt;
+    // Bubble trail as it sinks
+    if (world.tick % 8 === 0) {
+      addParticles(sub.worldX, sub.y - 5, 2, '#85c1e9');
+    }
+    // Hit the seabed
+    const groundY = getGroundY(sub.worldX);
+    if (sub.y >= groundY - 8) {
+      sub.y = groundY - 8;
+      sub.vy = 0; sub.vx = 0;
+      sub._sinking = false;
+      addParticles(sub.worldX, sub.y, 8, '#5d4037');
+      ticker('Your sub hit the ocean floor', 80);
+    }
   }
 
   // --- Commander descent ---
@@ -3421,13 +3700,15 @@ function update(dt) {
     return;
   }
 
-  // --- Camera: smooth follow sub (X and Y) ---
-  const targetCamX = sub.worldX - W * 0.4;
+  // --- Camera: smooth follow sub (or pilot when disembarked) ---
+  const camFollowX = sub.disembarked ? sub.pilotX : sub.worldX;
+  const camFollowY = sub.disembarked ? sub.pilotY : sub.y;
+  const targetCamX = camFollowX - W * 0.4;
   world.cameraX += (targetCamX - world.cameraX) * CAMERA_SMOOTH * dt * 4;
   world.cameraX = Math.max(0, Math.min(TERRAIN_LENGTH - W, world.cameraX));
 
-  // Vertical camera: follow sub, keeping it roughly in the middle
-  const targetCamY = sub.y - H * 0.45;
+  // Vertical camera: follow sub (or pilot), keeping roughly in the middle
+  const targetCamY = camFollowY - H * 0.45;
   world.cameraY += (targetCamY - world.cameraY) * CAMERA_SMOOTH * dt * 4;
   world.cameraY = Math.max(0, world.cameraY); // Don't go above sky
 
@@ -3445,8 +3726,8 @@ function update(dt) {
       }
       if (world.gunPost) {
         updateGunPost(dt);
-        return; // Commander is manning the gun post, skip normal island movement
-      }
+        // Don't return — world must keep updating (enemies, effects, etc.)
+      } else {
       const dock = sub.disembarkIsland;
       const leftLimit = dock.x - dock.baseW / 2 + 4;
       const rightLimit = dock.x + dock.baseW / 2 - 4;
@@ -3528,6 +3809,7 @@ function update(dt) {
           world.caveMessage = { text: `PPC FIRED — ${sub.commanderPpcAmmo} CHARGES LEFT`, timer: 60 };
         }
       }
+      } // Close the else block for gun post vs island movement
     }
     updateEnemies(dt);
     updateProjectiles(dt);
@@ -5396,20 +5678,94 @@ function draw() {
     if (sx < -isl.baseW-20 || sx > W+isl.baseW+20) continue;
     const top = WATER_LINE - isl.h, tH = isl.topW/2, bH = isl.baseW/2;
 
+    // Island colour based on type
+    const isType = isl.type || 'residential';
     const ig = ctx.createLinearGradient(sx,top,sx,WATER_LINE);
-    ig.addColorStop(0,'#8d6e4a'); ig.addColorStop(0.4,'#6d4c2a'); ig.addColorStop(1,'#5d4037');
+    if (isType === 'military') {
+      ig.addColorStop(0,'#5a6a4a'); ig.addColorStop(0.4,'#4a5a3a'); ig.addColorStop(1,'#3a4a2a');
+    } else if (isType === 'industrial') {
+      ig.addColorStop(0,'#7a7a6a'); ig.addColorStop(0.4,'#6a6a5a'); ig.addColorStop(1,'#5a5a4a');
+    } else {
+      ig.addColorStop(0,'#8d6e4a'); ig.addColorStop(0.4,'#6d4c2a'); ig.addColorStop(1,'#5d4037');
+    }
     ctx.fillStyle = ig;
     ctx.beginPath(); ctx.moveTo(sx-tH,top); ctx.lineTo(sx+tH,top);
     ctx.lineTo(sx+bH,WATER_LINE); ctx.lineTo(sx-bH,WATER_LINE); ctx.closePath(); ctx.fill();
 
-    ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 2;
+    ctx.strokeStyle = isType === 'military' ? '#2a3a1a' : '#3e2723'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(sx-tH,top); ctx.lineTo(sx+tH,top);
     ctx.lineTo(sx+bH,WATER_LINE); ctx.lineTo(sx-bH,WATER_LINE); ctx.closePath(); ctx.stroke();
 
     ctx.strokeStyle = '#d4a053'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(sx-tH+3,top+1); ctx.lineTo(sx+tH-3,top+1); ctx.stroke();
 
-    if (isl.h > 20) {
+    // Island decorations based on type
+    if (isType === 'residential') {
+      // Small houses — cute coloured rectangles with triangular roofs
+      if (isl.h > 15) {
+        const houseCount = Math.min(3, Math.floor(isl.topW / 15));
+        const houseColors = ['#c0392b', '#2980b9', '#f39c12', '#27ae60'];
+        for (let h = 0; h < houseCount; h++) {
+          const hx = sx - tH + 8 + h * (isl.topW / (houseCount + 1));
+          ctx.fillStyle = houseColors[h % houseColors.length];
+          ctx.fillRect(hx - 3, top - 7, 6, 7);
+          ctx.fillStyle = '#5d4037';
+          ctx.beginPath(); ctx.moveTo(hx - 4, top - 7); ctx.lineTo(hx, top - 12); ctx.lineTo(hx + 4, top - 7); ctx.fill();
+          // Window
+          ctx.fillStyle = '#fcd34d';
+          ctx.fillRect(hx - 1, top - 5, 2, 2);
+        }
+        // Tree
+        ctx.strokeStyle = '#795548'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(sx + tH - 8, top); ctx.lineTo(sx + tH - 7, top - 14); ctx.stroke();
+        ctx.fillStyle = '#27ae60';
+        ctx.beginPath(); ctx.ellipse(sx + tH - 7, top - 16, 7, 5, 0, 0, TWO_PI); ctx.fill();
+      }
+    } else if (isType === 'industrial') {
+      // Cranes and factory buildings
+      if (isl.h > 12) {
+        // Factory building
+        ctx.fillStyle = '#6b7280';
+        ctx.fillRect(sx - 6, top - 12, 12, 12);
+        // Smokestack
+        ctx.fillStyle = '#4b5563';
+        ctx.fillRect(sx + 2, top - 20, 3, 10);
+        // Smoke puffs
+        if (world.tick % 12 < 6) {
+          ctx.fillStyle = 'rgba(150,150,150,0.3)';
+          ctx.beginPath(); ctx.arc(sx + 4, top - 22 - Math.sin(world.tick * 0.03) * 3, 3, 0, TWO_PI); ctx.fill();
+        }
+        // Crane arm
+        if (isl.topW > 25) {
+          ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(sx - tH + 6, top); ctx.lineTo(sx - tH + 6, top - 18);
+          ctx.lineTo(sx - tH + 18, top - 18); ctx.stroke();
+          // Hanging cable
+          ctx.strokeStyle = '#888'; ctx.lineWidth = 0.5;
+          ctx.beginPath(); ctx.moveTo(sx - tH + 14, top - 18); ctx.lineTo(sx - tH + 14, top - 8); ctx.stroke();
+        }
+      }
+    } else if (isType === 'military') {
+      // Bunkers and gun emplacements
+      if (isl.h > 12) {
+        // Bunker — low concrete block
+        ctx.fillStyle = '#5a5a4a';
+        ctx.fillRect(sx - 8, top - 5, 16, 5);
+        ctx.fillStyle = '#4a4a3a';
+        ctx.fillRect(sx - 7, top - 5, 3, 2); // Gun slit
+        // Sandbag wall
+        ctx.fillStyle = '#8b7d6b';
+        for (let s = 0; s < 3; s++) {
+          ctx.beginPath(); ctx.ellipse(sx + tH - 8 - s * 5, top - 2, 3, 2, 0, 0, TWO_PI); ctx.fill();
+        }
+        // Flag pole
+        ctx.strokeStyle = '#666'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(sx - tH + 5, top); ctx.lineTo(sx - tH + 5, top - 16); ctx.stroke();
+        ctx.fillStyle = '#cc2200';
+        ctx.fillRect(sx - tH + 5, top - 16, 8, 5);
+      }
+    } else if (isl.h > 20) {
+      // Fallback — palm tree for untyped islands
       ctx.strokeStyle='#795548'; ctx.lineWidth=3;
       ctx.beginPath(); ctx.moveTo(sx,top); ctx.lineTo(sx+2,top-22); ctx.stroke();
       ctx.fillStyle='#27ae60';
@@ -5601,9 +5957,11 @@ function draw() {
   for (const e of world.enemies) drawEnemy(e);
   drawSopwith();
   drawAirSupremacy();
+  drawBerkutDrones();
   drawAirInterceptors();
   drawNemesis();
   drawMotorcyclists();
+  drawEvelCameratron();
   drawSquadron();
 
   // ── New projectile rendering (MG, railgun, bouncing bombs, commander) ──
@@ -6483,11 +6841,42 @@ function drawSub(sub) {
 
   ctx.restore();
 
-  // Exhaust / propeller trail
+  // Exhaust / propulsion trail
   if (sub.caterpillarDrive) {
-    // Silent running — no visible exhaust at all
+    // Magnetohydrodynamic drive — no propeller, no bubbles.
+    // Water is pulled through the hull and ejected aft as a faint current distortion.
+    const moving = Math.abs(sub.vx) > 0.1 || Math.abs(sub.vy) > 0.1;
+    if (moving) {
+      const speed = Math.hypot(sub.vx, sub.vy);
+      // Water distortion lines — faint, wide, shimmer effect
+      const lineCount = Math.min(6, Math.floor(speed * 3) + 1);
+      for (let i = 0; i < lineCount; i++) {
+        const age = (world.tick * 0.08 + i * 2.1) % 4;
+        const lx = sx - f * (20 + age * 12);
+        const ly = sub.y + Math.sin(world.tick * 0.04 + i * 1.5) * (3 + age * 2);
+        const len = 4 + age * 3;
+        ctx.globalAlpha = 0.08 + (1 - age / 4) * 0.12;
+        ctx.strokeStyle = '#4a9ade';
+        ctx.lineWidth = 1.5 - age * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(lx - f * len, ly + Math.sin(world.tick * 0.06 + i) * 1.5);
+        ctx.stroke();
+      }
+      // Faint thermal shimmer at the water intake (forward) — barely visible
+      if (speed > 0.5) {
+        ctx.globalAlpha = 0.06;
+        ctx.strokeStyle = '#85c1e9';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(sx + f * 14, sub.y - 3);
+        ctx.quadraticCurveTo(sx + f * 18, sub.y, sx + f * 14, sub.y + 3);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
   } else if (inWater) {
-    // Underwater propeller bubble stream
+    // Standard propeller — bubble stream behind the sub
     const moving = Math.abs(sub.vx) > 0.2 || Math.abs(sub.vy) > 0.2;
     if (moving) {
       const speed = Math.hypot(sub.vx, sub.vy);

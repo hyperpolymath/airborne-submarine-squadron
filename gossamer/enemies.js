@@ -106,6 +106,8 @@ const EVEL_SPEED = 2.8;
 const EVEL_JUMP_SPEED = 5.5;     // Launch speed for island-to-island jump
 const EVEL_JUMP_GRAVITY = 0.06;  // Gravity during jump (slow — matrix effect)
 const EVEL_SCORE = 3000;
+const EVEL_SWIM_SPEED = 0.4;     // Swimming speed after missed jump
+const EVEL_CAPTURE_RADIUS = 28;  // How close commander must be to capture
 
 // ── Shared air-enemy stealth check ──────────────────────────────────────────
 // Returns true when the sub is hidden from air units (periscope mode or fully
@@ -120,11 +122,15 @@ function isSubHiddenFromAir(sub) {
 // Fires Sopwith-style bullet streams as a nod to the original game.
 // ============================================================
 const SOPWITH_SPEED = 1.8;
-const SOPWITH_ACROBAT_SPEED = 2.8;
-const SOPWITH_FIRE_COOLDOWN = 6;
-const SOPWITH_BULLET_SPEED = 4;
-const SOPWITH_HP = 5;
-const SOPWITH_SCORE = 5000;
+const SOPWITH_ACROBAT_SPEED = 3.2;  // Faster when angered — harder to track
+const SOPWITH_FIRE_COOLDOWN = 5;
+const SOPWITH_BULLET_SPEED = 4.5;
+const SOPWITH_HP = 18;              // Tenacious — incredibly hard to put down
+const SOPWITH_SCORE = 8000;         // Reward matches the difficulty
+const SOPWITH_SELF_REPAIR = 0.008;  // Slowly patches itself up (HP/tick)
+const SOPWITH_DODGE_RANGE = 55;     // Detects incoming projectiles within this radius
+const SOPWITH_DODGE_COOLDOWN = 25;  // Minimum ticks between emergency dodges
+const SOPWITH_GRAZE_CHANCE = 0.35;  // 35% chance a hit only grazes (half damage)
 
 function createSopwith(terrain) {
   // Spawn in the middle third of the terrain, cruising high
@@ -135,14 +141,20 @@ function createSopwith(terrain) {
     vx: (Math.random() < 0.5 ? 1 : -1) * SOPWITH_SPEED,
     vy: 0,
     hp: SOPWITH_HP,
+    maxHp: SOPWITH_HP,
     angered: false,        // Turns true on first hit — becomes Red Baron
     acrobatPhase: 0,       // Phase of current acrobatic manoeuvre
     acrobatTimer: 0,       // Ticks into current manoeuvre
-    manoeuvre: 'cruise',   // cruise, loop, immelmann, chandelle, barrelRoll, strafingRun
+    manoeuvre: 'cruise',   // cruise, loop, immelmann, chandelle, barrelRoll, strafingRun, snapTurn, splitS
     fireCooldown: 0,
     bullets: [],           // Sopwith-style bullet objects
     alive: true,
     scarfPhase: 0,         // Scarf flutter animation
+    dodgeCooldown: 0,      // Ticks until next emergency dodge allowed
+    dodging: false,        // True during an emergency evasion
+    dodgeDir: 1,           // Direction of current dodge
+    timesHit: 0,           // Track total hits — gets wilier with each
+    lastHitTick: 0,        // When last hit — affects repair rate
   };
 }
 
@@ -151,6 +163,14 @@ function updateSopwith(dt) {
   if (!sw || !sw.alive) return;
   const sub = world.sub;
   sw.scarfPhase += dt * 0.12;
+  sw.dodgeCooldown = Math.max(0, sw.dodgeCooldown - dt);
+
+  // ── Self-repair — the Baron is relentless, slowly patching his plane ──
+  if (sw.angered && sw.hp < sw.maxHp) {
+    // Repairs faster when not recently hit (30 ticks grace period)
+    const repairRate = (world.tick - sw.lastHitTick > 30) ? SOPWITH_SELF_REPAIR * 2 : SOPWITH_SELF_REPAIR;
+    sw.hp = Math.min(sw.maxHp, sw.hp + repairRate * dt);
+  }
 
   // Update bullets
   for (let i = sw.bullets.length - 1; i >= 0; i--) {
@@ -168,9 +188,56 @@ function updateSopwith(dt) {
     if (b.life <= 0 || b.y > WATER_LINE || b.y < 5) sw.bullets.splice(i, 1);
   }
 
+  // ── Emergency evasion — detect incoming projectiles and dodge ──
+  // The Baron has preternatural awareness of incoming fire. When a projectile
+  // enters his danger zone he snaps into an evasive manoeuvre instantly.
+  if (sw.angered && sw.dodgeCooldown <= 0) {
+    let threatened = false;
+    let threatX = 0, threatY = 0;
+    // Check all player projectile types
+    const allProjectiles = [
+      ...world.torpedoes.filter(t => t.fromSub !== false),
+      ...world.missiles.filter(m => !m.fromEnemy),
+      ...world.subMgBullets,
+      ...world.railgunShots,
+    ];
+    for (const p of allProjectiles) {
+      const px = p.worldX || p.x;
+      const py = p.y;
+      const dist = Math.hypot(px - sw.x, py - sw.y);
+      // Check if projectile is approaching (closing distance)
+      const closing = (p.vx || 0) * (sw.x - px) + (p.vy || 0) * (sw.y - py) > 0;
+      if (dist < SOPWITH_DODGE_RANGE && closing) {
+        threatened = true;
+        threatX = px; threatY = py;
+        break;
+      }
+    }
+    if (threatened) {
+      // Snap evasion — pick direction away from threat
+      const awayAngle = Math.atan2(sw.y - threatY, sw.x - threatX);
+      const dodgeSpeed = SOPWITH_ACROBAT_SPEED * 1.5;
+      // Perpendicular dodge (more effective than running directly away)
+      const perpAngle = awayAngle + (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2);
+      sw.vx = Math.cos(perpAngle) * dodgeSpeed;
+      sw.vy = Math.sin(perpAngle) * dodgeSpeed;
+      sw.dodgeCooldown = SOPWITH_DODGE_COOLDOWN;
+      sw.dodging = true;
+      // Cycle to evasive manoeuvre
+      const evasive = ['barrelRoll', 'splitS', 'snapTurn'];
+      sw.manoeuvre = evasive[Math.floor(Math.random() * evasive.length)];
+      sw.acrobatTimer = 0;
+    }
+  }
+
   // Check if ANY projectile hits the Sopwith — player weapons, stray enemy fire, anything.
   // Any hit awakens the Red Baron. He doesn't care who shot him.
   sw.fireCooldown = Math.max(0, sw.fireCooldown - dt);
+
+  // Hitbox shrinks during acrobatic manoeuvres — harder to land a clean hit
+  const acrobatic = sw.angered && (sw.manoeuvre === 'barrelRoll' || sw.manoeuvre === 'splitS'
+    || sw.manoeuvre === 'snapTurn' || sw.manoeuvre === 'loop');
+  const hitShrink = acrobatic ? 0.6 : 1.0;
 
   function awakenBaron() {
     if (!sw.angered) {
@@ -181,11 +248,26 @@ function updateSopwith(dt) {
     }
   }
 
+  // Graze mechanic — the Baron's wild manoeuvres cause some shots to only clip him
+  function applyDamage(baseDmg) {
+    sw.lastHitTick = world.tick;
+    sw.timesHit++;
+    // Gets increasingly evasive with each hit (dodge cooldown drops)
+    sw.dodgeCooldown = Math.max(0, sw.dodgeCooldown - 10);
+    if (sw.angered && Math.random() < SOPWITH_GRAZE_CHANCE) {
+      // Glancing hit — half damage
+      sw.hp -= baseDmg * 0.5;
+      addParticles(sw.x, sw.y, 2, '#aaa');
+      return;
+    }
+    sw.hp -= baseDmg;
+  }
+
   // Player torpedoes
   for (let i = world.torpedoes.length - 1; i >= 0; i--) {
     const t = world.torpedoes[i];
-    if (Math.abs(t.worldX - sw.x) < 20 && Math.abs(t.y - sw.y) < 14) {
-      sw.hp--; awakenBaron();
+    if (Math.abs(t.worldX - sw.x) < 20 * hitShrink && Math.abs(t.y - sw.y) < 14 * hitShrink) {
+      applyDamage(1); awakenBaron();
       addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
       world.torpedoes.splice(i, 1); break;
     }
@@ -193,8 +275,8 @@ function updateSopwith(dt) {
   // Player missiles
   for (let i = world.missiles.length - 1; i >= 0; i--) {
     const m = world.missiles[i];
-    if (Math.abs(m.worldX - sw.x) < 20 && Math.abs(m.y - sw.y) < 14) {
-      sw.hp -= 2; awakenBaron();
+    if (Math.abs(m.worldX - sw.x) < 20 * hitShrink && Math.abs(m.y - sw.y) < 14 * hitShrink) {
+      applyDamage(2); awakenBaron();
       addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
       world.missiles.splice(i, 1); break;
     }
@@ -202,16 +284,16 @@ function updateSopwith(dt) {
   // Sub MG bullets
   for (let i = world.subMgBullets.length - 1; i >= 0; i--) {
     const b = world.subMgBullets[i];
-    if (Math.abs(b.worldX - sw.x) < 16 && Math.abs(b.y - sw.y) < 12) {
-      sw.hp--; awakenBaron();
+    if (Math.abs(b.worldX - sw.x) < 14 * hitShrink && Math.abs(b.y - sw.y) < 10 * hitShrink) {
+      applyDamage(1); awakenBaron();
       addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
       world.subMgBullets.splice(i, 1); break;
     }
   }
-  // Railgun (pierces but still damages)
+  // Railgun (pierces but still damages — even the Baron fears this)
   for (const r of world.railgunShots) {
-    if (Math.abs(r.worldX - sw.x) < 18 && Math.abs(r.y - sw.y) < 14) {
-      sw.hp -= 3; awakenBaron();
+    if (Math.abs(r.worldX - sw.x) < 16 * hitShrink && Math.abs(r.y - sw.y) < 12 * hitShrink) {
+      applyDamage(3); awakenBaron();
       addExplosion(sw.x, sw.y, 'big'); SFX.explodeBig(); break;
     }
   }
@@ -220,24 +302,36 @@ function updateSopwith(dt) {
     if (!li.alive) continue;
     for (let i = li.bullets.length - 1; i >= 0; i--) {
       const b = li.bullets[i];
-      if (Math.abs(b.x - sw.x) < 14 && Math.abs(b.y - sw.y) < 10) {
-        sw.hp--; awakenBaron();
+      if (Math.abs(b.x - sw.x) < 12 * hitShrink && Math.abs(b.y - sw.y) < 8 * hitShrink) {
+        applyDamage(1); awakenBaron();
         addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
         li.bullets.splice(i, 1); break;
       }
     }
   }
 
-  // Death
+  // Death — takes a LOT to bring him down
   if (sw.hp <= 0) {
     sw.alive = false;
     addExplosion(sw.x, sw.y, 'big');
-    addParticles(sw.x, sw.y, 20, '#e74c3c');
+    addExplosion(sw.x - 10, sw.y + 5, 'big');
+    addParticles(sw.x, sw.y, 30, '#e74c3c');
+    addParticles(sw.x, sw.y, 15, '#fbbf24');
     world.score += SOPWITH_SCORE;
     world.kills++;
-    ticker('Red Baron shot down!', 70); actionIcon('2b50', 50, '#fbbf24');
+    midNotice('THE RED BARON IS FINALLY DOWN!', 150);
+    actionIcon('2b50', 60, '#fbbf24');
     SFX.enemyDestroyed();
     return;
+  }
+
+  // Damage smoke/fire trail (visible hint that you're making progress)
+  const hpPct = sw.hp / sw.maxHp;
+  if (hpPct < 0.7) {
+    if (world.tick % (hpPct < 0.3 ? 2 : 5) === 0) {
+      const smokeColor = hpPct < 0.3 ? '#ff6600' : '#888';
+      addParticles(sw.x - (sw.vx > 0 ? 8 : -8), sw.y + 2, 1, smokeColor);
+    }
   }
 
   const distToSub = Math.hypot(sub.worldX - sw.x, sub.y - sw.y);
@@ -256,7 +350,9 @@ function updateSopwith(dt) {
     // Reverse at terrain edges
     if (sw.x < 100 || sw.x > TERRAIN_LENGTH - 100) sw.vx = -sw.vx;
   } else {
-    // RED BARON MODE — aggressive acrobatics, Sopwith-style combat
+    // RED BARON MODE — aggressive acrobatics, Sopwith-style combat.
+    // Never stays in one manoeuvre long. Cycles faster the more damaged he is.
+    const manoeuvreTimeout = Math.max(30, 80 * hpPct); // Faster cycling when hurt
     sw.acrobatTimer += dt;
     // If sub is hidden (periscope / underwater), orbit last known position
     const hidden = isSubHiddenFromAir(sub);
@@ -295,10 +391,19 @@ function updateSopwith(dt) {
             vy: Math.sin(bDir + spread) * SOPWITH_BULLET_SPEED,
             life: 80,
           });
+          // Double tap when hurt — fires two bullets at once
+          if (hpPct < 0.5) {
+            sw.bullets.push({
+              x: sw.x, y: sw.y + 3,
+              vx: Math.cos(bDir - spread) * SOPWITH_BULLET_SPEED,
+              vy: Math.sin(bDir - spread) * SOPWITH_BULLET_SPEED,
+              life: 80,
+            });
+          }
           sw.fireCooldown = SOPWITH_FIRE_COOLDOWN;
         }
-        // Pull up after getting close or after 120 ticks
-        if (distToSub < 60 || sw.acrobatTimer > 120) {
+        // Pull up after getting close or after timeout
+        if (distToSub < 60 || sw.acrobatTimer > manoeuvreTimeout * 1.5) {
           sw.manoeuvre = 'loop';
           sw.acrobatTimer = 0;
         }
@@ -306,7 +411,7 @@ function updateSopwith(dt) {
       }
       case 'loop': {
         // Full loop — Sopwith signature move
-        const loopDuration = 80;
+        const loopDuration = 65; // Tighter loop when experienced
         const loopAngle = (sw.acrobatTimer / loopDuration) * TWO_PI;
         sw.vx = dir * speed * Math.cos(loopAngle);
         sw.vy = -speed * Math.sin(loopAngle);
@@ -318,7 +423,7 @@ function updateSopwith(dt) {
       }
       case 'immelmann': {
         // Half loop + roll — immediate direction reversal
-        const immDuration = 50;
+        const immDuration = 40;
         const immAngle = (sw.acrobatTimer / immDuration) * Math.PI;
         sw.vx = dir * speed * Math.cos(immAngle);
         sw.vy = -speed * Math.abs(Math.sin(immAngle));
@@ -335,30 +440,57 @@ function updateSopwith(dt) {
         sw.vy -= 0.06 * dt; // Climb
         const spd = Math.hypot(sw.vx, sw.vy);
         if (spd > speed) { sw.vx *= speed / spd; sw.vy *= speed / spd; }
-        if (sw.acrobatTimer > 60 || sw.y < 30) {
+        if (sw.acrobatTimer > manoeuvreTimeout || sw.y < 30) {
           sw.manoeuvre = 'strafingRun';
           sw.acrobatTimer = 0;
         }
         break;
       }
       case 'barrelRoll': {
-        // Spiral evasion — harder to hit
-        const rollDuration = 40;
-        const rollAngle = (sw.acrobatTimer / rollDuration) * TWO_PI * 2;
-        sw.vx = dir * speed;
-        sw.vy = Math.sin(rollAngle) * speed * 0.8;
+        // Spiral evasion — very hard to hit during this
+        const rollDuration = 35;
+        const rollAngle = (sw.acrobatTimer / rollDuration) * TWO_PI * 2.5;
+        sw.vx = dir * speed * 1.2;
+        sw.vy = Math.sin(rollAngle) * speed * 0.9;
         if (sw.acrobatTimer > rollDuration) {
           sw.manoeuvre = 'strafingRun';
           sw.acrobatTimer = 0;
+          sw.dodging = false;
+        }
+        break;
+      }
+      case 'splitS': {
+        // Half roll then half loop downward — quick altitude loss and direction change
+        const splitDuration = 45;
+        const splitAngle = (sw.acrobatTimer / splitDuration) * Math.PI;
+        sw.vx = -dir * speed * Math.cos(splitAngle);
+        sw.vy = speed * Math.abs(Math.sin(splitAngle));
+        if (sw.acrobatTimer > splitDuration) {
+          sw.manoeuvre = 'chandelle'; // Pull back up after split-S
+          sw.acrobatTimer = 0;
+          sw.dodging = false;
+        }
+        break;
+      }
+      case 'snapTurn': {
+        // Violent flat turn — instant heading change, throws off aim
+        const snapDuration = 20;
+        const snapAngle = (sw.acrobatTimer / snapDuration) * Math.PI;
+        sw.vx = -dir * speed * 1.3;
+        sw.vy += (Math.random() - 0.5) * 0.4 * dt;
+        if (sw.acrobatTimer > snapDuration) {
+          sw.manoeuvre = 'strafingRun';
+          sw.acrobatTimer = 0;
+          sw.dodging = false;
         }
         break;
       }
       default: { // cruise/fallthrough
         sw.vx += Math.cos(angleToSub) * 0.05 * dt;
         sw.vy += Math.sin(angleToSub) * 0.03 * dt;
-        if (sw.acrobatTimer > 40) {
-          // Pick a random acrobatic manoeuvre
-          const moves = ['strafingRun', 'loop', 'immelmann', 'chandelle', 'barrelRoll'];
+        if (sw.acrobatTimer > manoeuvreTimeout * 0.5) {
+          // Pick a random acrobatic manoeuvre — more varied than before
+          const moves = ['strafingRun', 'loop', 'immelmann', 'chandelle', 'barrelRoll', 'splitS', 'snapTurn'];
           sw.manoeuvre = moves[Math.floor(Math.random() * moves.length)];
           sw.acrobatTimer = 0;
         }
@@ -519,6 +651,19 @@ function drawSopwith() {
     ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1;
     ctx.stroke();
     ctx.globalAlpha = 1;
+  }
+
+  // Health bar — only when angered and damaged (so player can see progress)
+  if (sw.angered && sw.hp < sw.maxHp) {
+    const hpPct = sw.hp / sw.maxHp;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(sx - 14, sw.y - 18, 28, 3);
+    ctx.fillStyle = hpPct > 0.6 ? '#cc1100' : hpPct > 0.3 ? '#ff6600' : '#ffcc00';
+    ctx.fillRect(sx - 14, sw.y - 18, 28 * hpPct, 3);
+    // Label
+    ctx.fillStyle = '#cc1100';
+    ctx.font = '7px Arial'; ctx.textAlign = 'center';
+    ctx.fillText('RED BARON', sx, sw.y - 20);
   }
 }
 
@@ -740,6 +885,103 @@ function updateAirSupremacy(dt) {
     if (Math.abs(li.x - bk.x) < W) {
       li.commanded = true; // Flag: use Berkut's targeting intelligence
     }
+  }
+
+  // ── Kamikaze air drones — Berkut deploys small pursuit drones ──
+  if (!bk.drones) bk.drones = [];
+  if (!bk._droneCooldown) bk._droneCooldown = 300; // Delay before first drone
+  bk._droneCooldown = Math.max(0, bk._droneCooldown - dt);
+  // Deploy a drone when in engage state, max 3 active
+  if (bk.state === 'engage' && bk._droneCooldown <= 0 && bk.drones.length < 3 && !hidden) {
+    bk.drones.push({
+      x: bk.x, y: bk.y,
+      vx: Math.cos(angleToSub) * 3, vy: Math.sin(angleToSub) * 3,
+      hp: 1, life: 300,
+      trail: [],
+    });
+    bk._droneCooldown = 200;
+    ticker('Berkut deploys kamikaze drone!', 50);
+  }
+  // Update drones
+  for (let i = bk.drones.length - 1; i >= 0; i--) {
+    const d = bk.drones[i];
+    d.life -= dt;
+    // Chase sub
+    const dAngle = Math.atan2(sub.y - d.y, sub.worldX - d.x);
+    d.vx += Math.cos(dAngle) * 0.2 * dt;
+    d.vy += Math.sin(dAngle) * 0.15 * dt;
+    const dSpd = Math.hypot(d.vx, d.vy);
+    if (dSpd > 4) { d.vx *= 4 / dSpd; d.vy *= 4 / dSpd; }
+    d.x += d.vx * dt; d.y += d.vy * dt;
+    d.y = clamp(d.y, 15, WATER_LINE - 5);
+    // Trail
+    if (world.tick % 3 === 0) {
+      d.trail.push({ x: d.x, y: d.y, age: 0 });
+      if (d.trail.length > 8) d.trail.shift();
+    }
+    d.trail.forEach(t => t.age += dt);
+    // Hit sub — kamikaze explosion
+    if (Math.abs(d.x - sub.worldX) < 14 && Math.abs(d.y - sub.y) < 10) {
+      damageRandomPart(sub.parts, 6);
+      addExplosion(d.x, d.y, 'small');
+      SFX.explodeSmall();
+      bk.drones.splice(i, 1); continue;
+    }
+    // Intercept incoming missiles/torpedoes (drone sacrifices itself)
+    let intercepted = false;
+    for (let j = world.missiles.length - 1; j >= 0; j--) {
+      const m = world.missiles[j];
+      if (m.fromEnemy) continue;
+      if (Math.hypot(m.worldX - d.x, m.y - d.y) < 20) {
+        addExplosion(d.x, d.y, 'small');
+        world.missiles.splice(j, 1);
+        intercepted = true; break;
+      }
+    }
+    if (intercepted) { bk.drones.splice(i, 1); continue; }
+    // Player can shoot them down
+    for (let j = world.subMgBullets.length - 1; j >= 0; j--) {
+      const b = world.subMgBullets[j];
+      if (Math.abs(b.worldX - d.x) < 10 && Math.abs(b.y - d.y) < 8) {
+        addExplosion(d.x, d.y, 'small');
+        world.subMgBullets.splice(j, 1);
+        bk.drones.splice(i, 1); intercepted = true; break;
+      }
+    }
+    if (intercepted) continue;
+    if (d.life <= 0) { bk.drones.splice(i, 1); }
+  }
+}
+
+// ── Draw Berkut drones ──
+function drawBerkutDrones() {
+  const bk = world.airSupremacy;
+  if (!bk || !bk.alive || !bk.drones) return;
+  for (const d of bk.drones) {
+    const dx = toScreen(d.x);
+    if (dx < -20 || dx > W + 20) continue;
+    // Trail
+    for (const t of d.trail) {
+      const tx = toScreen(t.x);
+      const a = Math.max(0, 0.3 - t.age * 0.03);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath(); ctx.arc(tx, t.y, 1.5, 0, TWO_PI); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // Drone body — small delta wing
+    const dDir = d.vx >= 0 ? 1 : -1;
+    ctx.save();
+    ctx.translate(dx, d.y);
+    ctx.scale(dDir, 1);
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    ctx.moveTo(6, 0); ctx.lineTo(-4, -5); ctx.lineTo(-4, 5); ctx.closePath();
+    ctx.fill();
+    // Red light
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(5, 0, 1.5, 0, TWO_PI); ctx.fill();
+    ctx.restore();
   }
 }
 
@@ -1986,6 +2228,56 @@ function updateMotorcyclists(dt) {
       continue;
     }
 
+    // ── Evel swimming after missed jump ──
+    if (m.isEvel && m.swimming) {
+      // Swimming toward nearest island with a motorbike (or any island)
+      if (!m.swimTarget) {
+        // Find nearest island with a bike, or just nearest island
+        let best = null, bestDist = Infinity;
+        for (const isl of world.terrain.islands) {
+          const d = Math.abs(isl.x - m.x);
+          if (d < bestDist) { bestDist = d; best = isl; }
+        }
+        m.swimTarget = best;
+      }
+      if (m.swimTarget) {
+        const dx = m.swimTarget.x - m.x;
+        m.vx = Math.sign(dx) * EVEL_SWIM_SPEED;
+        m.x += m.vx * dt;
+        m.y = WATER_LINE + 2 + Math.sin(world.tick * 0.08) * 1.5; // Bobbing in water
+
+        // Check if player commander can capture him (hostage rescue style)
+        const sub = world.sub;
+        if (sub.disembarked) {
+          const dist = Math.hypot(sub.pilotX - m.x, sub.pilotY - m.y);
+          if (dist < EVEL_CAPTURE_RADIUS && (keyJustPressed['f'] || keyJustPressed['F'])) {
+            m.captured = true;
+            m.swimming = false;
+            m.alive = false; // Remove from active
+            world.score += EVEL_SCORE;
+            midNotice('EVEL KNIEVEL CAPTURED!', 120);
+            SFX.embark();
+            continue;
+          }
+        }
+
+        // Reached an island — climb out and commandeer any bike there
+        const islLeft = m.swimTarget.x - m.swimTarget.topW / 2;
+        const islRight = m.swimTarget.x + m.swimTarget.topW / 2;
+        if (m.x >= islLeft && m.x <= islRight) {
+          m.swimming = false;
+          m.y = WATER_LINE - m.swimTarget.h - 4;
+          m.island = m.swimTarget;
+          m.jumpCooldown = 400 + Math.random() * 200;
+          m.jumpTrail = [];
+          m.swimTarget = null;
+          ticker('Evel reaches shore — commandeers a bike!', 60);
+          addParticles(m.x, m.y, 4, '#fbbf24');
+        }
+      }
+      continue;
+    }
+
     if (m.jumping) {
       // ── In the air — physics + matrix trail ──
       m.x += m.vx * dt;
@@ -2015,12 +2307,23 @@ function updateMotorcyclists(dt) {
           break;
         }
       }
-      // Fell in the water — dead
+      // Fell in the water — Evel doesn't die, he swims! Normal bikers die.
       if (m.y > WATER_LINE) {
-        m.alive = false;
-        addParticles(m.x, WATER_LINE, 8, '#85c1e9');
-        SFX.waterSplash();
-        if (m.isEvel) ticker('Evel missed the landing!', 60);
+        if (m.isEvel) {
+          m.jumping = false;
+          m.swimming = true;
+          m.y = WATER_LINE + 2;
+          m.jumpVy = 0;
+          m.jumpTrail = [];
+          m.swimTarget = null;
+          ticker('Evel missed! He\'s swimming for shore...', 60);
+          addParticles(m.x, WATER_LINE, 8, '#85c1e9');
+          SFX.waterSplash();
+        } else {
+          m.alive = false;
+          addParticles(m.x, WATER_LINE, 8, '#85c1e9');
+          SFX.waterSplash();
+        }
       }
       continue;
     }
@@ -2050,27 +2353,49 @@ function updateMotorcyclists(dt) {
       m.mgCooldown = MOTORCYCLE_MG_COOLDOWN;
     }
 
-    // ── Evel Knievel: jump to another island ──
-    if (m.isEvel) {
+    // ── Evel Knievel: predictive jump — anticipates where you're headed ──
+    if (m.isEvel && !m.swimming) {
       if (!m.jumpCooldown) m.jumpCooldown = 0;
       m.jumpCooldown = Math.max(0, m.jumpCooldown - dt);
       if (m.jumpCooldown <= 0 && !m.jumping) {
-        // Find nearest different island
-        let nearest = null, nearDist = Infinity;
+        // Evel has a sixth sense — he predicts where the sub will be
+        // and jumps to an island in its path, especially mission islands.
+        const subVelDir = sub.vx > 0.3 ? 1 : sub.vx < -0.3 ? -1 : 0;
+        const subFutureX = sub.worldX + sub.vx * 200; // Where sub will be in ~200 ticks
+
+        // Score each reachable island by desirability
+        let bestTarget = null, bestScore = -Infinity;
         for (const other of world.terrain.islands) {
           if (other === isl) continue;
-          const d = Math.abs(other.x - m.x);
-          if (d < nearDist && d < 800) { nearDist = d; nearest = other; }
+          const jumpDist = Math.abs(other.x - m.x);
+          if (jumpDist > 800 || jumpDist < 60) continue; // Too far or too close
+
+          let score = 0;
+          // Prefer islands the sub is heading toward
+          const distToSubFuture = Math.abs(other.x - subFutureX);
+          score += 400 - Math.min(400, distToSubFuture * 0.5);
+          // Strong preference for mission islands — Evel wants to be in your way
+          if (other.missionIsland) score += 300;
+          // Prefer military islands (his kind of place)
+          if (other.type === 'military') score += 80;
+          // Slight randomness so he's not perfectly predictable
+          score += Math.random() * 100;
+          // Penalise very long jumps (risky)
+          score -= jumpDist * 0.1;
+
+          if (score > bestScore) { bestScore = score; bestTarget = other; }
         }
-        if (nearest) {
+
+        if (bestTarget) {
           m.jumping = true;
-          m.targetIsland = nearest;
-          const dx = nearest.x - m.x;
-          const jumpTime = Math.abs(dx) / EVEL_JUMP_SPEED;
+          m.targetIsland = bestTarget;
+          const dx = bestTarget.x - m.x;
           m.vx = dx > 0 ? EVEL_JUMP_SPEED : -EVEL_JUMP_SPEED;
           m.jumpVy = -EVEL_JUMP_SPEED * 0.7; // Arc upward
-          m.jumpCooldown = 300 + Math.random() * 200;
+          m.jumpCooldown = 400 + Math.random() * 300;
           m.jumpTrail = [];
+          // Cameratron event — triggers the mini-frame popup
+          world._evelCameratron = { active: true, timer: 0, maxTimer: 180, evel: m };
           ticker('Evel Knievel jumps!', 50);
         }
       }
@@ -2083,10 +2408,47 @@ function drawMotorcyclists() {
   if (!bikes) return;
 
   for (const m of bikes) {
-    if (!m.alive) continue;
+    if (!m.alive && !(m.isEvel && m.swimming)) continue;
     const mx = toScreen(m.x);
     if (mx < -30 || mx > W + 30) continue;
     const dir = m.vx >= 0 ? 1 : -1;
+
+    // ── Evel swimming — bobbing head + arms in water ──
+    if (m.isEvel && m.swimming) {
+      ctx.save();
+      ctx.translate(mx, m.y);
+      // Head above water
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath(); ctx.arc(0, -4, 3, 0, TWO_PI); ctx.fill();
+      // Helmet
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath(); ctx.arc(0, -5, 3.2, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#3b82f6'; // Blue visor
+      ctx.fillRect(dir * 1, -6, dir * 2, 1.5);
+      // Arms splashing
+      const armPhase = Math.sin(world.tick * 0.12);
+      ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-4, -1); ctx.lineTo(-7, -3 + armPhase * 2);
+      ctx.moveTo(4, -1); ctx.lineTo(7, -3 - armPhase * 2);
+      ctx.stroke();
+      // Water splash particles
+      if (world.tick % 4 === 0) {
+        ctx.fillStyle = 'rgba(133,193,233,0.4)';
+        ctx.beginPath(); ctx.arc(dir * 5, -1 + Math.random() * 2, 1.5, 0, TWO_PI); ctx.fill();
+      }
+      ctx.restore();
+      // Capture hint when commander is nearby
+      if (world.sub.disembarked) {
+        const dist = Math.hypot(world.sub.pilotX - m.x, world.sub.pilotY - m.y);
+        if (dist < 40) {
+          ctx.fillStyle = '#fcd34d';
+          ctx.font = '10px Arial'; ctx.textAlign = 'center';
+          ctx.fillText('[F] CAPTURE', mx, m.y - 12);
+        }
+      }
+      continue;
+    }
 
     // ── Evel's matrix jump trail — ghostly afterimages ──
     if (m.jumping && m.isEvel) {
@@ -2218,30 +2580,116 @@ function updateAkulaMolot(dt) {
     && !world.subInCave;
   const akulaCanDetect = (canSeeSubNormally && !sub.caterpillarDrive) || sonarChainDetects;
 
-  // Patrol horizontally
-  ak.x += ak.dir * AKULA_SPEED * speedMult * dt;
-  if (ak.x > ak.patrolMax) ak.dir = -1;
-  if (ak.x < ak.patrolMin) ak.dir = 1;
-
-  // Depth behaviour — vary depth, can dive to floor
+  // ── Movement — patrol when idle, HUNT when detecting sub ──
   const distToSub = Math.hypot(sub.worldX - ak.x, sub.y - ak.y);
-  if (distToSub < 200 && sub.y > WATER_LINE) {
-    // Sub is near and underwater — dive deep to evade
-    ak.targetDepth = Math.min(SEA_FLOOR - 20, ak.y + 60);
-    ak.diving = true;
-  } else if (distToSub > 500) {
-    // Cruise at medium depth
-    ak.targetDepth = WATER_LINE + 60 + Math.sin(world.tick * 0.005) * 40;
-    ak.diving = false;
-  } else {
-    // Engagement depth — stay below water but reachable
-    ak.targetDepth = WATER_LINE + 40 + Math.sin(world.tick * 0.008) * 30;
-    ak.diving = false;
+  if (!ak.mines) ak.mines = [];
+  if (!ak.mgCooldown) ak.mgCooldown = 0;
+  if (!ak.mgBullets) ak.mgBullets = [];
+  if (!ak.state) ak.state = 'patrol'; // patrol, hunt, ram, surface
+  ak.mgCooldown = Math.max(0, ak.mgCooldown - dt);
+
+  // State transitions
+  if (akulaCanDetect && distToSub < 350) {
+    ak.state = (distToSub < 80) ? 'ram' : 'hunt';
+  } else if (!akulaCanDetect && ak.state !== 'patrol') {
+    ak.state = 'patrol';
   }
-  // Smoothly move to target depth (penalised when chain deployed)
+
+  // Surface state — rises to surface for MG attacks on airborne sub
+  if (akulaCanDetect && sub.y < WATER_LINE - 20 && distToSub < 300 && ak.state !== 'ram') {
+    ak.state = 'surface';
+  }
+
+  if (ak.state === 'hunt') {
+    // Actively chase the sub
+    const chaseDir = sub.worldX > ak.x ? 1 : -1;
+    ak.dir = chaseDir;
+    ak.x += chaseDir * AKULA_SPEED * 1.4 * speedMult * dt;
+    // Match sub depth to get in torpedo range
+    ak.targetDepth = sub.y + (sub.y > WATER_LINE ? 0 : 20);
+  } else if (ak.state === 'ram') {
+    // Close range — ram attempt (dangerous for both)
+    const chaseDir = sub.worldX > ak.x ? 1 : -1;
+    ak.dir = chaseDir;
+    ak.x += chaseDir * AKULA_SPEED * 2.0 * speedMult * dt;
+    ak.targetDepth = sub.y;
+    // Ram damage
+    if (distToSub < 30) {
+      damageRandomPart(sub.parts, 8);
+      ak.hp -= 15;
+      addExplosion(ak.x, ak.y, 'big');
+      SFX.explodeBig();
+      ak.state = 'hunt'; // Back off after ram
+      ticker('Akula rams your hull!', 60);
+    }
+  } else if (ak.state === 'surface') {
+    // Rise to surface for MG fire at airborne targets
+    ak.x += ak.dir * AKULA_SPEED * 0.6 * speedMult * dt;
+    ak.targetDepth = WATER_LINE + 8; // Just below surface, MG exposed
+    // Surface MG — only fires when at surface
+    if (ak.y < WATER_LINE + 15 && ak.mgCooldown <= 0 && distToSub < 250) {
+      const angle = Math.atan2(sub.y - ak.y, sub.worldX - ak.x);
+      ak.mgBullets.push({
+        x: ak.x + ak.dir * 25, y: ak.y - 8,
+        vx: Math.cos(angle) * 4.5, vy: Math.sin(angle) * 4.5,
+        life: 50,
+      });
+      ak.mgCooldown = 8;
+    }
+  } else {
+    // Patrol — normal horizontal movement
+    ak.x += ak.dir * AKULA_SPEED * speedMult * dt;
+    if (ak.x > ak.patrolMax) ak.dir = -1;
+    if (ak.x < ak.patrolMin) ak.dir = 1;
+    ak.targetDepth = WATER_LINE + 60 + Math.sin(world.tick * 0.005) * 40;
+  }
+
+  // Depth behaviour
+  if (ak.state === 'patrol' && distToSub > 500) {
+    ak.targetDepth = WATER_LINE + 60 + Math.sin(world.tick * 0.005) * 40;
+  }
   const depthDiff = ak.targetDepth - ak.y;
   ak.y += Math.sign(depthDiff) * Math.min(Math.abs(depthDiff), AKULA_DIVE_SPEED * diveMult * dt);
-  ak.y = Math.max(WATER_LINE + 15, Math.min(SEA_FLOOR - 15, ak.y));
+  ak.y = Math.max(WATER_LINE + 8, Math.min(SEA_FLOOR - 15, ak.y));
+
+  // ── Mine laying — drops mines behind it while hunting ──
+  if (!ak._mineCooldown) ak._mineCooldown = 0;
+  ak._mineCooldown = Math.max(0, ak._mineCooldown - dt);
+  if (ak.state === 'hunt' && ak._mineCooldown <= 0 && ak.mines.length < 8) {
+    ak.mines.push({
+      x: ak.x - ak.dir * 20, y: ak.y,
+      armed: false, armTimer: 60, // Arms after 60 ticks
+      life: 1200, // Disappear after 1200 ticks
+    });
+    ak._mineCooldown = 120;
+  }
+  // Update mines
+  for (let i = ak.mines.length - 1; i >= 0; i--) {
+    const mine = ak.mines[i];
+    mine.life -= dt;
+    if (!mine.armed) { mine.armTimer -= dt; if (mine.armTimer <= 0) mine.armed = true; }
+    // Player sub proximity detonation
+    if (mine.armed && Math.hypot(sub.worldX - mine.x, sub.y - mine.y) < 25) {
+      damageRandomPart(sub.parts, 12);
+      addExplosion(mine.x, mine.y, 'big');
+      SFX.explodeBig();
+      ticker('Mine detonated!', 50);
+      ak.mines.splice(i, 1); continue;
+    }
+    if (mine.life <= 0) { ak.mines.splice(i, 1); }
+  }
+
+  // Update MG bullets
+  for (let i = ak.mgBullets.length - 1; i >= 0; i--) {
+    const b = ak.mgBullets[i];
+    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    if (Math.abs(b.x - sub.worldX) < 14 && Math.abs(b.y - sub.y) < 10) {
+      damageRandomPart(sub.parts, 2);
+      SFX.damage();
+      ak.mgBullets.splice(i, 1); continue;
+    }
+    if (b.life <= 0) ak.mgBullets.splice(i, 1);
+  }
 
   // Cloaking — intermittent cycle
   ak.cloakTimer += dt;
@@ -2270,6 +2718,49 @@ function updateAkulaMolot(dt) {
   // Cooldowns
   ak.samCooldown = Math.max(0, ak.samCooldown - dt);
   ak.torpedoCooldown = Math.max(0, ak.torpedoCooldown - dt);
+
+  // ── Kamikaze sea drones — Akula deploys underwater pursuit drones ──
+  if (!ak.seaDrones) ak.seaDrones = [];
+  if (!ak._seaDroneCooldown) ak._seaDroneCooldown = 400;
+  ak._seaDroneCooldown = Math.max(0, ak._seaDroneCooldown - dt);
+  if (ak.state === 'hunt' && ak._seaDroneCooldown <= 0 && ak.seaDrones.length < 2 && akulaCanDetect) {
+    ak.seaDrones.push({
+      x: ak.x, y: ak.y,
+      vx: (sub.worldX > ak.x ? 1 : -1) * 2, vy: 0,
+      life: 400,
+    });
+    ak._seaDroneCooldown = 250;
+    ticker('Akula deploys sea drone!', 50);
+  }
+  for (let i = ak.seaDrones.length - 1; i >= 0; i--) {
+    const d = ak.seaDrones[i];
+    d.life -= dt;
+    const dAngle = Math.atan2(sub.y - d.y, sub.worldX - d.x);
+    d.vx += Math.cos(dAngle) * 0.12 * dt;
+    d.vy += Math.sin(dAngle) * 0.1 * dt;
+    const dSpd = Math.hypot(d.vx, d.vy);
+    if (dSpd > 2.5) { d.vx *= 2.5 / dSpd; d.vy *= 2.5 / dSpd; }
+    d.x += d.vx * dt; d.y += d.vy * dt;
+    d.y = clamp(d.y, WATER_LINE + 5, SEA_FLOOR - 10);
+    // Hit sub
+    if (Math.abs(d.x - sub.worldX) < 16 && Math.abs(d.y - sub.y) < 12) {
+      damageRandomPart(sub.parts, 8);
+      addExplosion(d.x, d.y, 'small');
+      SFX.explodeSmall();
+      ak.seaDrones.splice(i, 1); continue;
+    }
+    // Intercept incoming torpedoes
+    for (let j = world.torpedoes.length - 1; j >= 0; j--) {
+      const t = world.torpedoes[j];
+      if (!t.fromSub) continue;
+      if (Math.hypot(t.worldX - d.x, t.y - d.y) < 18) {
+        addExplosion(d.x, d.y, 'small');
+        world.torpedoes.splice(j, 1);
+        ak.seaDrones.splice(i, 1); break;
+      }
+    }
+    if (d.life <= 0) { ak.seaDrones.splice(i, 1); }
+  }
 
   // SAM — fires from underwater, targets sub when in air (needs detection)
   if (ak.samCooldown <= 0 && sub.y < WATER_LINE - 10 && distToSub < 450 && akulaCanDetect) {
@@ -2574,6 +3065,78 @@ function drawAkulaMolot() {
     ctx.setLineDash([2, 4]);
     ctx.beginPath(); ctx.ellipse(sx, sy, 40, 16, 0, 0, TWO_PI); ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  // ── Akula mines — dark spiked spheres ──
+  if (ak.mines) {
+    for (const mine of ak.mines) {
+      const msx = toScreen(mine.x);
+      if (msx < -10 || msx > W + 10) continue;
+      ctx.globalAlpha = mine.armed ? 0.8 : 0.4;
+      ctx.fillStyle = mine.armed ? '#333' : '#555';
+      ctx.beginPath(); ctx.arc(msx, mine.y, 5, 0, TWO_PI); ctx.fill();
+      // Spikes
+      if (mine.armed) {
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 1;
+        for (let s = 0; s < 6; s++) {
+          const a = (s / 6) * TWO_PI + world.tick * 0.01;
+          ctx.beginPath();
+          ctx.moveTo(msx + Math.cos(a) * 5, mine.y + Math.sin(a) * 5);
+          ctx.lineTo(msx + Math.cos(a) * 8, mine.y + Math.sin(a) * 8);
+          ctx.stroke();
+        }
+        // Red blink
+        if (world.tick % 30 < 5) {
+          ctx.fillStyle = '#ff0000';
+          ctx.beginPath(); ctx.arc(msx, mine.y, 2, 0, TWO_PI); ctx.fill();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ── Akula MG bullets ──
+  if (ak.mgBullets) {
+    ctx.fillStyle = '#ff6b35';
+    for (const b of ak.mgBullets) {
+      const bsx = toScreen(b.x);
+      if (bsx < -5 || bsx > W + 5) continue;
+      ctx.beginPath(); ctx.arc(bsx, b.y, 1.5, 0, TWO_PI); ctx.fill();
+    }
+  }
+
+  // ── Akula sea drones — small torpedo-like chasers ──
+  if (ak.seaDrones) {
+    for (const d of ak.seaDrones) {
+      const dsx = toScreen(d.x);
+      if (dsx < -15 || dsx > W + 15) continue;
+      const dDir = d.vx >= 0 ? 1 : -1;
+      ctx.save();
+      ctx.translate(dsx, d.y);
+      ctx.scale(dDir, 1);
+      // Torpedo-shaped body
+      ctx.fillStyle = '#8b1a1a';
+      ctx.beginPath();
+      ctx.moveTo(8, 0); ctx.quadraticCurveTo(4, -3, -6, -2);
+      ctx.lineTo(-8, 0); ctx.lineTo(-6, 2); ctx.quadraticCurveTo(4, 3, 8, 0);
+      ctx.fill();
+      // Propeller
+      ctx.fillStyle = '#555';
+      ctx.beginPath(); ctx.arc(-8, Math.sin(world.tick * 0.3) * 2, 1, 0, TWO_PI); ctx.fill();
+      // Red nose light
+      ctx.fillStyle = '#ff4444';
+      ctx.beginPath(); ctx.arc(7, 0, 1.2, 0, TWO_PI); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ── Surface MG turret (visible when near surface) ──
+  if (ak.state === 'surface' && ak.y < WATER_LINE + 15) {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#4a0808';
+    ctx.fillRect(sx + ak.dir * 15 - 2, sy - 12, 4, 5);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(sx + ak.dir * 18 - 1, sy - 14, 8, 2); // Barrel
   }
 
   ctx.restore();
