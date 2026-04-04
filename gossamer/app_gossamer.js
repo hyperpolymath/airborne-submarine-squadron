@@ -2621,6 +2621,29 @@ function nearestSolarBody(space, bodies) {
   return best ? { body: best, distance: bestDist } : null;
 }
 
+function initDebrisClouds() {
+  const zones = [330, 450, 570, 700]; // orbital radii for cloud centres
+  return zones.slice(0, DEBRIS_CLOUD_COUNT).map((orbitR, i) => {
+    const angle = (i / DEBRIS_CLOUD_COUNT) * Math.PI * 2 + 0.7;
+    const speed = Math.sqrt(SOLAR_GM / orbitR);
+    const particles = Array.from({ length: DEBRIS_PARTICLES }, () => ({
+      dx: (Math.random() - 0.5) * 40,
+      dy: (Math.random() - 0.5) * 40,
+      r:  1.5 + Math.random() * 3,
+    }));
+    return {
+      x:  Math.cos(angle) * orbitR,
+      y:  Math.sin(angle) * orbitR,
+      vx: -Math.sin(angle) * speed,
+      vy:  Math.cos(angle) * speed,
+      radius: 28,
+      particles,
+      type: i % 2 === 0 ? 'hull' : 'ammo',
+      collected: false,
+    };
+  });
+}
+
 function initAsteroids() {
   const asteroids = [];
   for (let i = 0; i < ASTEROID_COUNT; i++) {
@@ -2680,7 +2703,7 @@ function createOrbitState() {
       dwellTimer: 0,
     },
     asteroids: initAsteroids(),
-    debrisClouds: [],
+    debrisClouds: initDebrisClouds(),
     comets: [],
     projectiles: [],
   };
@@ -5436,6 +5459,44 @@ function updateDiverMode(sub, dt) {
   }
 }
 
+function updateDebrisClouds(space, bodies, sub, dt) {
+  for (const c of space.debrisClouds) {
+    if (c.collected) continue;
+    // Gravity
+    for (const body of bodies) {
+      const dx = body.x - c.x;
+      const dy = body.y - c.y;
+      const distSq = Math.max(dx * dx + dy * dy, body.radius ** 2);
+      const dist   = Math.sqrt(distSq);
+      c.vx += (body.gm || 0) / distSq * (dx / dist) * dt;
+      c.vy += (body.gm || 0) / distSq * (dy / dist) * dt;
+    }
+    c.x += c.vx * dt * 4;
+    c.y += c.vy * dt * 4;
+
+    const shipDist = Math.hypot(space.shipX - c.x, space.shipY - c.y);
+    if (shipDist < c.radius + ORBITAL_COLLISION_RADIUS) {
+      const shipSpeed = Math.hypot(space.shipVx, space.shipVy);
+      if (shipSpeed < DEBRIS_COLLECT_SPEED) {
+        // Slow enough — collect
+        if (c.type === 'hull') {
+          const parts = sub.parts;
+          const keys  = Object.keys(parts).filter(k => typeof parts[k] === 'number' && parts[k] < 100);
+          if (keys.length) parts[keys[Math.floor(Math.random() * keys.length)]] = Math.min(100, parts[keys[0]] + 20);
+        } else {
+          world.sub.ammo = Math.min((world.sub.ammo || 0) + 30, 200);
+        }
+        world.caveMessage = { text: `SALVAGE: ${c.type === 'hull' ? 'HULL REPAIR' : 'AMMO +30'}`, timer: 120 };
+        c.collected = true;
+      } else {
+        // Too fast — take chip damage
+        damageRandomPart(sub.parts, 2 * shipSpeed);
+        world.caveMessage = { text: 'DEBRIS IMPACT — SLOW TO SALVAGE', timer: 80 };
+      }
+    }
+  }
+}
+
 function damageAsteroid(space, asteroid, damage) {
   asteroid.hp -= damage;
   if (asteroid.hp > 0) return;
@@ -5712,6 +5773,7 @@ function updateOrbitMode(dt) {
   space.shipX += space.shipVx * dt * 4;
   space.shipY += space.shipVy * dt * 4;
   updateAsteroids(space, bodies, sub, dt);
+  updateDebrisClouds(space, bodies, sub, dt);
   updateOrbitalProjectiles(space, bodies, dt);
   space.cameraX += (space.shipX - space.cameraX) * SPACE_CAMERA_SMOOTH * dt * 4;
   space.cameraY += (space.shipY - space.cameraY) * SPACE_CAMERA_SMOOTH * dt * 4;
@@ -7258,6 +7320,30 @@ function drawWarpMenu() {
   ctx.fillText('Press F or Esc to close this menu', W/2, H/2 + 78);
 }
 
+function drawDebrisClouds(space) {
+  for (const c of space.debrisClouds) {
+    if (c.collected) continue;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    // Soft glow
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, c.radius);
+    grad.addColorStop(0, c.type === 'hull' ? 'rgba(100,200,100,0.12)' : 'rgba(100,150,255,0.12)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, c.radius, 0, Math.PI * 2);
+    ctx.fill();
+    // Particles
+    ctx.fillStyle = c.type === 'hull' ? '#6ee7b7' : '#93c5fd';
+    for (const p of c.particles) {
+      ctx.beginPath();
+      ctx.arc(p.dx, p.dy, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 function drawOrbitalProjectiles(space) {
   for (const p of space.projectiles) {
     ctx.save();
@@ -7421,6 +7507,7 @@ function drawOrbitScene() {
     ctx.restore();
   }
 
+  drawDebrisClouds(space);
   drawOrbitalProjectiles(space);
   drawAsteroids(space);
   ctx.restore(); // End camera transform
