@@ -98,7 +98,8 @@ const DIVING_BELL_SPEED = 0.4;
 const PARACHUTE_DESCENT_SPEED = 0.6;
 const HALO_DESCENT_SPEED = 2.5;       // Fast freefall before chute opens
 const HALO_OPEN_ALTITUDE = 40;        // Opens this many pixels above ground/water
-const COMMANDER_HP = 3;                // Hits before commander is killed
+const COMMANDER_HP = 3;                // Hits before commander is killed (eject + sub)
+const COMMANDER_MAX_HP = 3;
 
 // --- Thermal layers (asymmetric — player must notice the temperature shift) ---
 const THERMAL_LAYER_1_MAX = WATER_LINE + 75;   // Warm (surface to ~495) — shallower than expected
@@ -245,7 +246,34 @@ const DEFAULT_SETTINGS = {
   showLegend: true,
   haloParachute: false,
   deepDiverKit: false,
+  supplyFrequency: 'normal',
+  nemesisSub: false,       // Toggle: nemesis mini-sub (or auto on higher levels)
 };
+
+// Supply crate frequency presets.
+// 'interval' is a multiplier applied to SUPPLY_DROP_INTERVAL — higher = fewer crates.
+// 'unlimited' disables ammo consumption entirely (no crates spawn).
+const SUPPLY_FREQUENCY_LEVELS = [
+  { id: 'none',      label: 'None',      interval: Infinity },
+  { id: 'few',       label: 'Few',       interval: 3.0 },
+  { id: 'normal',    label: 'Normal',    interval: 1.6 },
+  { id: 'many',      label: 'Many',      interval: 1.0 },
+  { id: 'unlimited', label: 'Unlimited', interval: Infinity },
+];
+
+function getSupplyFrequency(settings) {
+  return SUPPLY_FREQUENCY_LEVELS.find(l => l.id === settings.supplyFrequency)
+    || SUPPLY_FREQUENCY_LEVELS[2]; // fallback to 'normal'
+}
+
+function cycleSupplyFrequency(settings, direction) {
+  const levels = SUPPLY_FREQUENCY_LEVELS;
+  const idx = levels.findIndex(l => l.id === settings.supplyFrequency);
+  const next = (idx + direction + levels.length) % levels.length;
+  settings.supplyFrequency = levels[next].id;
+  saveSettings(settings);
+  return levels[next];
+}
 
 // --- Sub component definitions ---
 // Each part has max HP, a weight for random hit distribution, and a
@@ -607,10 +635,10 @@ const INTERCEPTOR_CAMO_ALPHA = 0.45;
 
 // --- Акула-Молот (Hammerhead) enemy sub constants ---
 const AKULA_HP = 180;
-const AKULA_SPEED = 0.6;
+const AKULA_SPEED = 0.8;
 const AKULA_DIVE_SPEED = 0.4;
-const AKULA_SAM_COOLDOWN = 140;
-const AKULA_TORPEDO_COOLDOWN = 180;
+const AKULA_SAM_COOLDOWN = 90;
+const AKULA_TORPEDO_COOLDOWN = 110;
 const AKULA_CLOAK_CYCLE = 200;       // Ticks per cloak on/off cycle
 const AKULA_CLOAK_ON_RATIO = 0.55;   // 55% of cycle is cloaked
 const AKULA_SONAR_BUOY_INTERVAL = 60;
@@ -682,12 +710,15 @@ function collectSupply(sub) {
 }
 
 function updateAmmoStations(world, dt) {
-  // Spawn new supply drops periodically
-  if (!world.supplyDropTimer) world.supplyDropTimer = SUPPLY_DROP_INTERVAL * 0.3;
-  world.supplyDropTimer -= dt;
-  if (world.supplyDropTimer <= 0) {
-    world.supplyDropTimer = SUPPLY_DROP_INTERVAL + Math.random() * 200;
-    world.ammoStations.push(spawnSupplyDrop());
+  // Spawn new supply drops based on frequency setting
+  const freq = getSupplyFrequency(world.settings);
+  if (freq.id !== 'none' && freq.id !== 'unlimited') {
+    if (!world.supplyDropTimer) world.supplyDropTimer = SUPPLY_DROP_INTERVAL * freq.interval * 0.3;
+    world.supplyDropTimer -= dt;
+    if (world.supplyDropTimer <= 0) {
+      world.supplyDropTimer = (SUPPLY_DROP_INTERVAL + Math.random() * 200) * freq.interval;
+      world.ammoStations.push(spawnSupplyDrop());
+    }
   }
 
   const sub = world.sub;
@@ -841,9 +872,24 @@ function generateMines(terrain) {
     const spread = isl ? isl.baseW * 0.5 : 120;
     const x = baseX + (Math.random() - 0.5) * spread;
     const seaFloorY = groundYFromTerrain(terrain, x);
-    // Chain length varies — mines float at different depths
-    const chainLen = 30 + Math.random() * 80;
-    const anchorY = seaFloorY - 4;
+    // Mine zone determines chain length and difficulty:
+    // - Middle zone (thermocline): longer chains, easier to detach (wide chain target)
+    // - Deep zone: shorter chains anchored near floor, harder to cut without detonating
+    const zoneRoll = Math.random();
+    let chainLen, anchorY;
+    if (zoneRoll < 0.4) {
+      // Middle zone mine — long chain from floor up into thermocline
+      chainLen = 100 + Math.random() * 80; // 100-180, tall chains
+      anchorY = seaFloorY - 4;
+    } else if (zoneRoll < 0.7) {
+      // Deep zone mine — short chain near floor, harder to cut
+      chainLen = 15 + Math.random() * 30; // 15-45, short chains
+      anchorY = seaFloorY - 4;
+    } else {
+      // Standard shallow mine
+      chainLen = 30 + Math.random() * 60;
+      anchorY = seaFloorY - 4;
+    }
     const floatY = Math.max(WATER_LINE + 12, anchorY - chainLen);
     mines.push({
       x, y: floatY,
@@ -1082,6 +1128,1072 @@ function drawMines(world) {
   }
 }
 
+// ============================================================
+// SOPWITH CAMEL — One per level. Passive until attacked, then
+// turns into the Red Baron (skin peels off) with full acrobatics.
+// Fires Sopwith-style bullet streams as a nod to the original game.
+// ============================================================
+const SOPWITH_SPEED = 1.8;
+const SOPWITH_ACROBAT_SPEED = 2.8;
+const SOPWITH_FIRE_COOLDOWN = 6;
+const SOPWITH_BULLET_SPEED = 4;
+const SOPWITH_HP = 5;
+const SOPWITH_SCORE = 5000;
+
+function createSopwith(terrain) {
+  // Spawn in the middle third of the terrain, cruising high
+  const startX = TERRAIN_LENGTH * 0.3 + Math.random() * TERRAIN_LENGTH * 0.4;
+  return {
+    x: startX,
+    y: 50 + Math.random() * 40,
+    vx: (Math.random() < 0.5 ? 1 : -1) * SOPWITH_SPEED,
+    vy: 0,
+    hp: SOPWITH_HP,
+    angered: false,        // Turns true on first hit — becomes Red Baron
+    acrobatPhase: 0,       // Phase of current acrobatic manoeuvre
+    acrobatTimer: 0,       // Ticks into current manoeuvre
+    manoeuvre: 'cruise',   // cruise, loop, immelmann, chandelle, barrelRoll, strafingRun
+    fireCooldown: 0,
+    bullets: [],           // Sopwith-style bullet objects
+    alive: true,
+    scarfPhase: 0,         // Scarf flutter animation
+  };
+}
+
+function updateSopwith(dt) {
+  const sw = world.sopwith;
+  if (!sw || !sw.alive) return;
+  const sub = world.sub;
+  sw.scarfPhase += dt * 0.12;
+
+  // Update bullets
+  for (let i = sw.bullets.length - 1; i >= 0; i--) {
+    const b = sw.bullets[i];
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    b.life -= dt;
+    // Hit player sub?
+    if (Math.abs(b.x - sub.worldX) < 16 && Math.abs(b.y - sub.y) < 12) {
+      damageRandomPart(sub.parts, 4);
+      addParticles(sub.worldX, sub.y, 3, '#fbbf24');
+      SFX.damage();
+      sw.bullets.splice(i, 1);
+      continue;
+    }
+    if (b.life <= 0 || b.y > WATER_LINE || b.y < 5) sw.bullets.splice(i, 1);
+  }
+
+  // Check if player torpedoes/missiles hit the Sopwith
+  sw.fireCooldown = Math.max(0, sw.fireCooldown - dt);
+  for (let i = world.torpedoes.length - 1; i >= 0; i--) {
+    const t = world.torpedoes[i];
+    if (!t.fromSub) continue;
+    if (Math.abs(t.worldX - sw.x) < 20 && Math.abs(t.y - sw.y) < 14) {
+      sw.hp--;
+      if (!sw.angered) {
+        sw.angered = true;
+        sw.manoeuvre = 'immelmann';
+        sw.acrobatTimer = 0;
+        world.caveMessage = { text: 'THE RED BARON AWAKENS!', timer: 120 };
+      }
+      addExplosion(sw.x, sw.y, 'small');
+      SFX.explodeSmall();
+      world.torpedoes.splice(i, 1);
+      break;
+    }
+  }
+  for (let i = world.missiles.length - 1; i >= 0; i--) {
+    const m = world.missiles[i];
+    if (m.fromEnemy) continue;
+    if (Math.abs(m.worldX - sw.x) < 20 && Math.abs(m.y - sw.y) < 14) {
+      sw.hp -= 2;
+      if (!sw.angered) {
+        sw.angered = true;
+        sw.manoeuvre = 'immelmann';
+        sw.acrobatTimer = 0;
+        world.caveMessage = { text: 'THE RED BARON AWAKENS!', timer: 120 };
+      }
+      addExplosion(sw.x, sw.y, 'small');
+      SFX.explodeSmall();
+      world.missiles.splice(i, 1);
+      break;
+    }
+  }
+
+  // Death
+  if (sw.hp <= 0) {
+    sw.alive = false;
+    addExplosion(sw.x, sw.y, 'big');
+    addParticles(sw.x, sw.y, 20, '#e74c3c');
+    world.score += SOPWITH_SCORE;
+    world.kills++;
+    world.caveMessage = { text: 'RED BARON SHOT DOWN!', timer: 150 };
+    SFX.enemyDestroyed();
+    return;
+  }
+
+  const distToSub = Math.hypot(sub.worldX - sw.x, sub.y - sw.y);
+  const speed = sw.angered ? SOPWITH_ACROBAT_SPEED : SOPWITH_SPEED;
+  const dir = sw.vx >= 0 ? 1 : -1;
+
+  if (!sw.angered) {
+    // PASSIVE MODE — gentle cruise, harmless biplane puttering along
+    sw.x += sw.vx * dt;
+    sw.vy = Math.sin(world.tick * 0.02 + sw.scarfPhase) * 0.3;
+    sw.y += sw.vy * dt;
+    sw.y = clamp(sw.y, 40, WATER_LINE - 40);
+    // Reverse at terrain edges
+    if (sw.x < 100 || sw.x > TERRAIN_LENGTH - 100) sw.vx = -sw.vx;
+  } else {
+    // RED BARON MODE — aggressive acrobatics, Sopwith-style combat
+    sw.acrobatTimer += dt;
+    const toSubX = sub.worldX - sw.x;
+    const toSubY = sub.y - sw.y;
+    const angleToSub = Math.atan2(toSubY, toSubX);
+
+    switch (sw.manoeuvre) {
+      case 'strafingRun': {
+        // Dive toward sub, firing bullets
+        sw.vx += Math.cos(angleToSub) * 0.15 * dt;
+        sw.vy += Math.sin(angleToSub) * 0.12 * dt;
+        const spd = Math.hypot(sw.vx, sw.vy);
+        if (spd > speed * 1.3) { sw.vx *= speed * 1.3 / spd; sw.vy *= speed * 1.3 / spd; }
+        // Fire bullet stream — Sopwith style (pairs of small bullets)
+        if (sw.fireCooldown <= 0 && distToSub < 300) {
+          const bDir = Math.atan2(sub.y - sw.y, sub.worldX - sw.x);
+          const spread = (Math.random() - 0.5) * 0.15;
+          sw.bullets.push({
+            x: sw.x, y: sw.y,
+            vx: Math.cos(bDir + spread) * SOPWITH_BULLET_SPEED,
+            vy: Math.sin(bDir + spread) * SOPWITH_BULLET_SPEED,
+            life: 80,
+          });
+          sw.fireCooldown = SOPWITH_FIRE_COOLDOWN;
+        }
+        // Pull up after getting close or after 120 ticks
+        if (distToSub < 60 || sw.acrobatTimer > 120) {
+          sw.manoeuvre = 'loop';
+          sw.acrobatTimer = 0;
+        }
+        break;
+      }
+      case 'loop': {
+        // Full loop — Sopwith signature move
+        const loopDuration = 80;
+        const loopAngle = (sw.acrobatTimer / loopDuration) * TWO_PI;
+        sw.vx = dir * speed * Math.cos(loopAngle);
+        sw.vy = -speed * Math.sin(loopAngle);
+        if (sw.acrobatTimer > loopDuration) {
+          sw.manoeuvre = 'chandelle';
+          sw.acrobatTimer = 0;
+        }
+        break;
+      }
+      case 'immelmann': {
+        // Half loop + roll — immediate direction reversal
+        const immDuration = 50;
+        const immAngle = (sw.acrobatTimer / immDuration) * Math.PI;
+        sw.vx = dir * speed * Math.cos(immAngle);
+        sw.vy = -speed * Math.abs(Math.sin(immAngle));
+        if (sw.acrobatTimer > immDuration) {
+          sw.vx = -sw.vx; // Reverse heading
+          sw.manoeuvre = 'strafingRun';
+          sw.acrobatTimer = 0;
+        }
+        break;
+      }
+      case 'chandelle': {
+        // Climbing turn toward sub
+        sw.vx += Math.cos(angleToSub) * 0.08 * dt;
+        sw.vy -= 0.06 * dt; // Climb
+        const spd = Math.hypot(sw.vx, sw.vy);
+        if (spd > speed) { sw.vx *= speed / spd; sw.vy *= speed / spd; }
+        if (sw.acrobatTimer > 60 || sw.y < 30) {
+          sw.manoeuvre = 'strafingRun';
+          sw.acrobatTimer = 0;
+        }
+        break;
+      }
+      case 'barrelRoll': {
+        // Spiral evasion — harder to hit
+        const rollDuration = 40;
+        const rollAngle = (sw.acrobatTimer / rollDuration) * TWO_PI * 2;
+        sw.vx = dir * speed;
+        sw.vy = Math.sin(rollAngle) * speed * 0.8;
+        if (sw.acrobatTimer > rollDuration) {
+          sw.manoeuvre = 'strafingRun';
+          sw.acrobatTimer = 0;
+        }
+        break;
+      }
+      default: { // cruise/fallthrough
+        sw.vx += Math.cos(angleToSub) * 0.05 * dt;
+        sw.vy += Math.sin(angleToSub) * 0.03 * dt;
+        if (sw.acrobatTimer > 40) {
+          // Pick a random acrobatic manoeuvre
+          const moves = ['strafingRun', 'loop', 'immelmann', 'chandelle', 'barrelRoll'];
+          sw.manoeuvre = moves[Math.floor(Math.random() * moves.length)];
+          sw.acrobatTimer = 0;
+        }
+      }
+    }
+
+    sw.x += sw.vx * dt;
+    sw.y += sw.vy * dt;
+    sw.y = clamp(sw.y, 25, WATER_LINE - 15);
+    // Reverse at edges
+    if (sw.x < 50) { sw.x = 50; sw.vx = Math.abs(sw.vx); }
+    if (sw.x > TERRAIN_LENGTH - 50) { sw.x = TERRAIN_LENGTH - 50; sw.vx = -Math.abs(sw.vx); }
+  }
+}
+
+function drawSopwith() {
+  const sw = world.sopwith;
+  if (!sw || !sw.alive) return;
+  const sx = toScreen(sw.x);
+  if (sx < -50 || sx > W + 50) return;
+  const dir = sw.vx >= 0 ? 1 : -1;
+
+  ctx.save();
+  ctx.translate(sx, sw.y);
+  ctx.scale(dir, 1);
+
+  if (!sw.angered) {
+    // SOPWITH CAMEL — cream/olive biplane with cute pilot
+    // Lower wing
+    ctx.fillStyle = '#d4a053';
+    ctx.fillRect(-12, 6, 24, 3);
+    // Fuselage
+    ctx.fillStyle = '#c9b896';
+    ctx.fillRect(-14, -2, 28, 5);
+    // Upper wing
+    ctx.fillStyle = '#d4a053';
+    ctx.fillRect(-13, -10, 26, 3);
+    // Wing struts
+    ctx.strokeStyle = '#8b7332'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-6, -7); ctx.lineTo(-6, 6);
+    ctx.moveTo(6, -7); ctx.lineTo(6, 6);
+    ctx.stroke();
+    // Cross-wires between struts
+    ctx.strokeStyle = 'rgba(139,115,50,0.4)'; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(-6, -7); ctx.lineTo(6, 6);
+    ctx.moveTo(6, -7); ctx.lineTo(-6, 6);
+    ctx.stroke();
+    // Tail
+    ctx.fillStyle = '#b5a070';
+    ctx.beginPath(); ctx.moveTo(-14, -2); ctx.lineTo(-20, -8); ctx.lineTo(-18, 0); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-14, 3); ctx.lineTo(-20, 8); ctx.lineTo(-18, 1); ctx.fill();
+    // Propeller (spinning)
+    const pa = Date.now() / 30;
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(14, Math.sin(pa) * 6); ctx.lineTo(14, -Math.sin(pa) * 6); ctx.stroke();
+    // Engine cowling
+    ctx.fillStyle = '#7a6b4e';
+    ctx.fillRect(10, -3, 4, 6);
+    // Pilot — cute with goggles and scarf
+    ctx.fillStyle = '#f5deb3'; // Skin
+    ctx.beginPath(); ctx.arc(0, -4, 4, 0, TWO_PI); ctx.fill();
+    // Goggles
+    ctx.fillStyle = '#4a90d9';
+    ctx.fillRect(-3, -6, 3, 2);
+    ctx.fillRect(1, -6, 3, 2);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 0.5;
+    ctx.strokeRect(-3, -6, 3, 2);
+    ctx.strokeRect(1, -6, 3, 2);
+    // Scarf (fluttering behind)
+    ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-2, -3);
+    const scarfWave = Math.sin(sw.scarfPhase) * 3;
+    ctx.quadraticCurveTo(-8, -3 + scarfWave, -14, -2 + scarfWave * 1.5);
+    ctx.stroke();
+    // Leather helmet
+    ctx.fillStyle = '#8b4513';
+    ctx.beginPath(); ctx.arc(0, -5, 3.5, Math.PI, 0); ctx.fill();
+  } else {
+    // RED BARON — skin peeled off, exposed red skeleton frame + iron cross
+    // Stripped fuselage frame
+    ctx.fillStyle = '#cc1100';
+    ctx.fillRect(-14, -2, 28, 5);
+    // Exposed ribs (fabric torn off)
+    ctx.strokeStyle = '#990000'; ctx.lineWidth = 1;
+    for (let r = -10; r <= 10; r += 4) {
+      ctx.beginPath(); ctx.moveTo(r, -2); ctx.lineTo(r, 3); ctx.stroke();
+    }
+    // Red wings (upper)
+    ctx.fillStyle = '#dd2200';
+    ctx.fillRect(-13, -10, 26, 3);
+    // Red wings (lower)
+    ctx.fillRect(-12, 6, 24, 3);
+    // Wing struts — dark iron
+    ctx.strokeStyle = '#440000'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-6, -7); ctx.lineTo(-6, 6);
+    ctx.moveTo(6, -7); ctx.lineTo(6, 6);
+    ctx.stroke();
+    // Iron cross on upper wing
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-2, -10, 4, 3); // Vertical bar
+    ctx.fillRect(-5, -9, 10, 1);  // Horizontal bar
+    // Tail — bare frame
+    ctx.fillStyle = '#aa0000';
+    ctx.beginPath(); ctx.moveTo(-14, -2); ctx.lineTo(-20, -8); ctx.lineTo(-18, 0); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-14, 3); ctx.lineTo(-20, 8); ctx.lineTo(-18, 1); ctx.fill();
+    // Propeller (fast spin)
+    const pa = Date.now() / 15;
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(14, Math.sin(pa) * 7); ctx.lineTo(14, -Math.sin(pa) * 7); ctx.stroke();
+    // Engine — darker, meaner
+    ctx.fillStyle = '#440000';
+    ctx.fillRect(10, -3, 5, 6);
+    // Baron pilot — skull-like, menacing
+    ctx.fillStyle = '#ddd'; // Pale
+    ctx.beginPath(); ctx.arc(0, -4, 3.5, 0, TWO_PI); ctx.fill();
+    // Goggles (red tint)
+    ctx.fillStyle = '#cc0000';
+    ctx.fillRect(-3, -6, 3, 2);
+    ctx.fillRect(1, -6, 3, 2);
+    // Scarf (black now)
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-2, -3);
+    const scarfWave = Math.sin(sw.scarfPhase) * 4;
+    ctx.quadraticCurveTo(-8, -3 + scarfWave, -14, -2 + scarfWave * 1.5);
+    ctx.stroke();
+    // Spiked helmet
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(0, -5.5, 3.5, Math.PI, 0); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(-1.5, -6); ctx.lineTo(1.5, -6); ctx.closePath(); ctx.fill();
+
+    // Muzzle flash when firing
+    if (sw.fireCooldown > SOPWITH_FIRE_COOLDOWN - 2) {
+      ctx.fillStyle = 'rgba(255,200,50,0.8)';
+      ctx.beginPath(); ctx.arc(14, 0, 4 + Math.random() * 2, 0, TWO_PI); ctx.fill();
+    }
+  }
+
+  ctx.restore();
+
+  // Draw bullets — small paired dots, Sopwith-style
+  ctx.fillStyle = '#fbbf24';
+  for (const b of sw.bullets) {
+    const bsx = toScreen(b.x);
+    if (bsx < -10 || bsx > W + 10) continue;
+    ctx.beginPath();
+    ctx.arc(bsx, b.y, 2, 0, TWO_PI);
+    ctx.fill();
+    // Tracer trail
+    ctx.globalAlpha = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(bsx, b.y);
+    ctx.lineTo(bsx - b.vx * 3, b.y - b.vy * 3);
+    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ============================================================
+// AIR SUPREMACY FIGHTER — Su-47 Berkut (forward-swept wings)
+// Fast, intelligent, rockets/seekers/bombs/MG, deploys chaff.
+// Spawns once score exceeds threshold. Controls nearby interceptors.
+// ============================================================
+const BERKUT_SPEED = 3.5;
+const BERKUT_HP = 8;
+const BERKUT_SCORE = 8000;
+const BERKUT_SPAWN_SCORE = 3000;
+const BERKUT_MG_COOLDOWN = 5;
+const BERKUT_ROCKET_COOLDOWN = 60;
+const BERKUT_SEEKER_COOLDOWN = 120;
+const BERKUT_BOMB_COOLDOWN = 90;
+const BERKUT_CHAFF_COOLDOWN = 200;
+
+function spawnBerkut() {
+  const side = Math.random() < 0.5 ? 1 : -1;
+  return {
+    x: world.sub.worldX + side * W,
+    y: 40 + Math.random() * 60,
+    vx: -side * BERKUT_SPEED,
+    vy: 0,
+    hp: BERKUT_HP,
+    alive: true,
+    mgCooldown: 30,
+    rocketCooldown: 40,
+    seekerCooldown: 80,
+    bombCooldown: 50,
+    chaffCooldown: 100,
+    bullets: [],
+    state: 'approach', // approach, engage, evade, reposition
+    stateTimer: 0,
+    evasionDir: 1,
+  };
+}
+
+function updateAirSupremacy(dt) {
+  // Spawn check
+  if (!world.airSupremacy && world.score >= BERKUT_SPAWN_SCORE) {
+    world.airSupremacy = spawnBerkut();
+    world.caveMessage = { text: 'WARNING: Su-47 BERKUT INBOUND', timer: 120 };
+  }
+  const bk = world.airSupremacy;
+  if (!bk || !bk.alive) return;
+  const sub = world.sub;
+  const dist = Math.hypot(sub.worldX - bk.x, sub.y - bk.y);
+  const dir = bk.vx >= 0 ? 1 : -1;
+  const angleToSub = Math.atan2(sub.y - bk.y, sub.worldX - bk.x);
+
+  // Cooldowns
+  bk.mgCooldown = Math.max(0, bk.mgCooldown - dt);
+  bk.rocketCooldown = Math.max(0, bk.rocketCooldown - dt);
+  bk.seekerCooldown = Math.max(0, bk.seekerCooldown - dt);
+  bk.bombCooldown = Math.max(0, bk.bombCooldown - dt);
+  bk.chaffCooldown = Math.max(0, bk.chaffCooldown - dt);
+  bk.stateTimer += dt;
+
+  // Update bullets
+  for (let i = bk.bullets.length - 1; i >= 0; i--) {
+    const b = bk.bullets[i];
+    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    if (Math.abs(b.x - sub.worldX) < 16 && Math.abs(b.y - sub.y) < 12) {
+      damageRandomPart(sub.parts, 3);
+      addParticles(sub.worldX, sub.y, 2, '#ef4444');
+      SFX.damage();
+      bk.bullets.splice(i, 1); continue;
+    }
+    if (b.life <= 0 || b.y > WATER_LINE + 10 || b.y < 5) bk.bullets.splice(i, 1);
+  }
+
+  // Take damage
+  for (let i = world.torpedoes.length - 1; i >= 0; i--) {
+    const t = world.torpedoes[i];
+    if (!t.fromSub) continue;
+    if (Math.abs(t.worldX - bk.x) < 22 && Math.abs(t.y - bk.y) < 16) {
+      bk.hp--;
+      addExplosion(bk.x, bk.y, 'small'); SFX.explodeSmall();
+      world.torpedoes.splice(i, 1);
+      // Evasive response — deploy chaff and break
+      if (bk.chaffCooldown <= 0) {
+        world.chaffs.push({ x: bk.x, y: bk.y, age: 0 });
+        bk.chaffCooldown = BERKUT_CHAFF_COOLDOWN;
+      }
+      bk.state = 'evade'; bk.stateTimer = 0;
+      break;
+    }
+  }
+  for (let i = world.missiles.length - 1; i >= 0; i--) {
+    const m = world.missiles[i];
+    if (m.fromEnemy) continue;
+    if (Math.abs(m.worldX - bk.x) < 22 && Math.abs(m.y - bk.y) < 16) {
+      bk.hp -= 2;
+      addExplosion(bk.x, bk.y, 'small'); SFX.explodeSmall();
+      world.missiles.splice(i, 1);
+      if (bk.chaffCooldown <= 0) {
+        world.chaffs.push({ x: bk.x, y: bk.y, age: 0 });
+        bk.chaffCooldown = BERKUT_CHAFF_COOLDOWN;
+      }
+      bk.state = 'evade'; bk.stateTimer = 0;
+      break;
+    }
+  }
+
+  // Death
+  if (bk.hp <= 0) {
+    bk.alive = false;
+    addExplosion(bk.x, bk.y, 'big');
+    addParticles(bk.x, bk.y, 25, '#334155');
+    world.score += BERKUT_SCORE;
+    world.kills++;
+    world.caveMessage = { text: 'Su-47 BERKUT DESTROYED!', timer: 150 };
+    SFX.enemyDestroyed();
+    return;
+  }
+
+  // AI state machine
+  switch (bk.state) {
+    case 'approach': {
+      bk.vx += Math.cos(angleToSub) * 0.12 * dt;
+      bk.vy += Math.sin(angleToSub) * 0.08 * dt;
+      const spd = Math.hypot(bk.vx, bk.vy);
+      if (spd > BERKUT_SPEED) { bk.vx *= BERKUT_SPEED / spd; bk.vy *= BERKUT_SPEED / spd; }
+      if (dist < 250) { bk.state = 'engage'; bk.stateTimer = 0; }
+      break;
+    }
+    case 'engage': {
+      // Circle and attack — maintain distance while firing
+      const orbAngle = angleToSub + Math.PI / 2;
+      bk.vx += (Math.cos(orbAngle) * 0.1 + Math.cos(angleToSub) * 0.04) * dt;
+      bk.vy += (Math.sin(orbAngle) * 0.1 + Math.sin(angleToSub) * 0.03) * dt;
+      const spd = Math.hypot(bk.vx, bk.vy);
+      if (spd > BERKUT_SPEED) { bk.vx *= BERKUT_SPEED / spd; bk.vy *= BERKUT_SPEED / spd; }
+
+      // MG — close range
+      if (dist < 150 && bk.mgCooldown <= 0 && sub.y < WATER_LINE) {
+        const spread = (Math.random() - 0.5) * 0.12;
+        bk.bullets.push({
+          x: bk.x, y: bk.y,
+          vx: Math.cos(angleToSub + spread) * 5,
+          vy: Math.sin(angleToSub + spread) * 5,
+          life: 60,
+        });
+        bk.mgCooldown = BERKUT_MG_COOLDOWN;
+      }
+      // Unguided rockets — medium range
+      if (dist < 350 && dist > 80 && bk.rocketCooldown <= 0 && sub.y < WATER_LINE) {
+        world.missiles.push({
+          worldX: bk.x, y: bk.y,
+          vx: Math.cos(angleToSub) * 4.5, vy: Math.sin(angleToSub) * 4.5,
+          phase: 'ignite', dropTimer: 0, life: 100, trail: [],
+          fromEnemy: true, rocket: true,
+        });
+        bk.rocketCooldown = BERKUT_ROCKET_COOLDOWN;
+        SFX.missileLaunch();
+      }
+      // Seeking missile — long range
+      if (dist > 150 && bk.seekerCooldown <= 0 && sub.y < WATER_LINE) {
+        world.missiles.push({
+          worldX: bk.x, y: bk.y,
+          vx: Math.cos(angleToSub) * 2, vy: Math.sin(angleToSub) * 2,
+          phase: 'ignite', dropTimer: 0, life: 200, trail: [],
+          fromEnemy: true, sam: true,
+        });
+        bk.seekerCooldown = BERKUT_SEEKER_COOLDOWN;
+        SFX.missileLaunch();
+      }
+      // Bombs — when flying over sub on water surface
+      if (Math.abs(bk.x - sub.worldX) < 40 && bk.y < sub.y && sub.floating && bk.bombCooldown <= 0) {
+        world.missiles.push({
+          worldX: bk.x, y: bk.y,
+          vx: bk.vx * 0.3, vy: 2,
+          phase: 'ignite', dropTimer: 0, life: 120, trail: [],
+          fromEnemy: true, targetPart: 'hull',
+        });
+        bk.bombCooldown = BERKUT_BOMB_COOLDOWN;
+      }
+      if (bk.stateTimer > 200 || dist > 500) { bk.state = 'reposition'; bk.stateTimer = 0; }
+      break;
+    }
+    case 'evade': {
+      // Break hard, deploy chaff
+      bk.evasionDir = -bk.evasionDir;
+      bk.vx += bk.evasionDir * 0.3 * dt;
+      bk.vy -= 0.15 * dt;
+      const spd = Math.hypot(bk.vx, bk.vy);
+      if (spd > BERKUT_SPEED * 1.3) { bk.vx *= BERKUT_SPEED * 1.3 / spd; bk.vy *= BERKUT_SPEED * 1.3 / spd; }
+      if (bk.stateTimer > 40) { bk.state = 'approach'; bk.stateTimer = 0; }
+      break;
+    }
+    case 'reposition': {
+      // Swing wide then come back
+      const awayAngle = angleToSub + Math.PI;
+      bk.vx += Math.cos(awayAngle) * 0.08 * dt;
+      bk.vy -= 0.04 * dt;
+      const spd = Math.hypot(bk.vx, bk.vy);
+      if (spd > BERKUT_SPEED) { bk.vx *= BERKUT_SPEED / spd; bk.vy *= BERKUT_SPEED / spd; }
+      if (bk.stateTimer > 80 || dist > 600) { bk.state = 'approach'; bk.stateTimer = 0; }
+      break;
+    }
+  }
+
+  bk.x += bk.vx * dt;
+  bk.y += bk.vy * dt;
+  bk.y = clamp(bk.y, 25, WATER_LINE - 15);
+  if (bk.x < 50) { bk.x = 50; bk.vx = Math.abs(bk.vx); }
+  if (bk.x > TERRAIN_LENGTH - 50) { bk.x = TERRAIN_LENGTH - 50; bk.vx = -Math.abs(bk.vx); }
+
+  // Command nearby interceptors — if Berkut is alive, interceptors get smarter
+  for (const li of world.airInterceptors) {
+    if (!li.alive) continue;
+    if (Math.abs(li.x - bk.x) < W) {
+      li.commanded = true; // Flag: use Berkut's targeting intelligence
+    }
+  }
+}
+
+function drawAirSupremacy() {
+  const bk = world.airSupremacy;
+  if (!bk || !bk.alive) return;
+  const sx = toScreen(bk.x);
+  if (sx < -60 || sx > W + 60) return;
+  const dir = bk.vx >= 0 ? 1 : -1;
+
+  ctx.save();
+  ctx.translate(sx, bk.y);
+  ctx.scale(dir, 1);
+
+  // Su-47 Berkut — forward-swept wings, dark charcoal/navy
+  // Fuselage
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.moveTo(22, 0); ctx.lineTo(16, -3); ctx.lineTo(-18, -2.5);
+  ctx.lineTo(-22, 0); ctx.lineTo(-18, 2.5); ctx.lineTo(16, 3);
+  ctx.closePath(); ctx.fill();
+  // Forward-swept wings (distinctive Berkut feature)
+  ctx.fillStyle = '#334155';
+  ctx.beginPath();
+  ctx.moveTo(4, -3); ctx.lineTo(14, -16); ctx.lineTo(8, -16); ctx.lineTo(-4, -3);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(4, 3); ctx.lineTo(14, 16); ctx.lineTo(8, 16); ctx.lineTo(-4, 3);
+  ctx.closePath(); ctx.fill();
+  // Canards (small front wings)
+  ctx.fillStyle = '#475569';
+  ctx.beginPath();
+  ctx.moveTo(14, -3); ctx.lineTo(18, -8); ctx.lineTo(16, -8); ctx.lineTo(12, -3);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(14, 3); ctx.lineTo(18, 8); ctx.lineTo(16, 8); ctx.lineTo(12, 3);
+  ctx.closePath(); ctx.fill();
+  // Twin vertical stabilisers (canted outward)
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath(); ctx.moveTo(-16, -2); ctx.lineTo(-20, -9); ctx.lineTo(-18, -2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-16, 2); ctx.lineTo(-20, 9); ctx.lineTo(-18, 2); ctx.fill();
+  // Cockpit
+  ctx.fillStyle = '#60a5fa';
+  ctx.beginPath(); ctx.ellipse(12, -1, 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+  // Engine exhausts
+  ctx.fillStyle = 'rgba(255,140,0,0.5)';
+  ctx.beginPath(); ctx.moveTo(-22, -1.5); ctx.lineTo(-28 - Math.random() * 4, 0); ctx.lineTo(-22, 1.5); ctx.fill();
+  // Star marking
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath(); ctx.arc(-8, 0, 2.5, 0, TWO_PI); ctx.fill();
+
+  ctx.restore();
+
+  // Bullets
+  ctx.fillStyle = '#ef4444';
+  for (const b of bk.bullets) {
+    const bsx = toScreen(b.x);
+    if (bsx < -10 || bsx > W + 10) continue;
+    ctx.beginPath(); ctx.arc(bsx, b.y, 1.5, 0, TWO_PI); ctx.fill();
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath(); ctx.moveTo(bsx, b.y);
+    ctx.lineTo(bsx - b.vx * 2, b.y - b.vy * 2);
+    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ============================================================
+// AIR INTERCEPTORS — English Electric Lightning look.
+// Spawn in squadrons of 2-3. MG + unguided rockets.
+// When Berkut is on-screen, they follow its AI for coordinated attacks.
+// ============================================================
+const LIGHTNING_SPEED = 2.8;
+const LIGHTNING_HP = 3;
+const LIGHTNING_SCORE = 1500;
+const LIGHTNING_MG_COOLDOWN = 8;
+const LIGHTNING_ROCKET_COOLDOWN = 80;
+const LIGHTNING_SQUAD_SPAWN_INTERVAL = 500;
+
+function spawnLightningSquad() {
+  const count = 2 + Math.floor(Math.random() * 2); // 2 or 3
+  const side = Math.random() < 0.5 ? 1 : -1;
+  const baseX = world.sub.worldX + side * (W * 0.7);
+  const baseY = 50 + Math.random() * 50;
+  const squad = [];
+  for (let i = 0; i < count; i++) {
+    squad.push({
+      x: baseX + i * 30 * side,
+      y: baseY + (i - 1) * 15, // V-formation offset
+      vx: -side * LIGHTNING_SPEED,
+      vy: (Math.random() - 0.5) * 0.3,
+      hp: LIGHTNING_HP,
+      alive: true,
+      mgCooldown: 20 + Math.random() * 20,
+      rocketCooldown: 40 + Math.random() * 40,
+      bullets: [],
+      commanded: false, // Set true when Berkut is nearby
+      state: 'attack',  // attack, retreat
+      stateTimer: 0,
+    });
+  }
+  return squad;
+}
+
+function updateAirInterceptors(dt) {
+  const sub = world.sub;
+
+  // Spawn new squadrons periodically (max 1 active squad of 3)
+  const aliveCount = world.airInterceptors.filter(l => l.alive).length;
+  world.airInterceptorTimer += dt;
+  if (aliveCount === 0 && world.airInterceptorTimer > LIGHTNING_SQUAD_SPAWN_INTERVAL && world.score > 500) {
+    world.airInterceptors = spawnLightningSquad();
+    world.airInterceptorTimer = 0;
+    world.caveMessage = { text: 'LIGHTNING SQUADRON INCOMING', timer: 80 };
+  }
+
+  for (const li of world.airInterceptors) {
+    if (!li.alive) continue;
+    li.stateTimer += dt;
+    li.mgCooldown = Math.max(0, li.mgCooldown - dt);
+    li.rocketCooldown = Math.max(0, li.rocketCooldown - dt);
+
+    const dist = Math.hypot(sub.worldX - li.x, sub.y - li.y);
+    const angleToSub = Math.atan2(sub.y - li.y, sub.worldX - li.x);
+
+    // Update bullets
+    for (let i = li.bullets.length - 1; i >= 0; i--) {
+      const b = li.bullets[i];
+      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+      if (Math.abs(b.x - sub.worldX) < 16 && Math.abs(b.y - sub.y) < 12) {
+        damageRandomPart(sub.parts, 3);
+        addParticles(sub.worldX, sub.y, 2, '#94a3b8');
+        SFX.damage();
+        li.bullets.splice(i, 1); continue;
+      }
+      if (b.life <= 0 || b.y > WATER_LINE || b.y < 5) li.bullets.splice(i, 1);
+    }
+
+    // Take damage
+    for (let i = world.torpedoes.length - 1; i >= 0; i--) {
+      const t = world.torpedoes[i];
+      if (!t.fromSub) continue;
+      if (Math.abs(t.worldX - li.x) < 18 && Math.abs(t.y - li.y) < 14) {
+        li.hp -= 2;
+        addExplosion(li.x, li.y, 'small'); SFX.explodeSmall();
+        world.torpedoes.splice(i, 1); break;
+      }
+    }
+    for (let i = world.missiles.length - 1; i >= 0; i--) {
+      const m = world.missiles[i];
+      if (m.fromEnemy) continue;
+      if (Math.abs(m.worldX - li.x) < 18 && Math.abs(m.y - li.y) < 14) {
+        li.hp -= 3;
+        addExplosion(li.x, li.y, 'small'); SFX.explodeSmall();
+        world.missiles.splice(i, 1); break;
+      }
+    }
+
+    if (li.hp <= 0) {
+      li.alive = false;
+      addExplosion(li.x, li.y, 'big');
+      addParticles(li.x, li.y, 14, '#64748b');
+      world.score += LIGHTNING_SCORE;
+      world.kills++;
+      SFX.enemyDestroyed();
+      continue;
+    }
+
+    // AI — commanded by Berkut or independent
+    if (li.commanded && world.airSupremacy?.alive) {
+      // Coordinated: focus fire from flanking positions
+      const bk = world.airSupremacy;
+      const flankAngle = Math.atan2(sub.y - bk.y, sub.worldX - bk.x) + Math.PI / 3;
+      li.vx += Math.cos(flankAngle) * 0.08 * dt;
+      li.vy += Math.sin(flankAngle) * 0.06 * dt;
+    } else {
+      // Independent: direct approach
+      li.vx += Math.cos(angleToSub) * 0.1 * dt;
+      li.vy += Math.sin(angleToSub) * 0.06 * dt;
+    }
+    const spd = Math.hypot(li.vx, li.vy);
+    if (spd > LIGHTNING_SPEED) { li.vx *= LIGHTNING_SPEED / spd; li.vy *= LIGHTNING_SPEED / spd; }
+
+    // MG fire — close range
+    if (dist < 180 && li.mgCooldown <= 0 && sub.y < WATER_LINE) {
+      const spread = (Math.random() - 0.5) * 0.15;
+      li.bullets.push({
+        x: li.x, y: li.y,
+        vx: Math.cos(angleToSub + spread) * 4.5,
+        vy: Math.sin(angleToSub + spread) * 4.5,
+        life: 50,
+      });
+      li.mgCooldown = LIGHTNING_MG_COOLDOWN;
+    }
+    // Unguided rockets — medium range
+    if (dist < 300 && dist > 60 && li.rocketCooldown <= 0 && sub.y < WATER_LINE) {
+      world.missiles.push({
+        worldX: li.x, y: li.y,
+        vx: Math.cos(angleToSub) * 4, vy: Math.sin(angleToSub) * 4,
+        phase: 'ignite', dropTimer: 0, life: 80, trail: [],
+        fromEnemy: true, rocket: true,
+      });
+      li.rocketCooldown = LIGHTNING_ROCKET_COOLDOWN;
+    }
+
+    li.x += li.vx * dt;
+    li.y += li.vy * dt;
+    li.y = clamp(li.y, 25, WATER_LINE - 15);
+    // Retreat if too far away
+    if (Math.abs(li.x - sub.worldX) > W * 2.5) li.alive = false;
+    li.commanded = false; // Reset each tick, Berkut re-sets if nearby
+  }
+}
+
+function drawAirInterceptors() {
+  for (const li of world.airInterceptors) {
+    if (!li.alive) continue;
+    const sx = toScreen(li.x);
+    if (sx < -50 || sx > W + 50) continue;
+    const dir = li.vx >= 0 ? 1 : -1;
+
+    ctx.save();
+    ctx.translate(sx, li.y);
+    ctx.scale(dir, 1);
+
+    // English Electric Lightning — stacked engine nacelles, highly swept wings
+    // Fuselage (distinctive round cross-section)
+    ctx.fillStyle = '#94a3b8';
+    ctx.beginPath();
+    ctx.moveTo(20, 0); ctx.lineTo(14, -3); ctx.lineTo(-16, -2.5);
+    ctx.lineTo(-18, 0); ctx.lineTo(-16, 2.5); ctx.lineTo(14, 3);
+    ctx.closePath(); ctx.fill();
+    // Belly bulge (lower engine intake)
+    ctx.fillStyle = '#7c8ba0';
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 10, 2.5, 0, 0, Math.PI); ctx.fill();
+    // Highly swept wings (60-degree sweep)
+    ctx.fillStyle = '#8293a8';
+    ctx.beginPath();
+    ctx.moveTo(2, -3); ctx.lineTo(-6, -14); ctx.lineTo(-10, -12); ctx.lineTo(-2, -3);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(2, 3); ctx.lineTo(-6, 14); ctx.lineTo(-10, 12); ctx.lineTo(-2, 3);
+    ctx.closePath(); ctx.fill();
+    // Tail fin (tall, thin)
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath(); ctx.moveTo(-14, -2); ctx.lineTo(-18, -12); ctx.lineTo(-16, -2); ctx.fill();
+    // Cockpit
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath(); ctx.ellipse(12, -1, 4, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+    // Nose cone (shock cone intake)
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.arc(20, 0, 2, 0, TWO_PI); ctx.fill();
+    // Exhaust
+    ctx.fillStyle = 'rgba(255,160,0,0.4)';
+    ctx.beginPath(); ctx.moveTo(-18, -1); ctx.lineTo(-24 - Math.random() * 3, 0); ctx.lineTo(-18, 1); ctx.fill();
+    // Roundel
+    ctx.fillStyle = '#1d4ed8';
+    ctx.beginPath(); ctx.arc(-4, -3, 2, 0, TWO_PI); ctx.fill();
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath(); ctx.arc(-4, -3, 1, 0, TWO_PI); ctx.fill();
+
+    ctx.restore();
+
+    // Bullets
+    ctx.fillStyle = '#cbd5e1';
+    for (const b of li.bullets) {
+      const bsx = toScreen(b.x);
+      if (bsx < -10 || bsx > W + 10) continue;
+      ctx.beginPath(); ctx.arc(bsx, b.y, 1.5, 0, TWO_PI); ctx.fill();
+    }
+  }
+}
+
+// ============================================================
+// NEMESIS MINI-SUB — A smaller airborne submarine that mirrors
+// the player. Flies and swims but cannot go deep layer or space.
+// Toggle ON in settings or auto-spawns on higher scores.
+// ============================================================
+const NEMESIS_SPEED_AIR = 2.2;
+const NEMESIS_SPEED_WATER = 1.4;
+const NEMESIS_HP = 6;
+const NEMESIS_SCORE = 6000;
+const NEMESIS_SPAWN_SCORE = 5000;
+const NEMESIS_TORPEDO_COOLDOWN = 100;
+const NEMESIS_MG_COOLDOWN = 10;
+
+function spawnNemesis() {
+  const side = Math.random() < 0.5 ? 1 : -1;
+  return {
+    x: world.sub.worldX + side * W * 0.8,
+    y: WATER_LINE - 20,
+    vx: -side * NEMESIS_SPEED_AIR,
+    vy: 0,
+    hp: NEMESIS_HP,
+    alive: true,
+    torpedoCooldown: 50,
+    mgCooldown: 20,
+    bullets: [],
+    inWater: false,
+    state: 'hunt',    // hunt, dive, surface, flee
+    stateTimer: 0,
+  };
+}
+
+function updateNemesis(dt) {
+  // Spawn check
+  const shouldSpawn = world.settings.nemesisSub || world.score >= NEMESIS_SPAWN_SCORE;
+  if (!world.nemesis && shouldSpawn) {
+    world.nemesis = spawnNemesis();
+    world.caveMessage = { text: 'WARNING: NEMESIS SUB DETECTED', timer: 120 };
+  }
+  const nm = world.nemesis;
+  if (!nm || !nm.alive) return;
+  const sub = world.sub;
+  nm.stateTimer += dt;
+  nm.torpedoCooldown = Math.max(0, nm.torpedoCooldown - dt);
+  nm.mgCooldown = Math.max(0, nm.mgCooldown - dt);
+  nm.inWater = nm.y > WATER_LINE;
+  const dist = Math.hypot(sub.worldX - nm.x, sub.y - nm.y);
+  const angleToSub = Math.atan2(sub.y - nm.y, sub.worldX - nm.x);
+  const speed = nm.inWater ? NEMESIS_SPEED_WATER : NEMESIS_SPEED_AIR;
+
+  // Update bullets
+  for (let i = nm.bullets.length - 1; i >= 0; i--) {
+    const b = nm.bullets[i];
+    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    if (Math.abs(b.x - sub.worldX) < 16 && Math.abs(b.y - sub.y) < 12) {
+      damageRandomPart(sub.parts, 3);
+      SFX.damage();
+      nm.bullets.splice(i, 1); continue;
+    }
+    if (b.life <= 0) nm.bullets.splice(i, 1);
+  }
+
+  // Take damage
+  for (let i = world.torpedoes.length - 1; i >= 0; i--) {
+    const t = world.torpedoes[i];
+    if (!t.fromSub) continue;
+    if (Math.abs(t.worldX - nm.x) < 20 && Math.abs(t.y - nm.y) < 14) {
+      nm.hp -= 2;
+      addExplosion(nm.x, nm.y, 'small'); SFX.explodeSmall();
+      world.torpedoes.splice(i, 1); break;
+    }
+  }
+  for (let i = world.missiles.length - 1; i >= 0; i--) {
+    const m = world.missiles[i];
+    if (m.fromEnemy) continue;
+    if (Math.abs(m.worldX - nm.x) < 20 && Math.abs(m.y - nm.y) < 14) {
+      nm.hp -= 2;
+      addExplosion(nm.x, nm.y, 'small'); SFX.explodeSmall();
+      world.missiles.splice(i, 1); break;
+    }
+  }
+
+  // Death
+  if (nm.hp <= 0) {
+    nm.alive = false;
+    addExplosion(nm.x, nm.y, 'big');
+    addParticles(nm.x, nm.y, 20, '#475569');
+    world.score += NEMESIS_SCORE;
+    world.kills++;
+    world.caveMessage = { text: 'NEMESIS SUB DESTROYED!', timer: 150 };
+    SFX.enemyDestroyed();
+    return;
+  }
+
+  // AI — mirror the player, follow into water but not deep or space
+  const subInWater = sub.y > WATER_LINE;
+  const subInDeep = sub.y > THERMAL_LAYER_2_MAX;
+
+  if (subInDeep || world.mode === 'orbit') {
+    // Can't follow — circle at medium depth waiting
+    nm.vy += (WATER_LINE + 40 - nm.y) * 0.005 * dt;
+    nm.vx += Math.cos(world.tick * 0.01) * 0.05 * dt;
+  } else if (subInWater && !subInDeep) {
+    // Follow sub underwater — dive to match
+    nm.vx += Math.cos(angleToSub) * 0.08 * dt;
+    nm.vy += Math.sin(angleToSub) * 0.06 * dt;
+    // Fire torpedo underwater
+    if (nm.torpedoCooldown <= 0 && dist < 300 && nm.inWater) {
+      const tDir = sub.worldX > nm.x ? 1 : -1;
+      world.torpedoes.push({
+        worldX: nm.x + tDir * 15, y: nm.y,
+        vx: tDir * TORPEDO_SPEED * 0.6, vy: (sub.y - nm.y) * 0.004,
+        phase: 'skim', life: 200, trail: [],
+        rogue: false, fromSub: false, active: true,
+      });
+      nm.torpedoCooldown = NEMESIS_TORPEDO_COOLDOWN;
+      SFX.torpedoLaunch();
+    }
+  } else {
+    // Both in air — dogfight
+    nm.vx += Math.cos(angleToSub) * 0.1 * dt;
+    nm.vy += Math.sin(angleToSub) * 0.08 * dt;
+    // MG fire in air
+    if (dist < 200 && nm.mgCooldown <= 0 && sub.y < WATER_LINE) {
+      const spread = (Math.random() - 0.5) * 0.15;
+      nm.bullets.push({
+        x: nm.x, y: nm.y,
+        vx: Math.cos(angleToSub + spread) * 4,
+        vy: Math.sin(angleToSub + spread) * 4,
+        life: 60,
+      });
+      nm.mgCooldown = NEMESIS_MG_COOLDOWN;
+    }
+  }
+
+  const spd = Math.hypot(nm.vx, nm.vy);
+  if (spd > speed) { nm.vx *= speed / spd; nm.vy *= speed / spd; }
+  nm.x += nm.vx * dt;
+  nm.y += nm.vy * dt;
+  // Can't go deep
+  nm.y = clamp(nm.y, 25, THERMAL_LAYER_2_MAX - 20);
+  if (nm.x < 50) { nm.x = 50; nm.vx = Math.abs(nm.vx); }
+  if (nm.x > TERRAIN_LENGTH - 50) { nm.x = TERRAIN_LENGTH - 50; nm.vx = -Math.abs(nm.vx); }
+}
+
+function drawNemesis() {
+  const nm = world.nemesis;
+  if (!nm || !nm.alive) return;
+  // Thermal visibility check when underwater
+  if (nm.inWater && !thermallyVisible(world.sub.y, nm.y)) return;
+  const sx = toScreen(nm.x);
+  if (sx < -50 || sx > W + 50) return;
+  const dir = nm.vx >= 0 ? 1 : -1;
+
+  ctx.save();
+  ctx.translate(sx, nm.y);
+  ctx.scale(dir, 1);
+
+  // Smaller, darker version of the player's sub
+  // Hull
+  ctx.fillStyle = '#1e1e2e';
+  ctx.beginPath(); ctx.ellipse(0, 0, 16, 6, 0, 0, TWO_PI); ctx.fill();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1; ctx.stroke();
+  // Tower
+  ctx.fillStyle = '#2a2a3a';
+  ctx.fillRect(-2, -9, 4, 4);
+  // Nose
+  ctx.fillStyle = '#444';
+  ctx.beginPath(); ctx.arc(16, 0, 3, -Math.PI / 2, Math.PI / 2); ctx.fill();
+  // Wings (small)
+  ctx.fillStyle = '#3a3a4a';
+  ctx.beginPath();
+  ctx.moveTo(-2, -5); ctx.lineTo(-8, -11); ctx.lineTo(-4, -11); ctx.lineTo(2, -5);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-2, 5); ctx.lineTo(-8, 11); ctx.lineTo(-4, 11); ctx.lineTo(2, 5);
+  ctx.closePath(); ctx.fill();
+  // Engine
+  ctx.fillStyle = '#555';
+  ctx.fillRect(-18, -3, 5, 6);
+  // Propeller
+  if (!nm.inWater) {
+    const pa = Date.now() / 40;
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-18, Math.sin(pa) * 4); ctx.lineTo(-18, -Math.sin(pa) * 4); ctx.stroke();
+  } else {
+    // Underwater — bubble trail
+    ctx.fillStyle = 'rgba(133,193,233,0.3)';
+    for (let b = 0; b < 3; b++) {
+      ctx.beginPath();
+      ctx.arc(-20 - b * 5 + Math.random() * 3, (Math.random() - 0.5) * 4, 2 + Math.random(), 0, TWO_PI);
+      ctx.fill();
+    }
+  }
+  // Red eye (menacing)
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath(); ctx.arc(12, -2, 1.5, 0, TWO_PI); ctx.fill();
+  // Warning stripes on hull
+  ctx.strokeStyle = 'rgba(239,68,68,0.3)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-8, -5); ctx.lineTo(-8, 5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(-4, 6); ctx.stroke();
+
+  ctx.restore();
+
+  // Bullets
+  ctx.fillStyle = '#f87171';
+  for (const b of nm.bullets) {
+    const bsx = toScreen(b.x);
+    if (bsx < -10 || bsx > W + 10) continue;
+    ctx.beginPath(); ctx.arc(bsx, b.y, 1.5, 0, TWO_PI); ctx.fill();
+  }
+}
+
 function updateChaffs(world, dt) {
   world.chaffCooldown = Math.max(0, world.chaffCooldown - dt);
   for (let i = world.chaffs.length - 1; i >= 0; i--) {
@@ -1175,6 +2287,7 @@ function createParts() {
 }
 
 // Deal damage to a random part (weighted). Returns the part hit.
+// Heavy hits (amount >= 20) have a chance to injure the commander.
 function damageRandomPart(parts, amount) {
   const totalWeight = SUB_PARTS.reduce((s, p) => s + (parts[p.id] > 0 ? p.weight : 0), 0);
   if (totalWeight <= 0) return null;
@@ -1184,10 +2297,52 @@ function damageRandomPart(parts, amount) {
     roll -= def.weight;
     if (roll <= 0) {
       parts[def.id] = Math.max(0, parts[def.id] - amount);
+      // Commander takes injury on heavy hits (hull or tower) or critical damage
+      if (world && world.sub && world.sub.commanderHp > 0) {
+        const injuryChance = amount >= 40 ? 0.5 : amount >= 20 ? 0.2 : 0;
+        if ((def.id === 'hull' || def.id === 'tower') && Math.random() < injuryChance) {
+          world.sub.commanderHp--;
+          world.caveMessage = { text: `COMMANDER HIT — ${commanderStatusLabel(world.sub.commanderHp)}`, timer: 100 };
+          SFX.damage();
+          if (world.sub.commanderHp <= 0) {
+            world.caveMessage = { text: 'COMMANDER KIA — MISSION OVER', timer: 200 };
+            world.gameOver = true;
+            SFX.gameOver();
+          }
+        }
+      }
       return def;
     }
   }
   return null;
+}
+
+// Commander status based on remaining HP
+function commanderStatusLabel(hp) {
+  if (hp >= COMMANDER_MAX_HP) return 'ALIVE';
+  if (hp === 2) return 'INJURED';
+  if (hp === 1) return 'GRIEVOUS INJURIES';
+  return 'DEAD';
+}
+
+// Component condition label for scoring
+function componentConditionLabel(currentHp, maxHp) {
+  const pct = currentHp / maxHp;
+  if (pct >= 1.0) return 'Pristine';
+  if (pct > 0.6)  return 'Cosmetic';
+  if (pct > 0.25) return 'Damaged';
+  if (pct > 0)    return 'Severely Damaged';
+  return 'Destroyed';
+}
+
+// Component condition colour for display
+function componentConditionColor(currentHp, maxHp) {
+  const pct = currentHp / maxHp;
+  if (pct >= 1.0) return '#2ecc71';
+  if (pct > 0.6)  return '#a3e635';
+  if (pct > 0.25) return '#f59e0b';
+  if (pct > 0)    return '#ef4444';
+  return '#555';
 }
 
 // Overall health = sum of all parts / sum of all max
@@ -1569,6 +2724,8 @@ function ensureLeaderboardRecorded(status) {
     kills: world.kills,
     duration: world.tick,
     mode: world.mode || 'atmosphere',
+    commanderStatus: commanderStatusLabel(world.sub.commanderHp),
+    hullIntegrity: Math.ceil(overallHealth(world.sub.parts)),
     recordedAt: new Date().toISOString(),
   });
   world.leaderboardRecorded = true;
@@ -2505,7 +3662,7 @@ function updateAkulaMolot(dt) {
   ak.torpedoCooldown = Math.max(0, ak.torpedoCooldown - dt);
 
   // SAM — fires from underwater, targets sub when in air (needs detection)
-  if (ak.samCooldown <= 0 && sub.y < WATER_LINE - 10 && distToSub < 350 && akulaCanDetect) {
+  if (ak.samCooldown <= 0 && sub.y < WATER_LINE - 10 && distToSub < 450 && akulaCanDetect) {
     const angle = Math.atan2(sub.y - ak.y, sub.worldX - ak.x);
     world.missiles.push({
       worldX: ak.x, y: ak.y - 5,
@@ -2520,13 +3677,13 @@ function updateAkulaMolot(dt) {
   }
 
   // Torpedo — fires at sub when both underwater
-  if (ak.torpedoCooldown <= 0 && sub.y > WATER_LINE && distToSub < 300 && akulaCanDetect) {
+  if (ak.torpedoCooldown <= 0 && sub.y > WATER_LINE && distToSub < 400 && akulaCanDetect) {
     const dir = sub.worldX > ak.x ? 1 : -1;
     world.torpedoes.push({
       worldX: ak.x + dir * 20, y: ak.y,
       vx: dir * TORPEDO_SPEED * 0.7, vy: (sub.y - ak.y) * 0.005,
       phase: 'skim', life: 250, trail: [],
-      rogue: false, fromSub: false, active: false,
+      rogue: false, fromSub: false, active: true,
     });
     ak.torpedoCooldown = AKULA_TORPEDO_COOLDOWN;
     SFX.torpedoLaunch();
@@ -3457,6 +4614,7 @@ function initWorld() {
       afterburnerCharge: AFTERBURNER_MAX_CHARGE,
       afterburnerActive: false,
       caterpillarDrive: false,
+      commanderHp: COMMANDER_MAX_HP,
     },
     torpedoes: [],       // All positions in world coords
     missiles: [],
@@ -3470,6 +4628,11 @@ function initWorld() {
     chaffs: [],
     chaffCooldown: 0,
     mines: generateMines(terrain),
+    sopwith: createSopwith(terrain),
+    airSupremacy: null,        // Spawns mid-game — Su-47 Berkut
+    airInterceptors: [],       // Lightning squadrons
+    airInterceptorTimer: 0,
+    nemesis: null,             // Mini airborne-sub, toggle/higher levels
     score: 0,
     kills: 0,
     fireCooldown: 0,
@@ -3481,6 +4644,7 @@ function initWorld() {
     menuOpen: false,
     thrustSoundTimer: 0,
     ejectPrimeTimer: 0,
+    disembarkPrimeTimer: 0,
     divingBell: null,
     airEject: null,
     gunPost: null,
@@ -3661,6 +4825,7 @@ function saveGameState() {
         missileAmmo: world.sub.missileAmmo,
         depthChargeAmmo: world.sub.depthChargeAmmo,
         afterburnerCharge: world.sub.afterburnerCharge,
+        commanderHp: world.sub.commanderHp,
         parts: world.sub.parts,
       },
     };
@@ -3705,6 +4870,7 @@ function loadGameState() {
       fresh.sub.missileAmmo = s.missileAmmo;
       fresh.sub.depthChargeAmmo = s.depthChargeAmmo;
       fresh.sub.afterburnerCharge = s.afterburnerCharge;
+      fresh.sub.commanderHp = s.commanderHp ?? COMMANDER_MAX_HP;
       if (s.parts) fresh.sub.parts = s.parts;
     }
     world = fresh;
@@ -3768,6 +4934,17 @@ function updatePauseMenu() {
   }
   if (keyJustPressed['d'] || keyJustPressed['D']) {
     world.settings.deepDiverKit = !world.settings.deepDiverKit;
+    saveSettings(world.settings);
+  }
+  if (keyJustPressed['c'] || keyJustPressed['C']) {
+    cycleSupplyFrequency(world.settings, 1);
+  }
+  if (keyJustPressed['n'] || keyJustPressed['N']) {
+    // N is also "new game" below — only toggle nemesis when not in rebind mode
+    // Use G for nemesis toggle instead to avoid conflict
+  }
+  if (keyJustPressed['g'] || keyJustPressed['G']) {
+    world.settings.nemesisSub = !world.settings.nemesisSub;
     saveSettings(world.settings);
   }
   // Save game
@@ -3849,21 +5026,21 @@ function deployDockPilot(sub, dock) {
 }
 
 function attemptDisembark(sub) {
-  // Tick down the eject prime timer
-  if (world.ejectPrimeTimer > 0) world.ejectPrimeTimer--;
+  // Tick down the disembark confirmation timer (separate from eject prime)
+  if (world.disembarkPrimeTimer > 0) world.disembarkPrimeTimer--;
 
   const wantsE = !!keyJustPressed['e'] || !!keyJustPressed['E'];
   if (!wantsE || sub.disembarked || world.divingBell) return;
 
-  // Double-press: first press primes, second press executes
-  if (world.ejectPrimeTimer <= 0) {
-    // First press — prime the ejection
-    world.ejectPrimeTimer = EJECT_PRIME_TIMEOUT;
+  // Double-press E to confirm disembark — no eject warning
+  if (world.disembarkPrimeTimer <= 0) {
+    world.disembarkPrimeTimer = EJECT_PRIME_TIMEOUT;
+    world.caveMessage = { text: 'PRESS E AGAIN TO DISEMBARK', timer: EJECT_PRIME_TIMEOUT };
     return;
   }
 
   // Second press within timeout — execute disembark
-  world.ejectPrimeTimer = 0;
+  world.disembarkPrimeTimer = 0;
 
   if (!isSubStationaryForDiver(sub)) {
     world.caveMessage = { text: 'STABILISE THE SUB TO DEPLOY THE DIVER', timer: 100 };
@@ -4766,8 +5943,9 @@ function update(dt) {
   world.fireCooldown = Math.max(0, world.fireCooldown - dt);
   world.missileCooldown = Math.max(0, world.missileCooldown - dt);
 
-  if (keys['Control'] && world.fireCooldown <= 0 && canFireTorpedo(sub.parts) && sub.torpedoAmmo > 0) {
-    sub.torpedoAmmo--;
+  const unlimitedAmmo = world.settings.supplyFrequency === 'unlimited';
+  if (keys['Control'] && world.fireCooldown <= 0 && canFireTorpedo(sub.parts) && (sub.torpedoAmmo > 0 || unlimitedAmmo)) {
+    if (!unlimitedAmmo) sub.torpedoAmmo--;
     const isLGT = Math.random() < 0.05;
     const isRogue = !isLGT && Math.random() < 0.1;
     world.torpedoes.push({
@@ -4788,8 +5966,8 @@ function update(dt) {
   }
 
   const surfaceLaunch = sub.floating && !sub.periscopeMode;
-  if (keys['Enter'] && world.missileCooldown <= 0 && sub.missileAmmo > 0 && surfaceLaunch) {
-    sub.missileAmmo--;
+  if (keys['Enter'] && world.missileCooldown <= 0 && (sub.missileAmmo > 0 || unlimitedAmmo) && surfaceLaunch) {
+    if (!unlimitedAmmo) sub.missileAmmo--;
     world.missiles.push({
       worldX: sub.worldX + sub.facing * 10, y: sub.y - 5,
       vx: 0, vy: -2.2,
@@ -4800,8 +5978,8 @@ function update(dt) {
     if (sub.caterpillarDrive) { sub.caterpillarDrive = false; world.caveMessage = { text: 'STEALTH BROKEN — WEAPON FIRED', timer: 60 }; }
   }
 
-  if (keyJustPressed['AltGraph'] && world.depthChargeCooldown <= 0 && sub.depthChargeAmmo > 0) {
-    sub.depthChargeAmmo--;
+  if (keyJustPressed['AltGraph'] && world.depthChargeCooldown <= 0 && (sub.depthChargeAmmo > 0 || unlimitedAmmo)) {
+    if (!unlimitedAmmo) sub.depthChargeAmmo--;
     world.depthCharges.push({
       worldX: sub.worldX - sub.facing * 4,
       y: sub.y + 10,
@@ -5337,6 +6515,10 @@ function update(dt) {
   updateInterceptors(dt);
   updateAkulaMolot(dt);
   updateDelfins(dt);
+  updateSopwith(dt);
+  updateAirSupremacy(dt);
+  updateAirInterceptors(dt);
+  updateNemesis(dt);
   updateTelemetry(dt, sub.vx, sub.vy, 'atmosphere');
 }
 
@@ -5344,14 +6526,16 @@ function updateEnemies(dt) {
   const sub = world.sub;
   const hidden = sub.periscopeMode;
   world.enemyTimer += hidden ? dt * 0.2 : dt;
-  if (!hidden && world.enemyTimer > 80) {
+  // Cap active aircraft to keep skies clear
+  const airCount = world.enemies.filter(e => e.type !== 'ship').length;
+  if (!hidden && world.enemyTimer > 160 && airCount < 3) {
     world.enemyTimer = 0;
     const side = Math.random() < 0.7 ? sub.facing : -sub.facing;
     const spawnX = sub.worldX + side * (W * 0.6 + Math.random() * 200);
-    // Type selection: aircraft (jet, prop, biplane) or ship
+    // Type selection: aircraft (jet, heli) — lower density than before
     const roll = Math.random();
     let type, ey, vx, vy, health;
-    if (roll < 0.65) {
+    if (roll < 0.55) {
       // Fast jet fighter
       type = 'jet'; ey = 60 + Math.random() * 120;
       vx = side > 0 ? -(3 + Math.random()*1.5) : (3 + Math.random()*1.5);
@@ -5577,8 +6761,13 @@ function drawFlightInstruments() {
   ctx.strokeRect(panelX, panelY, panelW, panelH);
 
   const centerX = panelX + panelW / 2;
+  // Red accent in space, blue in atmosphere
+  const inOrbit = world.mode === 'orbit';
+  const gaugeColor = inOrbit ? '#ef4444' : '#0ea5e9';
+  const gaugeColorDim = inOrbit ? 'rgba(239,68,68,0.15)' : 'rgba(14,165,233,0.15)';
+
   ctx.font = 'bold 38px "Courier New", monospace';
-  ctx.fillStyle = '#0ea5e9';
+  ctx.fillStyle = gaugeColor;
   ctx.textAlign = 'center';
   const speedStr = `${Math.round(speed)}`.padStart(3, '0');
   ctx.fillText(speedStr, centerX, panelY + 70);
@@ -5593,7 +6782,7 @@ function drawFlightInstruments() {
   for (let i = 0; i < segmentCount; i++) {
     const segX = panelX + 16 + i * segmentWidth;
     const segmentActive = (speed / SPEEDOMETER_MAX_MPH) > i / segmentCount;
-    ctx.fillStyle = segmentActive ? '#0ea5e9' : 'rgba(14,165,233,0.15)';
+    ctx.fillStyle = segmentActive ? gaugeColor : gaugeColorDim;
     ctx.fillRect(segX, panelY + 24, segmentWidth - 2, 6);
   }
 
@@ -5605,7 +6794,9 @@ function drawFlightInstruments() {
   ctx.strokeStyle = 'rgba(248,250,252,0.18)';
   ctx.strokeRect(accelPanelX, accelPanelY, 36, accelPanelH);
   const accelHeight = Math.max(6, (accel / ACCELEROMETER_MAX_G) * (accelPanelH - 12));
-  ctx.fillStyle = accel > 2 ? '#ef4444' : accel > 1 ? '#f59e0b' : '#22c55e';
+  ctx.fillStyle = inOrbit
+    ? (accel > 2 ? '#fca5a5' : accel > 1 ? '#f87171' : '#ef4444')
+    : (accel > 2 ? '#ef4444' : accel > 1 ? '#f59e0b' : '#22c55e');
   ctx.fillRect(accelPanelX + 8, accelPanelY + accelPanelH - 8 - accelHeight, 20, accelHeight);
   ctx.fillStyle = '#e2e8f0';
   ctx.font = 'bold 10px "Courier New", monospace';
@@ -5618,7 +6809,7 @@ function drawFlightInstruments() {
   ctx.fillStyle = limitColor;
   ctx.fillText(telemetry.launchReady ? '88 MPH WINDOW LIVE' : 'Build for 88 MPH', panelX + 12, panelY + panelH - 26);
   ctx.fillStyle = '#f8fafc';
-  ctx.fillText('KITT HUD', panelX + 12, panelY + panelH - 42);
+  ctx.fillText('FLIGHT', panelX + 12, panelY + panelH - 42);
 
   const destination = world.currentDestination || PLANETS[world.currentPlanet];
   if (destination) {
@@ -5691,7 +6882,9 @@ function drawPauseOverlay() {
   ctx.fillText(`Legend: ${world.settings.showLegend ? 'ON' : 'OFF'}  (L to toggle)`, 420, 248);
   ctx.fillText(`HALO chute: ${world.settings.haloParachute ? 'ON' : 'OFF'}  (H to toggle)`, 420, 268);
   ctx.fillText(`Deep diver kit: ${world.settings.deepDiverKit ? 'ON' : 'OFF'}  (D to toggle)`, 420, 288);
-  ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 308);
+  ctx.fillText(`Supply crates: ${getSupplyFrequency(world.settings).label}  (C to cycle)`, 420, 308);
+  ctx.fillText(`Nemesis sub: ${world.settings.nemesisSub ? 'ON' : 'OFF'}  (G to toggle)`, 420, 328);
+  ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 348);
 
   // --- Game actions panel ---
   ctx.fillStyle = 'rgba(8,15,30,0.82)';
@@ -6196,6 +7389,10 @@ function draw() {
 
   // Enemies
   for (const e of world.enemies) drawEnemy(e);
+  drawSopwith();
+  drawAirSupremacy();
+  drawAirInterceptors();
+  drawNemesis();
 
   // Sub
   drawSub(sub);
@@ -6821,31 +8018,9 @@ function draw() {
     }
   }
 
-  // Game over
-  if (world.gameOver) {
-    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#e74c3c'; ctx.font='bold 48px Arial'; ctx.textAlign='center';
-    ctx.fillText('HULL BREACH — MISSION FAILED', W/2, H/2-30);
-    ctx.fillStyle='#ecf0f1'; ctx.font='24px Arial';
-    ctx.fillText(`Score: ${world.score}  |  Kills: ${world.kills}`, W/2, H/2+20);
-    ctx.fillStyle='#bdc3c7'; ctx.font='18px Arial';
-    ctx.fillText('Press R to restart', W/2, H/2+60);
-    drawLeaderboardPanel(W / 2 - 160, H / 2 + 92, 'Leaderboard');
-    if (keyJustPressed['r']||keyJustPressed['R']) world = initWorld();
-  }
-
-  // Level complete
-  if (world.levelComplete) {
-    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#2ecc71'; ctx.font='bold 42px Arial'; ctx.textAlign='center';
-    ctx.fillText('MISSION COMPLETE', W/2, H/2-40);
-    ctx.fillStyle='#ecf0f1'; ctx.font='24px Arial';
-    ctx.fillText(`Score: ${world.score}  |  Kills: ${world.kills}`, W/2, H/2+5);
-    const hp = overallHealth(world.sub.parts);
-    ctx.fillText(`Hull integrity: ${Math.ceil(hp)}%`, W/2, H/2+35);
-    ctx.fillStyle='#bdc3c7'; ctx.font='18px Arial';
-    ctx.fillText('Press R to play again', W/2, H/2+70);
-    drawLeaderboardPanel(W / 2 - 160, H / 2 + 96, 'Leaderboard');
+  // End-of-mission scoring screen (game over or level complete)
+  if (world.gameOver || world.levelComplete) {
+    drawMissionScoringScreen();
     if (keyJustPressed['r']||keyJustPressed['R']) world = initWorld();
   }
 
@@ -7185,20 +8360,22 @@ function drawEjectPrimeWarning() {
 }
 
 function drawHUD() {
-  drawSolarMiniMap();
+  if (world.mode === 'orbit') drawSolarMiniMap();
   drawEjectPrimeWarning();
   const sub = world.sub;
-  const hp = overallHealth(sub.parts);
-  const hudStartY = SOLAR_MAP_PADDING + SOLAR_MAP_SIZE + 6;
+  const hudStartY = world.mode === 'orbit'
+    ? SOLAR_MAP_PADDING + SOLAR_MAP_SIZE + 6
+    : SOLAR_MAP_PADDING;
 
-  // Overall health bar (bottom-left area below damage diagram)
+  // Fuel gauge (afterburner charge) — top-left
+  const fuelPct = sub.afterburnerCharge / AFTERBURNER_MAX_CHARGE;
   ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(15, hudStartY, 104, 12);
-  ctx.fillStyle = hp > 50 ? '#2ecc71' : hp > 25 ? '#f39c12' : '#e74c3c';
-  ctx.fillRect(17, hudStartY + 2, Math.max(0, hp), 8);
+  ctx.fillStyle = fuelPct > 0.5 ? '#f59e0b' : fuelPct > 0.2 ? '#f97316' : '#ef4444';
+  ctx.fillRect(17, hudStartY + 2, Math.max(0, fuelPct * 100), 8);
   ctx.strokeStyle='#ecf0f1'; ctx.lineWidth=1; ctx.strokeRect(15, hudStartY, 104, 12);
 
   ctx.fillStyle='#ecf0f1'; ctx.font='11px Arial'; ctx.textAlign='left';
-  ctx.fillText(`Overall: ${Math.ceil(hp)}%`, 125, hudStartY + 10);
+  ctx.fillText(`Fuel: ${Math.ceil(fuelPct * 100)}%`, 125, hudStartY + 10);
 
   // Score & kills
   ctx.font='bold 16px Arial';
@@ -7252,15 +8429,19 @@ function drawHUD() {
 
   // Weapons + ammo
   ctx.font='12px Arial';
-  const tReady = world.fireCooldown <= 0 && canFireTorpedo(sub.parts) && sub.torpedoAmmo > 0;
-  const mReady = world.missileCooldown <= 0 && sub.missileAmmo > 0;
-  const dReady = world.depthChargeCooldown <= 0 && sub.depthChargeAmmo > 0;
-  ctx.fillStyle = sub.torpedoAmmo <= 0 ? '#555' : tReady ? '#2ecc71' : '#7f8c8d';
-  ctx.fillText(`TORP x${sub.torpedoAmmo} ${sub.torpedoAmmo<=0?'EMPTY':(tReady?'RDY':(canFireTorpedo(sub.parts)?'...':'DMG'))}`, W-15, 128);
-  ctx.fillStyle = sub.missileAmmo <= 0 ? '#555' : mReady ? '#e74c3c' : '#7f8c8d';
-  ctx.fillText(`MSL x${sub.missileAmmo} ${sub.missileAmmo<=0?'EMPTY':(mReady?'RDY':'...')}`, W-15, 142);
-  ctx.fillStyle = sub.depthChargeAmmo <= 0 ? '#555' : dReady ? DEPTH_CHARGE_COLOR : '#7f8c8d';
-  ctx.fillText(`DCHG x${sub.depthChargeAmmo} ${sub.depthChargeAmmo<=0?'EMPTY':(dReady?'RDY':'...')}`, W-15, 156);
+  const hudUnlimited = world.settings.supplyFrequency === 'unlimited';
+  const tReady = world.fireCooldown <= 0 && canFireTorpedo(sub.parts) && (sub.torpedoAmmo > 0 || hudUnlimited);
+  const mReady = world.missileCooldown <= 0 && (sub.missileAmmo > 0 || hudUnlimited);
+  const dReady = world.depthChargeCooldown <= 0 && (sub.depthChargeAmmo > 0 || hudUnlimited);
+  const tLabel = hudUnlimited ? 'INF' : String(sub.torpedoAmmo);
+  const mLabel = hudUnlimited ? 'INF' : String(sub.missileAmmo);
+  const dLabel = hudUnlimited ? 'INF' : String(sub.depthChargeAmmo);
+  ctx.fillStyle = (!hudUnlimited && sub.torpedoAmmo <= 0) ? '#555' : tReady ? '#2ecc71' : '#7f8c8d';
+  ctx.fillText(`TORP x${tLabel} ${(!hudUnlimited&&sub.torpedoAmmo<=0)?'EMPTY':(tReady?'RDY':(canFireTorpedo(sub.parts)?'...':'DMG'))}`, W-15, 128);
+  ctx.fillStyle = (!hudUnlimited && sub.missileAmmo <= 0) ? '#555' : mReady ? '#e74c3c' : '#7f8c8d';
+  ctx.fillText(`MSL x${mLabel} ${(!hudUnlimited&&sub.missileAmmo<=0)?'EMPTY':(mReady?'RDY':'...')}`, W-15, 142);
+  ctx.fillStyle = (!hudUnlimited && sub.depthChargeAmmo <= 0) ? '#555' : dReady ? DEPTH_CHARGE_COLOR : '#7f8c8d';
+  ctx.fillText(`DCHG x${dLabel} ${(!hudUnlimited&&sub.depthChargeAmmo<=0)?'EMPTY':(dReady?'RDY':'...')}`, W-15, 156);
   ctx.fillStyle = sub.afterburnerCharge > 20 ? AFTERBURNER_COLOR : '#7f8c8d';
   ctx.fillText(`A/B ${Math.round(sub.afterburnerCharge)}%`, W-15, 170);
   // Caterpillar drive indicator
@@ -7272,10 +8453,169 @@ function drawHUD() {
     ctx.fillText('CAT DRIVE OFF', W-15, 184);
   }
 
+  // Commander HP (right-aligned, below weapons)
+  const cmdHp = sub.commanderHp;
+  const cmdColor = cmdHp >= 3 ? '#2ecc71' : cmdHp === 2 ? '#f59e0b' : cmdHp === 1 ? '#ef4444' : '#555';
+  ctx.fillStyle = cmdColor;
+  ctx.font = '12px Arial';
+  ctx.textAlign = 'right';
+  ctx.fillText(`CDR ${'♥'.repeat(Math.max(0, cmdHp))}${'♡'.repeat(Math.max(0, COMMANDER_MAX_HP - cmdHp))} ${commanderStatusLabel(cmdHp)}`, W-15, 198);
+
   // Controls
   ctx.font='11px Arial'; ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.textAlign='center';
   if (sub.disembarked) ctx.fillText('[M] Return to sub  |  J/K: move  |  Arrows: move', W/2, H-10);
   else ctx.fillText('Esc: controls | E: disembark | A: afterburner | AltGr: depth | Ctrl: torpedo | Enter: missile', W/2, H-10);
+}
+
+// ============================================================
+// MISSION SCORING SCREEN — detailed end-of-mission breakdown
+// ============================================================
+function drawMissionScoringScreen() {
+  const sub = world.sub;
+  const parts = sub.parts;
+  const failed = world.gameOver && !world.levelComplete;
+  const cmdHp = sub.commanderHp;
+
+  // Background overlay
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Panel
+  const px = W / 2 - 240;
+  const py = 30;
+  const pw = 480;
+  const ph = H - 60;
+  ctx.fillStyle = 'rgba(8,15,30,0.95)';
+  ctx.fillRect(px, py, pw, ph);
+  ctx.strokeStyle = failed ? '#e74c3c' : '#2ecc71';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(px, py, pw, ph);
+
+  // Title
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 32px Arial';
+  ctx.fillStyle = failed ? '#e74c3c' : '#2ecc71';
+  ctx.fillText(failed ? 'MISSION FAILED' : 'MISSION COMPLETE', W / 2, py + 40);
+
+  // Score and kills
+  ctx.font = 'bold 20px Arial';
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText(`Score: ${world.score}`, W / 2, py + 72);
+  ctx.font = '16px Arial';
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillText(`Kills: ${world.kills}  |  Duration: ${Math.floor(world.tick / 60)}s`, W / 2, py + 94);
+
+  // --- Commander Status ---
+  let row = py + 126;
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 16px Arial';
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText('COMMANDER', px + 24, row);
+  ctx.textAlign = 'right';
+  const cmdLabel = commanderStatusLabel(cmdHp);
+  const cmdColor = cmdHp >= 3 ? '#2ecc71' : cmdHp === 2 ? '#f59e0b' : cmdHp === 1 ? '#ef4444' : '#555';
+  ctx.fillStyle = cmdColor;
+  ctx.font = 'bold 16px Arial';
+  ctx.fillText(cmdLabel, px + pw - 24, row);
+  // Hearts
+  ctx.font = '14px Arial';
+  ctx.fillText('♥'.repeat(Math.max(0, cmdHp)) + '♡'.repeat(Math.max(0, COMMANDER_MAX_HP - cmdHp)), px + pw - 24, row + 18);
+
+  // Divider
+  row += 36;
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(px + 20, row);
+  ctx.lineTo(px + pw - 20, row);
+  ctx.stroke();
+
+  // --- Sub Components ---
+  row += 22;
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 16px Arial';
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText('SUB SYSTEMS', px + 24, row);
+
+  row += 8;
+  ctx.font = '14px Arial';
+  for (const def of SUB_PARTS) {
+    row += 20;
+    const hp = parts[def.id];
+    const label = componentConditionLabel(hp, def.maxHp);
+    const color = componentConditionColor(hp, def.maxHp);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(def.name, px + 32, row);
+
+    // Condition bar
+    const barX = px + 120;
+    const barW = 180;
+    const barH = 10;
+    const barY = row - 9;
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = color;
+    ctx.fillRect(barX, barY, barW * (hp / def.maxHp), barH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.strokeRect(barX, barY, barW, barH);
+
+    // Label
+    ctx.textAlign = 'right';
+    ctx.fillStyle = color;
+    ctx.fillText(label, px + pw - 24, row);
+  }
+
+  // Overall sub condition
+  row += 28;
+  const overall = overallHealth(parts);
+  const overallLabel = overall >= 100 ? 'Pristine' : overall > 60 ? 'Cosmetic' : overall > 25 ? 'Damaged' : overall > 0 ? 'Severely Damaged' : 'Destroyed';
+  const overallColor = overall >= 100 ? '#2ecc71' : overall > 60 ? '#a3e635' : overall > 25 ? '#f59e0b' : overall > 0 ? '#ef4444' : '#555';
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 14px Arial';
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText('Overall', px + 32, row);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = overallColor;
+  ctx.fillText(`${overallLabel} (${Math.ceil(overall)}%)`, px + pw - 24, row);
+
+  // Divider
+  row += 16;
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath();
+  ctx.moveTo(px + 20, row);
+  ctx.lineTo(px + pw - 20, row);
+  ctx.stroke();
+
+  // --- Mission Summary ---
+  row += 22;
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 16px Arial';
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText('MISSION SUMMARY', px + 24, row);
+
+  row += 22;
+  ctx.font = '14px Arial';
+  ctx.fillStyle = '#cbd5e1';
+  const summaryLines = [
+    `Mode: ${world.mode === 'orbit' ? 'Space' : 'Atmosphere'}`,
+    `Supply frequency: ${getSupplyFrequency(world.settings).label}`,
+  ];
+  if (world.currentDestination) {
+    summaryLines.push(`Last destination: ${world.currentDestination.name}`);
+  }
+  for (const line of summaryLines) {
+    ctx.fillText(line, px + 32, row);
+    row += 18;
+  }
+
+  // Restart prompt
+  row = py + ph - 24;
+  ctx.textAlign = 'center';
+  ctx.font = '18px Arial';
+  ctx.fillStyle = '#bdc3c7';
+  ctx.fillText('Press R to restart', W / 2, row);
 }
 
 // ============================================================
@@ -7287,12 +8627,12 @@ function drawDamageDiagram() {
   const cy = 28;             // Vertical centre
   const scale = 2.2;         // Scale factor
 
-  // Background panel
+  // Background panel (includes graded HP bar below schematic)
   ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-  ctx.fillRect(cx - 75, 5, 150, 48);
+  ctx.fillRect(cx - 75, 5, 150, 66);
   ctx.strokeStyle = '#555';
   ctx.lineWidth = 1;
-  ctx.strokeRect(cx - 75, 5, 150, 48);
+  ctx.strokeRect(cx - 75, 5, 150, 66);
 
   // Label
   ctx.fillStyle = '#888';
@@ -7355,33 +8695,51 @@ function drawDamageDiagram() {
     ctx.stroke();
   }
 
-  // 5. WINGS (top & bottom of hull, small triangles)
+  // 5. WINGS (top & bottom of hull — swept-back, larger and clearer)
   ctx.fillStyle = partColor(parts.wings, 60);
-  // Top wing
+  ctx.strokeStyle = partColor(parts.wings, 60);
+  ctx.lineWidth = 1;
+  // Top wing — wider sweep
   ctx.beginPath();
-  ctx.moveTo(cx - 6, cy - 5);
-  ctx.lineTo(cx - 14, cy - 14);
-  ctx.lineTo(cx - 2, cy - 6);
+  ctx.moveTo(cx - 4, cy - 6);
+  ctx.lineTo(cx - 16, cy - 17);
+  ctx.lineTo(cx - 8, cy - 17);
+  ctx.lineTo(cx + 2, cy - 7);
+  ctx.closePath();
   ctx.fill();
-  // Bottom wing
+  ctx.stroke();
+  // Bottom wing — mirror
   ctx.beginPath();
-  ctx.moveTo(cx - 6, cy + 5);
-  ctx.lineTo(cx - 14, cy + 14);
-  ctx.lineTo(cx - 2, cy + 6);
+  ctx.moveTo(cx - 4, cy + 6);
+  ctx.lineTo(cx - 16, cy + 17);
+  ctx.lineTo(cx - 8, cy + 17);
+  ctx.lineTo(cx + 2, cy + 7);
+  ctx.closePath();
   ctx.fill();
+  ctx.stroke();
 
-  // 6. RUDDER (behind engine)
+  // 6. RUDDER / TAIL FIN (V-tail behind engine — clearly separate from wings)
   ctx.fillStyle = partColor(parts.rudder, 60);
+  ctx.strokeStyle = partColor(parts.rudder, 60);
+  ctx.lineWidth = 1;
+  // Upper tail fin
   ctx.beginPath();
-  ctx.moveTo(cx - 30, cy - 2);
-  ctx.lineTo(cx - 36, cy - 7);
-  ctx.lineTo(cx - 30, cy + 2);
+  ctx.moveTo(cx - 28, cy - 3);
+  ctx.lineTo(cx - 40, cy - 12);
+  ctx.lineTo(cx - 36, cy - 12);
+  ctx.lineTo(cx - 28, cy - 1);
+  ctx.closePath();
   ctx.fill();
+  ctx.stroke();
+  // Lower tail fin
   ctx.beginPath();
-  ctx.moveTo(cx - 30, cy + 2);
-  ctx.lineTo(cx - 36, cy + 7);
-  ctx.lineTo(cx - 30, cy - 2);
+  ctx.moveTo(cx - 28, cy + 3);
+  ctx.lineTo(cx - 40, cy + 12);
+  ctx.lineTo(cx - 36, cy + 12);
+  ctx.lineTo(cx - 28, cy + 1);
+  ctx.closePath();
   ctx.fill();
+  ctx.stroke();
 
   // Part name labels on hover would be nice but for now, tiny labels below
   ctx.fillStyle = '#777';
@@ -7403,6 +8761,42 @@ function drawDamageDiagram() {
       ctx.fillText(l.t, l.x, cy + 22);
     }
   }
+
+  // Graded overall HP bar below diagram
+  const barY = 56;
+  const barX = cx - 60;
+  const barW = 120;
+  const barH = 8;
+  const hp = overallHealth(parts);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(barX - 2, barY - 1, barW + 4, barH + 2);
+  // Draw graded segments: green > yellow > orange > red from left to right
+  const segW = barW / 4;
+  const gradColors = ['#2ecc71', '#f1c40f', '#f39c12', '#e74c3c'];
+  for (let i = 0; i < 4; i++) {
+    const segStart = i * 25;    // 0, 25, 50, 75
+    const segEnd = (i + 1) * 25;
+    const fillFrac = clamp((hp - segStart) / 25, 0, 1);
+    if (fillFrac > 0) {
+      ctx.fillStyle = gradColors[3 - i]; // red at low HP end, green at high
+      ctx.fillRect(barX + i * segW, barY, segW * fillFrac, barH);
+    }
+  }
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX - 2, barY - 1, barW + 4, barH + 2);
+  // Segment dividers
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(barX + i * segW, barY);
+    ctx.lineTo(barX + i * segW, barY + barH);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#ccc';
+  ctx.font = '8px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${Math.ceil(hp)}%`, cx, barY + barH + 9);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
