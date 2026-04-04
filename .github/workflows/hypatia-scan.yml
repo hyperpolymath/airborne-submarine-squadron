@@ -51,8 +51,8 @@ jobs:
         run: |
           echo "Scanning repository: ${{ github.repository }}"
 
-          # Run scanner
-          HYPATIA_FORMAT=json "$HOME/hypatia/hypatia-cli.sh" scan . > hypatia-findings.json
+          # Run scanner (exits non-zero when findings exist — suppress to continue)
+          HYPATIA_FORMAT=json "$HOME/hypatia/hypatia-cli.sh" scan . > hypatia-findings.json || true
 
           # Count findings
           FINDING_COUNT=$(jq '. | length' hypatia-findings.json 2>/dev/null || echo 0)
