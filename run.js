@@ -309,7 +309,7 @@ async function launchDeno(platform) {
   // Run the file server IN THIS PROCESS using Deno.serve() + AbortController.
   // This guarantees the port is released the instant run.js exits — no
   // orphaned child processes possible.
-  const { serveDir } = await import("https://deno.land/std@0.224.0/http/file_server.ts");
+  const { serveDir } = await import("jsr:@std/http@1/file-server");
   await Deno.mkdir("logs", { recursive: true });
 
   const CORS = { "Access-Control-Allow-Origin": "*" };
@@ -322,7 +322,12 @@ async function launchDeno(platform) {
       // Graceful shutdown from browser quit button
       if (req.method === "POST" && pathname === "/shutdown") {
         log("Shutdown requested from game — closing server");
-        setTimeout(() => { ac.abort(); Deno.exit(0); }, 200);
+        // Schedule shutdown after response is sent (queueMicrotask avoids
+        // aborting the server mid-response which causes a fatal crash).
+        queueMicrotask(() => {
+          try { ac.abort(); } catch {}
+          setTimeout(() => Deno.exit(0), 100);
+        });
         return new Response("ok", { status: 200, headers: CORS });
       }
       if (req.method === "POST" && pathname === "/crash-report") {
@@ -361,11 +366,12 @@ async function launchDeno(platform) {
     log(`Opening Gossamer at ${gameUrl}`);
     // Fire and forget — don't await xdg-open (it can block or spawn duplicates)
     try {
-      const p = new Deno.Command(platform.browserCmd, {
+      const child = new Deno.Command(platform.browserCmd, {
         args: [gameUrl],
         stdout: "null", stderr: "null",
-      });
-      p.spawn();
+        stdin: "null",
+      }).spawn();
+      child.unref(); // Don't keep Deno alive waiting for browser
     } catch { log(`Could not open browser — visit ${gameUrl} manually`); }
   } else {
     log(`Server running — open ${gameUrl} in your browser`);
