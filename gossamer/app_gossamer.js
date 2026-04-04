@@ -1683,12 +1683,24 @@ function updateMissionTimer(dt) {
   if (!m || !m.active || !m.timed) return;
   m.timer -= dt;
 
+  // Helper: record mission result to VeriSimDB
+  function finishMission(outcome) {
+    if (typeof verisimdbRecordMission === 'function') {
+      verisimdbRecordMission({
+        type: m.type, label: m.label, outcome,
+        score: world.score, kills: world.kills,
+        duration: (m.timer > 0) ? ((MISSION_TYPES[m.type]?.duration || 0) - m.timer) : (MISSION_TYPES[m.type]?.duration || 0),
+      });
+    }
+  }
+
   // Strike mission: check kill objective
   if (m.type === 'strike' && m.killTarget > 0 && m.killCount >= m.killTarget) {
     m.active = false;
     m.completed = true;
     world.score += STRIKE_COMPLETE_BONUS;
     world.caveMessage = { text: `STRIKE COMPLETE! +${STRIKE_COMPLETE_BONUS}pts`, timer: 150 };
+    finishMission('completed');
     return;
   }
 
@@ -1701,6 +1713,7 @@ function updateMissionTimer(dt) {
       world.caveMessage = { text: 'MISSION FAILED: PASSENGER SHIP DESTROYED', timer: 200 };
       world.gameOver = true;
       SFX.gameOver();
+      finishMission('failed_ship_destroyed');
       return;
     }
     // Escort succeeds when timer runs out (survived the full duration)
@@ -1710,6 +1723,7 @@ function updateMissionTimer(dt) {
       m.completed = true;
       world.score += ESCORT_COMPLETE_BONUS;
       world.caveMessage = { text: `ESCORT COMPLETE! Ship safe. +${ESCORT_COMPLETE_BONUS}pts`, timer: 150 };
+      finishMission('completed');
       return;
     }
   }
@@ -1723,8 +1737,10 @@ function updateMissionTimer(dt) {
       world.caveMessage = { text: `MISSION FAILED: ${m.label} — TIME EXPIRED`, timer: 200 };
       world.gameOver = true;
       SFX.gameOver();
+      finishMission('failed_timeout_mandatory');
     } else {
       world.caveMessage = { text: `TIME EXPIRED: ${m.label} — bonus lost`, timer: 150 };
+      finishMission('failed_timeout');
     }
   }
 }
@@ -1834,6 +1850,9 @@ function updateHostages(dt) {
         world.mission.active = false;
         world.mission.completed = true;
         world.score += HOSTAGE_SCORE_BONUS * 2; // Completion bonus
+        if (typeof verisimdbRecordMission === 'function') {
+          verisimdbRecordMission({ type: 'hostage', outcome: 'completed', score: world.score, kills: world.kills });
+        }
       } else {
         world.caveMessage = { text: `HOSTAGE RESCUED — ${remaining} REMAINING`, timer: 80 };
       }
