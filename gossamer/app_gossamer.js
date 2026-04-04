@@ -184,10 +184,10 @@ const DEBRIS_CLOUD_COUNT     = 4;
 const DEBRIS_PARTICLES       = 20;    // particles per cloud
 const DEBRIS_COLLECT_SPEED   = 0.4;   // max ship speed to collect resources
 const COMET_COUNT            = 2;
-const ORB_PROJ_TORPEDO_SPEED = 6;
-const ORB_PROJ_MISSILE_SPEED = 3;
-const ORB_PROJ_TORPEDO_LIFE  = 180;   // frames
-const ORB_PROJ_MISSILE_LIFE  = 360;
+const ORB_PROJ_TORPEDO_SPEED = 1.5;  // fast-escaping: total ~3.96 at Earth orbit > escape (3.48)
+const ORB_PROJ_MISSILE_SPEED = 0.8;  // bound orbit:   total ~3.26 at Earth orbit < escape — will arc back
+const ORB_PROJ_TORPEDO_LIFE  = 300;  // frames — ~5s at 60fps, enough to traverse the belt
+const ORB_PROJ_MISSILE_LIFE  = 600;  // frames — ~10s, stays in orbit long enough to reach far targets
 
 const SOLAR_SYSTEM_BODIES = [
   { id: 'sun',     label: 'Sun',     orbitRadius:    0, radius:  96, color: '#ffd166', period:   1, phase: 0.0, gm: SOLAR_GM },
@@ -2705,8 +2705,8 @@ function createOrbitState() {
     shipVx: -Math.sin(angle) * orbitalSpeed,
     shipVy: Math.cos(angle) * orbitalSpeed,
     shipAngle: angle + Math.PI / 2,
-    cameraX: 0,
-    cameraY: 0,
+    cameraX: Math.cos(angle) * orbitalRadius,
+    cameraY: Math.sin(angle) * orbitalRadius,
     cameraZoom: 1,
     currentSOI: null,
     trail: [],
