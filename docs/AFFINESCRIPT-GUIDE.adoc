@@ -1,0 +1,133 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+= AffineScript Modern Coding Guide
+:author: Jonathan D.A. Jewell
+:revdate: 2026-04-04
+:toc:
+
+== What is AffineScript?
+
+AffineScript is a statically typed language with **linear/affine types**, **algebraic effects**, and **WASM-first compilation**. It combines the safety guarantees of Rust's ownership model with ML-family type inference and a clean, readable syntax.
+
+This repository (Airborne Submarine Squadron) uses AffineScript as a **WASM co-processor** alongside a JavaScript game engine. The AffineScript code in `src/main.as` models the core physics simulation with formal type guarantees, while the JS handles rendering, input, and browser APIs.
+
+== Key Language Features
+
+=== Linear Types — Resources Used Exactly Once
+
+[source,affinescript]
+----
+// A Submarine is consumed when passed to integrate() — you get a new one back.
+// This prevents stale-state bugs: you cannot accidentally use the old sub.
+fn integrate(sub: Submarine, env: Environment) -> Submarine {
+  let vy2 = clamp_velocity(apply_gravity(env, sub.vy));
+  return { x: sub.x + sub.vx, y: sub.y + vy2, vx: sub.vx, vy: vy2, health: sub.health };
+}
+----
+
+=== Algebraic Effects
+
+[source,affinescript]
+----
+effect IO {
+  fn println(s: String);
+}
+
+// Functions that perform IO declare it in their signature
+fn hud(world: World) -{ IO }-> () {
+  println("ENV: AIR");
+}
+----
+
+=== Tuple Returns for Multi-Value Results
+
+[source,affinescript]
+----
+// No out-parameters, no mutation — clean multi-value return
+fn try_fire(sub: Submarine, weapons: Weapons, proj: Projectile, want: Bool) -> (Weapons, Projectile) {
+  if want && weapons.cooldown == 0 && weapons.ammo > 0 && !proj.active {
+    let p = { x: sub.x + 10, y: sub.y, vx: 7, vy: 0, active: true };
+    let w = { ...weapons, ammo: weapons.ammo - 1, cooldown: 8 };
+    return (w, p);
+  } else {
+    return (weapons, proj);
+  };
+}
+----
+
+=== Deterministic Simulation
+
+[source,affinescript]
+----
+// The step function is pure: same inputs → same outputs. Always.
+// This makes the simulation lockstep-ready for multiplayer verification.
+fn step(world: World, input: Input) -> World {
+  let t = world.tick + 1;
+  let env2 = toggle_env(world.env, t, input.toggle_env);
+  let sub1 = apply_input(world.sub, input);
+  let sub2 = apply_bounds(integrate(sub1, env2));
+  // ... collision, scoring, mission updates ...
+  return { tick: t, env: env2, sub: sub2, ... };
+}
+----
+
+== Project Architecture
+
+----
+src/main.as          AffineScript physics co-processor (820 lines)
+                     Compiles to WASM via: ./build.sh
+                     Exports: init_state(), step_state()
+                     Verified frame counter + secondary score tracker
+
+gossamer/            Browser game engine (JavaScript)
+  app_gossamer.js    Core game loop, physics, weapons, state
+  enemies.js         All enemy AI systems
+  hud.js             HUD, instruments, pause overlay
+  sfx.js             Web Audio API synthesised sound engine
+  verisimdb.js       VeriSimDB persistence client
+  index_gossamer.html Entry point with splash screen
+
+build/               Compiled WASM artefacts
+dist/                Pre-built WASM fallback
+test/                Deno test suite (smoke, unit, integration, bench)
+ffi/zig/             Zig FFI layer (C-compatible bridge)
+src/abi/             Idris2 ABI definitions (formal proofs)
+----
+
+== How the WASM Co-Processor Works
+
+The JS game engine runs the full simulation (terrain, enemies, rendering, input). In parallel, the AffineScript WASM module runs a **simplified integer-only model** of the same physics. Every frame, the JS calls `step_state()` with 34 integer arguments and compares the WASM result against its own state.
+
+This provides:
+
+1. **Verified frame counting** — the WASM tick count is authoritative
+2. **Score verification** — anti-cheat baseline for leaderboards
+3. **Deterministic replay** — the WASM model can replay any game from inputs alone
+4. **Multiplayer sync** — future netcode can use the WASM model as the authoritative state
+
+== Building
+
+[source,bash]
+----
+# Compile AffineScript to WASM
+just build
+
+# Run the game (Deno file server + browser)
+just run
+
+# Run tests
+just test
+
+# Type-check only (no compile)
+just check
+----
+
+== Contributing
+
+See `CONTRIBUTING.md` for the full guide. The key principle: **every module is a complete example of its category**. To add a new enemy, weapon, or HUD panel, find an existing one in the same category and follow its pattern.
+
+== Further Reading
+
+- `src/main.as` — the complete AffineScript source, heavily annotated
+- `ROADMAP.adoc` — game development roadmap
+- `docs/DEVELOPMENT.md` — development setup guide
+- The AffineScript compiler: `hyperpolymath/affinescriptiser`

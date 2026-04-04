@@ -64,7 +64,7 @@ const AKULA_SONAR_CHAIN_DETECT_ALL_LAYERS = true;
 const DELFIN_COUNT = 2;
 const DELFIN_HP = 80;
 const DELFIN_SPEED = 0.35;
-const DELFIN_MAX_DEPTH = WATER_LINE + 180;  // Can't go as deep as Akula
+const DELFIN_MAX_DEPTH = 420 + 180;  // WATER_LINE(420) + 180 — inlined because enemies.js loads before app_gossamer.js
 const DELFIN_TORPEDO_COOLDOWN = 200;
 const DELFIN_MG_COOLDOWN = 7;
 const DELFIN_MG_DAMAGE = 1.0;
@@ -86,8 +86,33 @@ const PASSENGER_DWELL_TIME = 300; // Ticks at each island
    MINE_DAMAGE, CHAFF_COOLDOWN, CHAFF_LIFESPAN, CHAFF_RADIUS, CHAFF_DEFLECT_FORCE,
    CHAFF_COLOR, TWO_PI, SEA_FLOOR, SFX, toScreen, damageRandomPart, islandHitTest,
    addExplosion, addParticles, commanderStatusLabel, groundYFromTerrain,
-   getThermalLayer, thermallyVisible, keyJustPressed */
+   getThermalLayer, thermallyVisible, keyJustPressed,
+   SQUADRON_HP */
 
+
+// ── Motorcyclists — land defenders that patrol island tops ─────────────────
+// Normal bikes patrol back and forth on their home island and fire at the sub.
+// Evel Knievel is a special one-off who can jump between islands with a
+// slow-motion matrix trail effect.
+const MOTORCYCLE_HP = 2;
+const MOTORCYCLE_SPEED = 1.6;
+const MOTORCYCLE_MG_COOLDOWN = 14;
+const MOTORCYCLE_MG_SPEED = 4;
+const MOTORCYCLE_MG_DAMAGE = 1;
+const MOTORCYCLE_MG_RANGE = 150;
+const MOTORCYCLE_BULLET_LIFE = 40;
+const EVEL_HP = 4;
+const EVEL_SPEED = 2.8;
+const EVEL_JUMP_SPEED = 5.5;     // Launch speed for island-to-island jump
+const EVEL_JUMP_GRAVITY = 0.06;  // Gravity during jump (slow — matrix effect)
+const EVEL_SCORE = 3000;
+
+// ── Shared air-enemy stealth check ──────────────────────────────────────────
+// Returns true when the sub is hidden from air units (periscope mode or fully
+// submerged). Air enemies should orbit/search instead of targeting directly.
+function isSubHiddenFromAir(sub) {
+  return sub.periscopeMode || sub.y > WATER_LINE + 8;
+}
 
 // ============================================================
 // SOPWITH CAMEL — One per level. Passive until attacked, then
@@ -143,40 +168,63 @@ function updateSopwith(dt) {
     if (b.life <= 0 || b.y > WATER_LINE || b.y < 5) sw.bullets.splice(i, 1);
   }
 
-  // Check if player torpedoes/missiles hit the Sopwith
+  // Check if ANY projectile hits the Sopwith — player weapons, stray enemy fire, anything.
+  // Any hit awakens the Red Baron. He doesn't care who shot him.
   sw.fireCooldown = Math.max(0, sw.fireCooldown - dt);
-  for (let i = world.torpedoes.length - 1; i >= 0; i--) {
-    const t = world.torpedoes[i];
-    if (!t.fromSub) continue;
-    if (Math.abs(t.worldX - sw.x) < 20 && Math.abs(t.y - sw.y) < 14) {
-      sw.hp--;
-      if (!sw.angered) {
-        sw.angered = true;
-        sw.manoeuvre = 'immelmann';
-        sw.acrobatTimer = 0;
-        world.caveMessage = { text: 'THE RED BARON AWAKENS!', timer: 120 };
-      }
-      addExplosion(sw.x, sw.y, 'small');
-      SFX.explodeSmall();
-      world.torpedoes.splice(i, 1);
-      break;
+
+  function awakenBaron() {
+    if (!sw.angered) {
+      sw.angered = true;
+      sw.manoeuvre = 'immelmann';
+      sw.acrobatTimer = 0;
+      world.caveMessage = { text: 'THE RED BARON AWAKENS!', timer: 120 };
     }
   }
+
+  // Player torpedoes
+  for (let i = world.torpedoes.length - 1; i >= 0; i--) {
+    const t = world.torpedoes[i];
+    if (Math.abs(t.worldX - sw.x) < 20 && Math.abs(t.y - sw.y) < 14) {
+      sw.hp--; awakenBaron();
+      addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
+      world.torpedoes.splice(i, 1); break;
+    }
+  }
+  // Player missiles
   for (let i = world.missiles.length - 1; i >= 0; i--) {
     const m = world.missiles[i];
-    if (m.fromEnemy) continue;
     if (Math.abs(m.worldX - sw.x) < 20 && Math.abs(m.y - sw.y) < 14) {
-      sw.hp -= 2;
-      if (!sw.angered) {
-        sw.angered = true;
-        sw.manoeuvre = 'immelmann';
-        sw.acrobatTimer = 0;
-        world.caveMessage = { text: 'THE RED BARON AWAKENS!', timer: 120 };
+      sw.hp -= 2; awakenBaron();
+      addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
+      world.missiles.splice(i, 1); break;
+    }
+  }
+  // Sub MG bullets
+  for (let i = world.subMgBullets.length - 1; i >= 0; i--) {
+    const b = world.subMgBullets[i];
+    if (Math.abs(b.worldX - sw.x) < 16 && Math.abs(b.y - sw.y) < 12) {
+      sw.hp--; awakenBaron();
+      addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
+      world.subMgBullets.splice(i, 1); break;
+    }
+  }
+  // Railgun (pierces but still damages)
+  for (const r of world.railgunShots) {
+    if (Math.abs(r.worldX - sw.x) < 18 && Math.abs(r.y - sw.y) < 14) {
+      sw.hp -= 3; awakenBaron();
+      addExplosion(sw.x, sw.y, 'big'); SFX.explodeBig(); break;
+    }
+  }
+  // Stray enemy bullets (Lightning, Berkut, Nemesis — any bullet that hits him)
+  for (const li of world.airInterceptors) {
+    if (!li.alive) continue;
+    for (let i = li.bullets.length - 1; i >= 0; i--) {
+      const b = li.bullets[i];
+      if (Math.abs(b.x - sw.x) < 14 && Math.abs(b.y - sw.y) < 10) {
+        sw.hp--; awakenBaron();
+        addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
+        li.bullets.splice(i, 1); break;
       }
-      addExplosion(sw.x, sw.y, 'small');
-      SFX.explodeSmall();
-      world.missiles.splice(i, 1);
-      break;
     }
   }
 
@@ -197,19 +245,38 @@ function updateSopwith(dt) {
   const dir = sw.vx >= 0 ? 1 : -1;
 
   if (!sw.angered) {
-    // PASSIVE MODE — gentle cruise, harmless biplane puttering along
+    // PASSIVE MODE — oblivious biplane buzzing along at low altitude,
+    // bobbing gently, occasionally dipping near the waterline as if
+    // sightseeing in a warzone without a care in the world.
     sw.x += sw.vx * dt;
-    sw.vy = Math.sin(world.tick * 0.02 + sw.scarfPhase) * 0.3;
+    sw.vy = Math.sin(world.tick * 0.015 + sw.scarfPhase) * 0.5
+          + Math.sin(world.tick * 0.004) * 0.3; // Lazy undulation
     sw.y += sw.vy * dt;
-    sw.y = clamp(sw.y, 40, WATER_LINE - 40);
+    sw.y = clamp(sw.y, WATER_LINE - 120, WATER_LINE - 18); // Low — skimming near the water
     // Reverse at terrain edges
     if (sw.x < 100 || sw.x > TERRAIN_LENGTH - 100) sw.vx = -sw.vx;
   } else {
     // RED BARON MODE — aggressive acrobatics, Sopwith-style combat
     sw.acrobatTimer += dt;
-    const toSubX = sub.worldX - sw.x;
-    const toSubY = sub.y - sw.y;
+    // If sub is hidden (periscope / underwater), orbit last known position
+    const hidden = isSubHiddenFromAir(sub);
+    if (!hidden) { sw._lastKnownX = sub.worldX; sw._lastKnownY = sub.y; }
+    const tgtX = hidden ? (sw._lastKnownX || sub.worldX) : sub.worldX;
+    const tgtY = hidden ? Math.min(sw._lastKnownY || sub.y, WATER_LINE - 35) : sub.y;
+    const toSubX = tgtX - sw.x;
+    const toSubY = tgtY - sw.y;
     const angleToSub = Math.atan2(toSubY, toSubX);
+    if (hidden) {
+      // Lost target — circle and search, don't fire
+      const orbit = angleToSub + Math.PI / 2;
+      sw.vx += (Math.cos(orbit) * 0.08 + Math.cos(angleToSub) * 0.02) * dt;
+      sw.vy += Math.sin(orbit) * 0.05 * dt;
+      sw.vy -= 0.01 * dt; // Drift upward while searching
+      const spd = Math.hypot(sw.vx, sw.vy);
+      if (spd > SOPWITH_SPEED) { sw.vx *= SOPWITH_SPEED / spd; sw.vy *= SOPWITH_SPEED / spd; }
+      sw.x += sw.vx * dt; sw.y += sw.vy * dt;
+      sw.y = clamp(sw.y, 30, WATER_LINE - 25);
+    } else
 
     switch (sw.manoeuvre) {
       case 'strafingRun': {
@@ -500,9 +567,14 @@ function updateAirSupremacy(dt) {
   const bk = world.airSupremacy;
   if (!bk || !bk.alive) return;
   const sub = world.sub;
-  const dist = Math.hypot(sub.worldX - bk.x, sub.y - bk.y);
+  // Periscope / underwater stealth: Berkut loses track
+  const hidden = isSubHiddenFromAir(sub);
+  if (!hidden) { bk._lastKnownX = sub.worldX; bk._lastKnownY = sub.y; }
+  const tgtX = hidden ? (bk._lastKnownX || sub.worldX) : sub.worldX;
+  const tgtY = hidden ? Math.min(bk._lastKnownY || sub.y, WATER_LINE - 30) : sub.y;
+  const dist = Math.hypot(tgtX - bk.x, tgtY - bk.y);
   const dir = bk.vx >= 0 ? 1 : -1;
-  const angleToSub = Math.atan2(sub.y - bk.y, sub.worldX - bk.x);
+  const angleToSub = Math.atan2(tgtY - bk.y, tgtX - bk.x);
 
   // Cooldowns
   bk.mgCooldown = Math.max(0, bk.mgCooldown - dt);
@@ -588,8 +660,8 @@ function updateAirSupremacy(dt) {
       const spd = Math.hypot(bk.vx, bk.vy);
       if (spd > BERKUT_SPEED) { bk.vx *= BERKUT_SPEED / spd; bk.vy *= BERKUT_SPEED / spd; }
 
-      // MG — close range
-      if (dist < 150 && bk.mgCooldown <= 0 && sub.y < WATER_LINE) {
+      // MG — close range (only when sub is visible)
+      if (dist < 150 && bk.mgCooldown <= 0 && !hidden && sub.y < WATER_LINE) {
         const spread = (Math.random() - 0.5) * 0.12;
         bk.bullets.push({
           x: bk.x, y: bk.y,
@@ -600,7 +672,7 @@ function updateAirSupremacy(dt) {
         bk.mgCooldown = BERKUT_MG_COOLDOWN;
       }
       // Unguided rockets — medium range
-      if (dist < 350 && dist > 80 && bk.rocketCooldown <= 0 && sub.y < WATER_LINE) {
+      if (dist < 350 && dist > 80 && bk.rocketCooldown <= 0 && !hidden && sub.y < WATER_LINE) {
         world.missiles.push({
           worldX: bk.x, y: bk.y,
           vx: Math.cos(angleToSub) * 4.5, vy: Math.sin(angleToSub) * 4.5,
@@ -611,7 +683,7 @@ function updateAirSupremacy(dt) {
         SFX.missileLaunch();
       }
       // Seeking missile — long range
-      if (dist > 150 && bk.seekerCooldown <= 0 && sub.y < WATER_LINE) {
+      if (dist > 150 && bk.seekerCooldown <= 0 && !hidden && sub.y < WATER_LINE) {
         world.missiles.push({
           worldX: bk.x, y: bk.y,
           vx: Math.cos(angleToSub) * 2, vy: Math.sin(angleToSub) * 2,
@@ -622,7 +694,7 @@ function updateAirSupremacy(dt) {
         SFX.missileLaunch();
       }
       // Bombs — when flying over sub on water surface
-      if (Math.abs(bk.x - sub.worldX) < 40 && bk.y < sub.y && sub.floating && bk.bombCooldown <= 0) {
+      if (Math.abs(bk.x - sub.worldX) < 40 && bk.y < sub.y && sub.floating && !hidden && bk.bombCooldown <= 0) {
         world.missiles.push({
           worldX: bk.x, y: bk.y,
           vx: bk.vx * 0.3, vy: 2,
@@ -836,37 +908,78 @@ function updateAirInterceptors(dt) {
       continue;
     }
 
-    // AI — commanded by Berkut or independent
+    // ── Periscope stealth: air enemies lose track when sub is in periscope ──
+    // If the sub is in periscope mode (hidden just below surface), air units
+    // cannot see it. They circle the last known position instead.
+    const subHidden = sub.periscopeMode || sub.y > WATER_LINE + 8;
+    const targetX = subHidden ? (li._lastKnownX || sub.worldX) : sub.worldX;
+    const targetY = subHidden ? Math.min(sub.y, WATER_LINE - 30) : sub.y;
+    if (!subHidden) { li._lastKnownX = sub.worldX; li._lastKnownY = sub.y; }
+    const angleToTarget = Math.atan2(targetY - li.y, targetX - li.x);
+    const distToTarget = Math.hypot(targetX - li.x, targetY - li.y);
+
+    // ── Squadron tactics: form up at range, then split and attack ──
+    // Each member gets an index within the living squad for offset calculations
+    const aliveSquad = world.airInterceptors.filter(m => m.alive);
+    const myIdx = aliveSquad.indexOf(li);
+    const squadSize = aliveSquad.length;
+
     if (li.commanded && world.airSupremacy?.alive) {
-      // Coordinated: focus fire from flanking positions
+      // Coordinated by Berkut: flanking formation — each member at a different angle
       const bk = world.airSupremacy;
-      const flankAngle = Math.atan2(sub.y - bk.y, sub.worldX - bk.x) + Math.PI / 3;
+      const baseFlank = Math.atan2(sub.y - bk.y, sub.worldX - bk.x);
+      const spread = (myIdx - (squadSize - 1) / 2) * 0.6; // ±0.6 rad between members
+      const flankAngle = baseFlank + Math.PI / 3 + spread;
       li.vx += Math.cos(flankAngle) * 0.08 * dt;
       li.vy += Math.sin(flankAngle) * 0.06 * dt;
+    } else if (subHidden) {
+      // Lost the sub — orbit the last known position searching
+      const orbitAngle = angleToTarget + Math.PI / 2;
+      li.vx += (Math.cos(orbitAngle) * 0.08 + Math.cos(angleToTarget) * 0.02) * dt;
+      li.vy += (Math.sin(orbitAngle) * 0.06) * dt;
+      // Gradually lose interest and climb back up
+      li.vy -= 0.01 * dt;
+    } else if (distToTarget > 250) {
+      // Approach phase: fly in formation toward the sub
+      // Each member holds a V-formation offset relative to the lead
+      const formOffset = (myIdx - (squadSize - 1) / 2) * 40;
+      const formTargetX = targetX - Math.cos(angleToTarget) * 200 + Math.sin(angleToTarget) * formOffset;
+      const formTargetY = targetY - Math.sin(angleToTarget) * 200 - Math.cos(angleToTarget) * formOffset;
+      const formAngle = Math.atan2(formTargetY - li.y, formTargetX - li.x);
+      li.vx += Math.cos(formAngle) * 0.12 * dt;
+      li.vy += Math.sin(formAngle) * 0.08 * dt;
     } else {
-      // Independent: direct approach
-      li.vx += Math.cos(angleToSub) * 0.1 * dt;
-      li.vy += Math.sin(angleToSub) * 0.06 * dt;
+      // Attack phase: split and attack from different angles
+      // Each member picks a different attack vector based on their index
+      const attackSpread = (myIdx / Math.max(1, squadSize - 1) - 0.5) * Math.PI * 0.8;
+      const attackAngle = angleToTarget + attackSpread;
+      li.vx += Math.cos(attackAngle) * 0.1 * dt;
+      li.vy += Math.sin(attackAngle) * 0.06 * dt;
+      // Pull up after a close pass to avoid stacking on the sub
+      if (distToTarget < 50) {
+        li.vy -= 0.15 * dt; // Nose up — strafe run, don't hover
+        li.vx += (li.vx > 0 ? 0.08 : -0.08) * dt; // Maintain forward momentum
+      }
     }
     const spd = Math.hypot(li.vx, li.vy);
     if (spd > LIGHTNING_SPEED) { li.vx *= LIGHTNING_SPEED / spd; li.vy *= LIGHTNING_SPEED / spd; }
 
-    // MG fire — close range
-    if (dist < 180 && li.mgCooldown <= 0 && sub.y < WATER_LINE) {
-      const spread = (Math.random() - 0.5) * 0.15;
+    // MG fire — close range, only if sub is visible (not in periscope/underwater)
+    if (distToTarget < 180 && li.mgCooldown <= 0 && !subHidden) {
+      const mgSpread = (Math.random() - 0.5) * 0.15;
       li.bullets.push({
         x: li.x, y: li.y,
-        vx: Math.cos(angleToSub + spread) * 4.5,
-        vy: Math.sin(angleToSub + spread) * 4.5,
+        vx: Math.cos(angleToTarget + mgSpread) * 4.5,
+        vy: Math.sin(angleToTarget + mgSpread) * 4.5,
         life: 50,
       });
       li.mgCooldown = LIGHTNING_MG_COOLDOWN;
     }
-    // Unguided rockets — medium range
-    if (dist < 300 && dist > 60 && li.rocketCooldown <= 0 && sub.y < WATER_LINE) {
+    // Unguided rockets — medium range, only if sub visible
+    if (distToTarget < 300 && distToTarget > 60 && li.rocketCooldown <= 0 && !subHidden) {
       world.missiles.push({
         worldX: li.x, y: li.y,
-        vx: Math.cos(angleToSub) * 4, vy: Math.sin(angleToSub) * 4,
+        vx: Math.cos(angleToTarget) * 4, vy: Math.sin(angleToTarget) * 4,
         phase: 'ignite', dropTimer: 0, life: 80, trail: [],
         fromEnemy: true, rocket: true,
       });
@@ -1819,6 +1932,249 @@ function isNearSonarBuoy(worldX, y, buoys) {
     if (Math.hypot(b.x - worldX, b.y - y) < AKULA_SONAR_BUOY_RADIUS) return true;
   }
   return false;
+}
+
+// ============================================================
+// MOTORCYCLISTS — Land defenders on island tops.
+// Normal bikes patrol and shoot. Evel Knievel jumps between
+// islands with a slow-motion matrix trail.
+// ============================================================
+function updateMotorcyclists(dt) {
+  const sub = world.sub;
+  const bikes = world.terrain.motorcyclists;
+  if (!bikes) return;
+
+  for (const m of bikes) {
+    if (!m.alive) continue;
+    m.mgCooldown = Math.max(0, m.mgCooldown - dt);
+
+    // Update bullets
+    for (let i = m.bullets.length - 1; i >= 0; i--) {
+      const b = m.bullets[i];
+      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+      if (Math.abs(b.x - sub.worldX) < 16 && Math.abs(b.y - sub.y) < 12) {
+        damageRandomPart(sub.parts, MOTORCYCLE_MG_DAMAGE);
+        SFX.damage();
+        m.bullets.splice(i, 1); continue;
+      }
+      if (b.life <= 0 || b.y > WATER_LINE + 10) m.bullets.splice(i, 1);
+    }
+
+    // Take damage from player
+    for (let i = world.subMgBullets.length - 1; i >= 0; i--) {
+      const b = world.subMgBullets[i];
+      if (Math.abs(b.worldX - m.x) < 12 && Math.abs(b.y - m.y) < 8) {
+        m.hp--; world.subMgBullets.splice(i, 1); break;
+      }
+    }
+    for (let i = world.torpedoes.length - 1; i >= 0; i--) {
+      const t = world.torpedoes[i];
+      if (!t.fromSub) continue;
+      if (Math.abs(t.worldX - m.x) < 16 && Math.abs(t.y - m.y) < 12) {
+        m.hp -= 2; world.torpedoes.splice(i, 1); break;
+      }
+    }
+
+    if (m.hp <= 0) {
+      m.alive = false;
+      addExplosion(m.x, m.y, m.isEvel ? 'big' : 'small');
+      addParticles(m.x, m.y, m.isEvel ? 16 : 8, m.isEvel ? '#fbbf24' : '#64748b');
+      world.score += m.isEvel ? EVEL_SCORE : 200;
+      world.kills++;
+      if (m.isEvel) world.caveMessage = { text: 'EVEL KNIEVEL DOWN!', timer: 120 };
+      SFX.enemyDestroyed();
+      continue;
+    }
+
+    if (m.jumping) {
+      // ── In the air — physics + matrix trail ──
+      m.x += m.vx * dt;
+      m.jumpVy += EVEL_JUMP_GRAVITY * dt;
+      m.y += m.jumpVy * dt;
+      // Matrix trail: store position snapshots
+      if (world.tick % 2 === 0) {
+        m.jumpTrail.push({ x: m.x, y: m.y, age: 0 });
+        if (m.jumpTrail.length > 20) m.jumpTrail.shift();
+      }
+      m.jumpTrail.forEach(t => t.age += dt);
+      // Land on any island surface
+      for (const isl of world.terrain.islands) {
+        const islTop = WATER_LINE - isl.h - 4;
+        const islLeft = isl.x - isl.topW / 2;
+        const islRight = isl.x + isl.topW / 2;
+        if (m.x >= islLeft && m.x <= islRight && m.y >= islTop && m.jumpVy > 0) {
+          m.y = islTop;
+          m.jumping = false;
+          m.jumpVy = 0;
+          m.island = isl;
+          m.jumpTrail = [];
+          if (m.isEvel) {
+            world.caveMessage = { text: 'EVEL KNIEVEL LANDS!', timer: 60 };
+            addParticles(m.x, m.y, 6, '#fbbf24');
+          }
+          break;
+        }
+      }
+      // Fell in the water — dead
+      if (m.y > WATER_LINE) {
+        m.alive = false;
+        addParticles(m.x, WATER_LINE, 8, '#85c1e9');
+        SFX.waterSplash();
+        if (m.isEvel) world.caveMessage = { text: 'EVEL MISSED THE LANDING!', timer: 100 };
+      }
+      continue;
+    }
+
+    // ── On the ground — patrol island surface ──
+    const isl = m.island;
+    const islTop = WATER_LINE - isl.h - 4;
+    const islLeft = isl.x - isl.topW / 2 + 6;
+    const islRight = isl.x + isl.topW / 2 - 6;
+    m.y = islTop;
+    m.x += m.vx * dt;
+    // Reverse at island edges
+    if (m.x <= islLeft) { m.x = islLeft; m.vx = Math.abs(m.vx); }
+    if (m.x >= islRight) { m.x = islRight; m.vx = -Math.abs(m.vx); }
+
+    // Fire at sub if in range and sub is visible
+    const dist = Math.hypot(sub.worldX - m.x, sub.y - m.y);
+    if (dist < MOTORCYCLE_MG_RANGE && m.mgCooldown <= 0 && !isSubHiddenFromAir(sub)) {
+      const angle = Math.atan2(sub.y - m.y, sub.worldX - m.x);
+      const spread = (Math.random() - 0.5) * 0.2;
+      m.bullets.push({
+        x: m.x, y: m.y - 4,
+        vx: Math.cos(angle + spread) * MOTORCYCLE_MG_SPEED,
+        vy: Math.sin(angle + spread) * MOTORCYCLE_MG_SPEED,
+        life: MOTORCYCLE_BULLET_LIFE,
+      });
+      m.mgCooldown = MOTORCYCLE_MG_COOLDOWN;
+    }
+
+    // ── Evel Knievel: jump to another island ──
+    if (m.isEvel) {
+      if (!m.jumpCooldown) m.jumpCooldown = 0;
+      m.jumpCooldown = Math.max(0, m.jumpCooldown - dt);
+      if (m.jumpCooldown <= 0 && !m.jumping) {
+        // Find nearest different island
+        let nearest = null, nearDist = Infinity;
+        for (const other of world.terrain.islands) {
+          if (other === isl) continue;
+          const d = Math.abs(other.x - m.x);
+          if (d < nearDist && d < 800) { nearDist = d; nearest = other; }
+        }
+        if (nearest) {
+          m.jumping = true;
+          m.targetIsland = nearest;
+          const dx = nearest.x - m.x;
+          const jumpTime = Math.abs(dx) / EVEL_JUMP_SPEED;
+          m.vx = dx > 0 ? EVEL_JUMP_SPEED : -EVEL_JUMP_SPEED;
+          m.jumpVy = -EVEL_JUMP_SPEED * 0.7; // Arc upward
+          m.jumpCooldown = 300 + Math.random() * 200;
+          m.jumpTrail = [];
+          world.caveMessage = { text: 'EVEL KNIEVEL JUMPS!', timer: 80 };
+        }
+      }
+    }
+  }
+}
+
+function drawMotorcyclists() {
+  const bikes = world.terrain.motorcyclists;
+  if (!bikes) return;
+
+  for (const m of bikes) {
+    if (!m.alive) continue;
+    const mx = toScreen(m.x);
+    if (mx < -30 || mx > W + 30) continue;
+    const dir = m.vx >= 0 ? 1 : -1;
+
+    // ── Evel's matrix jump trail — ghostly afterimages ──
+    if (m.jumping && m.isEvel) {
+      for (let i = 0; i < m.jumpTrail.length; i++) {
+        const t = m.jumpTrail[i];
+        const tx = toScreen(t.x);
+        const alpha = Math.max(0, 0.35 - t.age * 0.02);
+        if (alpha <= 0) continue;
+        ctx.globalAlpha = alpha;
+        // Green-tinted ghost (Matrix style)
+        ctx.fillStyle = '#00ff41';
+        // Ghost rider silhouette
+        ctx.beginPath(); ctx.arc(tx, t.y - 3, 3, 0, TWO_PI); ctx.fill(); // Head
+        ctx.fillRect(tx - 2, t.y, 4, 5); // Body
+        ctx.fillRect(tx - 5, t.y + 5, 10, 3); // Bike
+        // Digital rain streaks
+        if (i % 3 === 0) {
+          ctx.fillStyle = 'rgba(0,255,65,0.2)';
+          ctx.fillRect(tx - 1, t.y - 20, 2, 18);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.save();
+    ctx.translate(mx, m.y);
+    ctx.scale(dir, 1);
+
+    if (m.isEvel) {
+      // ── Evel Knievel — white jumpsuit, star-spangled, cape ──
+      // Bike (bigger, chrome)
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(-8, 2, 16, 4); // Frame
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath(); ctx.arc(-6, 6, 3, 0, TWO_PI); ctx.fill(); // Rear wheel
+      ctx.beginPath(); ctx.arc(6, 6, 3, 0, TWO_PI); ctx.fill();  // Front wheel
+      ctx.strokeStyle = '#475569'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(-6, 6, 3, 0, TWO_PI); ctx.stroke();
+      ctx.beginPath(); ctx.arc(6, 6, 3, 0, TWO_PI); ctx.stroke();
+      // Exhaust flame when jumping
+      if (m.jumping) {
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath(); ctx.moveTo(-10, 3); ctx.lineTo(-16, 4); ctx.lineTo(-10, 5); ctx.fill();
+      }
+      // Rider (white jumpsuit)
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(-2, -6, 4, 8); // Body
+      // Head (helmet with stars)
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath(); ctx.arc(0, -8, 3.5, 0, TWO_PI); ctx.fill();
+      ctx.fillStyle = '#3b82f6'; // Blue visor
+      ctx.fillRect(1, -9, 3, 2);
+      // Stars on jumpsuit
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(-1, -4, 2, 1);
+      ctx.fillRect(-1, -1, 2, 1);
+      // Cape (flutters behind when moving)
+      ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-2, -5);
+      ctx.quadraticCurveTo(-8 - Math.sin(world.tick * 0.1) * 3, -8, -6 - Math.sin(world.tick * 0.15) * 4, -3);
+      ctx.stroke();
+    } else {
+      // ── Normal motorcyclist — olive drab military ──
+      // Bike
+      ctx.fillStyle = '#4a5a3a';
+      ctx.fillRect(-6, 2, 12, 3);
+      ctx.fillStyle = '#333';
+      ctx.beginPath(); ctx.arc(-5, 5, 2.5, 0, TWO_PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(5, 5, 2.5, 0, TWO_PI); ctx.fill();
+      // Rider
+      ctx.fillStyle = '#4a5a3a';
+      ctx.fillRect(-1.5, -5, 3, 7);
+      // Helmet
+      ctx.fillStyle = '#3a4a2a';
+      ctx.beginPath(); ctx.arc(0, -7, 2.5, 0, TWO_PI); ctx.fill();
+    }
+
+    ctx.restore();
+
+    // Bullets
+    ctx.fillStyle = m.isEvel ? '#fbbf24' : '#94a3b8';
+    for (const b of m.bullets) {
+      const bsx = toScreen(b.x);
+      if (bsx < -5 || bsx > W + 5) continue;
+      ctx.beginPath(); ctx.arc(bsx, b.y, 1.2, 0, TWO_PI); ctx.fill();
+    }
+  }
 }
 
 function updateAkulaMolot(dt) {

@@ -12,6 +12,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Airborne Submarine Squadron</title>
     <style>
         /* --- Reset & fullscreen fill --- */
@@ -652,6 +655,15 @@
                     attemptComplete();
                 }
 
+                // Hard timeout: if the game engine hasn't called markReady() within
+                // 12 seconds, force the splash open anyway so the player isn't
+                // stuck forever due to a JS error in app_gossamer.js.
+                if (!state.ready && elapsed >= 12000) {
+                    console.warn('[ASS] splash timeout — forcing ready after 12s');
+                    state.ready = true;
+                    markReadyForInput();
+                }
+
                 if (!state.finished) frameId = requestAnimationFrame(update);
             }
 
@@ -704,9 +716,11 @@
     </script>
 
     <!-- Game engine (modular: support → enemies → HUD → core) -->
-    <script src="verisimdb.js"></script>
-    <script src="enemies.js"></script>
-    <script src="hud.js"></script>
-    <script src="app_gossamer.js"></script>
+    <!-- SFX must be first so the SFX object is available to all game scripts -->
+    <script src="sfx.js?v=2"></script>
+    <script src="verisimdb.js?v=2"></script>
+    <script src="enemies.js?v=2"></script>
+    <script src="hud.js?v=2"></script>
+    <script src="app_gossamer.js?v=2"></script>
 </body>
 </html>

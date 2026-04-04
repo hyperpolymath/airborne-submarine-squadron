@@ -1,0 +1,126 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+= Session Log: 2026-04-04 — Major Gameplay Overhaul
+:author: Jonathan D.A. Jewell + Claude Opus 4.6
+:revdate: 2026-04-04
+
+== Summary
+
+Marathon session overhauling the core gameplay systems of Airborne Submarine Squadron. Started from a non-booting game (init() never called due to truncated file) and ended with a fully playable game featuring new weapons, enemies, squadron AI, music, and a comprehensive modularisation plan.
+
+== Bugs Fixed
+
+=== Critical — Game Would Not Boot
+* `app_gossamer.js` was truncated mid-function (crash logger IIFE never closed, `init()` never called)
+* Added startup code at bottom of file, wrapped init in try/finally so splash always unblocks
+* Added 12-second hard timeout in splash screen as belt-and-suspenders
+* Fixed `DELFIN_MAX_DEPTH = WATER_LINE + 180` — referenced `WATER_LINE` from app_gossamer.js at parse time before it loaded. Inlined the value.
+
+=== Gameplay-Breaking
+* **Splash → game key bleed**: Game loop ran under the splash screen, so keys pressed to dismiss it caused the sub to shoot forward uncontrollably. Added splash-active guard + key state flush on transition.
+* **Periscope lock**: Auto-periscope immediately re-engaged after manual P-toggle. Fixed with settling timer (30 ticks) + manual override cooldown.
+* **Space entry impossible**: `fluxReady` required altitude band throughout ascent, but sub climbed out of band. Added latch so once ascent starts it commits.
+* **Shared weapon cooldown**: All weapons shared `world.fireCooldown`, so switching weapons inherited the previous weapon's cooldown. Gave each slot its own counter.
+* **Missiles wouldn't fire**: Required `sub.floating` (surface only). Changed to fire from air or surface, just not underwater.
+* **MG bullets invisible**: Firing code worked but no draw code existed. Added rendering for all new projectile types.
+
+== New Features
+
+=== Weapons System Overhaul
+* **Number key weapon selection**: 1=MG, 2=Torpedo, 3=Missile, 4=Depth Charge, 5=Bouncing Bomb, 9=Railgun
+* **Spacebar fires** selected weapon (was: Control/Enter/AltGraph for each)
+* **Sub machine gun** (slot 1): Default infinite-ammo rapid fire, yellow bullet tracers
+* **Bouncing bomb** (slot 5): Barnes Wallis inspired — release from low altitude at speed, bounces on water, explodes on land. Physics-based skill shot with strict release conditions (altitude, speed, angle). Cylindrical barrel visual with backspin, water plume spray.
+* **Gauss railgun** (slot 9): 5 rounds, massive damage, pierces enemies. Heavy recoil (kicks sub backward + nose lift), screen shake, thick cyan beam trail with shockwave ring.
+
+=== Controls
+* **Left Shift = stabiliser**: Air (level out, wing-damage dependent) / Water (flat stop, hull-damage dependent) / Orbit (full stop). Tower red = disabled.
+* **S = air/aqua brake**: Rapid deceleration with particles. Engine required.
+* **Z/X = swivel aim** for commander on land
+* **Shift+P = auto-periscope toggle**: ON = auto-extends on water, retracts in flight. OFF = manual only.
+* **Q = squadron mode cycle**: off → general → aqua → aero → terra → astro
+
+=== Stall Mechanic
+* Forward speed < 1.0 in air: stall warning (sluggish, nose-down tendency)
+* Forward speed < 0.5: full stall (nose drops hard, buffet wobble, extra gravity)
+* Recovers by gaining speed (dive then pull up)
+
+=== Belly Flop
+* Damage only above speed 3.0. Slower entries = no damage, just slowdown. Shows "BELLYFLOP!" message.
+
+=== Commander Weapons (Disembarked)
+* **Pistol** (1): Fast, infinite ammo
+* **Grenade** (2): Arc trajectory, area blast damage, 5 per life
+* **Particle Projector Cannon** (9): Devastating, 3 charges, pierces enemies
+
+=== Nemesis Underwater Lair
+* Nemesis sub now spawns from a hidden underwater cave at ~68% terrain length
+* Emerges slowly from the thermocline before engaging
+* Cave visible when sub gets close: jagged rock, red glow, stalactites, evil antenna with blinking beacon, bubble vents
+
+=== Red Arrow Squadron
+* Two smaller wingmen subs in red livery with white chevron markings
+* Modes: general (follow + help), aqua (sea targets), aero (air targets), terra (land targets)
+* Formation flying with smooth position blending (no hard teleport)
+* Status HUD: per-wingman pips with green/yellow/red/flashing purple health + damage smoke trails
+
+=== Motorcyclists (Land Enemies)
+* Normal bikes: patrol island tops, fire at visible sub
+* **Evel Knievel**: Special motorcyclist who jumps between islands with Matrix-style green afterimage trail. White jumpsuit, red cape, chrome bike.
+
+=== Dynamic Music
+* Synthesised background tracks via Web Audio API oscillators
+* Ambient (calm C-minor pad), Lightning (military pulse), Berkut (aggressive drone), Akula (deep sonar), Nemesis (dark tritone)
+* Auto-switches based on which boss is on-screen, crossfades over 1.5s
+
+=== Sound Engine (sfx.js)
+* 509-line Web Audio API engine with 21 synthesised gameplay sounds
+* Lazy AudioContext init (autoplay-policy compliant)
+* Master volume, mute/unmute, graceful degradation
+
+=== Orbit Entry — Back to the Future Style
+* Requirements: 88+ MPH, afterburner ON, mid-altitude, sharp pull-up
+* Visual: flux capacitor blue/white aura flash + cyan spark trail when conditions met
+* On entry: bright white flash + three burning fire streaks up the full screen, fading over 2 seconds
+
+=== HUD
+* Analogue speedometer dial with needle for atmosphere/water mode
+* Digital KITT-style readout for orbit/space mode
+* Redesigned 3-column pause screen (controls, settings, keybinds)
+* Weapon indicator showing current selection with highlight
+
+=== Air Enemy AI Improvements
+* **Periscope stealth**: All air enemies (Sopwith, Berkut, Lightning) lose track when sub is in periscope mode or submerged. They orbit last known position searching.
+* **Lightning squadron tactics**: V-formation approach, split-attack at range, pull-up after close pass. No more hovering on top of each other.
+* **Sopwith passive mode**: Flies lower (near waterline), lazy bobbing. Any hit from anyone triggers Red Baron — including stray enemy fire.
+
+=== Underwater Physics
+* Reduced buoyancy (0.25 → 0.10) — sub has near-neutral buoyancy
+* Natural vertical stabilisation when no input — sub holds depth
+* Stronger stabiliser effect in water (damping 0.08 → 0.18)
+
+== Architecture Plan
+
+Wrote comprehensive modularisation plan (75 modules, ~110 lines avg):
+* Namespace registry pattern (`window.ASS`)
+* 11 module directories: core, physics, entities, enemies, weapons, terrain, render, hud, mission, persist, net
+* Migration strategy: extract-and-redirect across 7 phases, game stays playable
+* Multiplayer via Burble WebRTC + Groove protocol
+* Contributor recipe pattern ("HOW TO ADD A NEW X" in each index.js)
+
+See `/home/hyper/.claude/plans/prancy-humming-lantern.md` for full plan.
+
+== Remaining Work
+
+* Hammerhead (Akula) aggression overhaul
+* Kamikaze drones for Berkut + Akula
+* Supply crate overhaul (surface/sinking/seabed)
+* Ejection → sub sinks
+* Hub screen, VAB sub builder, commander screen
+* Campaigns + story system
+* Multiplayer via Burble
+* Full modularisation (Phase 1-7)
+* Difficulty levels, achievements
+
+== panic-attack Scan
+* 0 critical, 3 high (all in Rust tray binary unwrap/unsafe — not game code)
+* 15 weak points total, JS game code risk: 5.5 (low)

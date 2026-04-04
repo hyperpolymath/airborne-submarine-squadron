@@ -127,7 +127,152 @@ function drawFlightInstruments() {
   const telemetry = world.telemetry || {};
   const speed = clamp(telemetry.speedMph || 0, 0, SPEEDOMETER_MAX_MPH);
   const accel = clamp(telemetry.accelG || 0, 0, ACCELEROMETER_MAX_G);
+  const inOrbit = world.mode === 'orbit';
 
+  if (inOrbit) {
+    drawDigitalInstruments(speed, accel, telemetry);
+  } else {
+    drawAnalogueInstruments(speed, accel, telemetry);
+  }
+}
+
+// ── ANALOGUE instruments (atmosphere + water) — dial with needle ──
+function drawAnalogueInstruments(speed, accel, telemetry) {
+  const panelX = W - 166;
+  const panelY = 10;
+  const dialR = 52;          // Dial radius
+  const cx = panelX + dialR + 8;
+  const cy = panelY + dialR + 14;
+
+  // Panel background
+  ctx.fillStyle = 'rgba(1,4,14,0.88)';
+  ctx.fillRect(panelX, panelY, dialR * 2 + 56, dialR * 2 + 50);
+  ctx.strokeStyle = 'rgba(248,250,252,0.15)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panelX, panelY, dialR * 2 + 56, dialR * 2 + 50);
+
+  // ── Speedometer dial ──
+  // Outer ring
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy, dialR, 0, TWO_PI); ctx.stroke();
+  // Inner dark face
+  ctx.fillStyle = '#0a0f1a';
+  ctx.beginPath(); ctx.arc(cx, cy, dialR - 2, 0, TWO_PI); ctx.fill();
+
+  // Tick marks and numbers (arc from 225° to -45° = 270° sweep)
+  const startAngle = Math.PI * 0.75;  // 225° (bottom-left)
+  const sweepAngle = Math.PI * 1.5;   // 270° sweep
+  const maxSpeed = SPEEDOMETER_MAX_MPH;
+  const majorTicks = 6;                // 0, 20, 40, 60, 80, 100+ (or whatever max is)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  for (let i = 0; i <= majorTicks; i++) {
+    const frac = i / majorTicks;
+    const angle = startAngle + frac * sweepAngle;
+    const tickVal = Math.round(frac * maxSpeed);
+    // Tick line
+    const innerR = dialR - 10;
+    const outerR = dialR - 3;
+    ctx.strokeStyle = frac > 0.8 ? '#ef4444' : '#64748b';
+    ctx.lineWidth = frac > 0.8 ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR);
+    ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
+    ctx.stroke();
+    // Number label
+    ctx.fillStyle = frac > 0.8 ? '#ef4444' : '#94a3b8';
+    ctx.font = '8px Arial';
+    const labelR = dialR - 18;
+    ctx.fillText(String(tickVal), cx + Math.cos(angle) * labelR, cy + Math.sin(angle) * labelR);
+  }
+  // Minor ticks
+  for (let i = 0; i <= majorTicks * 5; i++) {
+    if (i % 5 === 0) continue;
+    const frac = i / (majorTicks * 5);
+    const angle = startAngle + frac * sweepAngle;
+    ctx.strokeStyle = '#334155'; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * (dialR - 6), cy + Math.sin(angle) * (dialR - 6));
+    ctx.lineTo(cx + Math.cos(angle) * (dialR - 3), cy + Math.sin(angle) * (dialR - 3));
+    ctx.stroke();
+  }
+
+  // ── Needle ──
+  const speedFrac = clamp(speed / maxSpeed, 0, 1);
+  const needleAngle = startAngle + speedFrac * sweepAngle;
+  const needleLen = dialR - 12;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(needleAngle);
+  // Needle body (red)
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.moveTo(0, -2);
+  ctx.lineTo(needleLen, 0);
+  ctx.lineTo(0, 2);
+  ctx.closePath();
+  ctx.fill();
+  // Counterweight
+  ctx.fillStyle = '#64748b';
+  ctx.beginPath();
+  ctx.moveTo(0, -3);
+  ctx.lineTo(-8, 0);
+  ctx.lineTo(0, 3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  // Center cap
+  ctx.fillStyle = '#475569';
+  ctx.beginPath(); ctx.arc(cx, cy, 4, 0, TWO_PI); ctx.fill();
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath(); ctx.arc(cx, cy, 2, 0, TWO_PI); ctx.fill();
+
+  // Speed readout below dial
+  ctx.fillStyle = '#0ea5e9';
+  ctx.font = 'bold 14px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${Math.round(speed)} MPH`, cx, cy + dialR + 14);
+
+  // ── Small G-meter (vertical bar, right of dial) ──
+  const gx = cx + dialR + 14;
+  const gy = panelY + 16;
+  const gh = dialR * 2 - 10;
+  ctx.fillStyle = 'rgba(2,6,18,0.85)';
+  ctx.fillRect(gx, gy, 24, gh);
+  ctx.strokeStyle = 'rgba(248,250,252,0.15)';
+  ctx.strokeRect(gx, gy, 24, gh);
+  const accelH = Math.max(4, (accel / ACCELEROMETER_MAX_G) * (gh - 8));
+  ctx.fillStyle = accel > 2 ? '#ef4444' : accel > 1 ? '#f59e0b' : '#22c55e';
+  ctx.fillRect(gx + 4, gy + gh - 4 - accelH, 16, accelH);
+  ctx.fillStyle = '#e2e8f0'; ctx.font = '8px Arial'; ctx.textAlign = 'center';
+  ctx.fillText('G', gx + 12, gy + 10);
+  ctx.fillText(`${accel.toFixed(1)}`, gx + 12, gy + gh + 10);
+
+  // ── 88 MPH launch indicator ──
+  if (telemetry.launchReady) {
+    ctx.fillStyle = '#f97316'; ctx.font = 'bold 9px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('88 MPH WINDOW', cx, cy + dialR + 26);
+  }
+
+  // Stall warning on dial face
+  if (speed < 8 && world.sub && world.sub.y < WATER_LINE - 10 && !world.sub.floating) {
+    ctx.fillStyle = world.tick % 10 < 5 ? '#ef4444' : 'transparent';
+    ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
+    ctx.fillText('STALL', cx, cy - 12);
+  }
+
+  // Sun burn
+  if (world.sunBurnTimer > 0) {
+    ctx.fillStyle = '#f97316'; ctx.font = 'bold 9px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SUN BURN', cx, cy + dialR + 38);
+  }
+}
+
+// ── DIGITAL instruments (orbit/space) — KITT-style readouts ──
+function drawDigitalInstruments(speed, accel, telemetry) {
   const panelX = W - 226;
   const panelY = 12;
   const panelW = 214;
@@ -144,24 +289,21 @@ function drawFlightInstruments() {
   ctx.strokeRect(panelX, panelY, panelW, panelH);
 
   const centerX = panelX + panelW / 2;
-  // Red accent in space, blue in atmosphere
-  const inOrbit = world.mode === 'orbit';
-  const gaugeColor = inOrbit ? '#ef4444' : '#0ea5e9';
-  const gaugeColorDim = inOrbit ? 'rgba(239,68,68,0.15)' : 'rgba(14,165,233,0.15)';
+  const gaugeColor = '#ef4444';
+  const gaugeColorDim = 'rgba(239,68,68,0.15)';
 
+  // Big digital speed readout
   ctx.font = 'bold 38px "Courier New", monospace';
   ctx.fillStyle = gaugeColor;
   ctx.textAlign = 'center';
-  const speedStr = `${Math.round(speed)}`.padStart(3, '0');
-  ctx.fillText(speedStr, centerX, panelY + 70);
+  ctx.fillText(`${Math.round(speed)}`.padStart(3, '0'), centerX, panelY + 70);
   ctx.font = '11px "Courier New", monospace';
   ctx.fillStyle = '#cbd5e1';
-  const label = telemetry.mode === 'orbit' ? 'IMPULSE' : 'MPH';
-  ctx.fillText(label, centerX, panelY + 90);
+  ctx.fillText('IMPULSE', centerX, panelY + 90);
 
+  // Segment bar
   const segmentCount = 10;
   const segmentWidth = (panelW - 32) / segmentCount;
-  const limitColor = telemetry.launchReady ? '#f97316' : '#94a3b8';
   for (let i = 0; i < segmentCount; i++) {
     const segX = panelX + 16 + i * segmentWidth;
     const segmentActive = (speed / SPEEDOMETER_MAX_MPH) > i / segmentCount;
@@ -169,6 +311,7 @@ function drawFlightInstruments() {
     ctx.fillRect(segX, panelY + 24, segmentWidth - 2, 6);
   }
 
+  // G-meter (right side)
   const accelPanelX = panelX + panelW - 48;
   const accelPanelY = panelY + 12;
   const accelPanelH = panelH - 28;
@@ -177,9 +320,7 @@ function drawFlightInstruments() {
   ctx.strokeStyle = 'rgba(248,250,252,0.18)';
   ctx.strokeRect(accelPanelX, accelPanelY, 36, accelPanelH);
   const accelHeight = Math.max(6, (accel / ACCELEROMETER_MAX_G) * (accelPanelH - 12));
-  ctx.fillStyle = inOrbit
-    ? (accel > 2 ? '#fca5a5' : accel > 1 ? '#f87171' : '#ef4444')
-    : (accel > 2 ? '#ef4444' : accel > 1 ? '#f59e0b' : '#22c55e');
+  ctx.fillStyle = accel > 2 ? '#fca5a5' : accel > 1 ? '#f87171' : '#ef4444';
   ctx.fillRect(accelPanelX + 8, accelPanelY + accelPanelH - 8 - accelHeight, 20, accelHeight);
   ctx.fillStyle = '#e2e8f0';
   ctx.font = 'bold 10px "Courier New", monospace';
@@ -187,24 +328,17 @@ function drawFlightInstruments() {
   ctx.fillText('G', accelPanelX + 18, accelPanelY + 14);
   ctx.fillText(`${accel.toFixed(2)}G`, accelPanelX + 18, accelPanelY + accelPanelH - 6);
 
+  // Destination + status
   ctx.font = '11px "Courier New", monospace';
   ctx.textAlign = 'left';
-  ctx.fillStyle = limitColor;
-  ctx.fillText(telemetry.launchReady ? '88 MPH WINDOW LIVE' : 'Build for 88 MPH', panelX + 12, panelY + panelH - 26);
   ctx.fillStyle = '#f8fafc';
-  ctx.fillText('FLIGHT', panelX + 12, panelY + panelH - 42);
-
+  ctx.fillText('ORBITAL', panelX + 12, panelY + panelH - 42);
   const destination = world.currentDestination || PLANETS[world.currentPlanet];
   if (destination) {
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '10px "Courier New", monospace';
-    ctx.fillText(`DEST: ${destination.name}`, panelX + 12, panelY + panelH - 58);
-    if (destination.hotkey) {
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText(`HOTKEY: ${destination.hotkey}`, panelX + 12, panelY + panelH - 46);
-    }
+    ctx.fillText(`DEST: ${destination.name}`, panelX + 12, panelY + panelH - 28);
   }
-
   if (world.sunBurnTimer > 0) {
     ctx.fillStyle = '#f97316';
     ctx.font = 'bold 11px "Courier New", monospace';
@@ -214,99 +348,104 @@ function drawFlightInstruments() {
 
 function drawPauseOverlay() {
   const skin = resolveSubSkin(world.settings);
-  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#e2e8f0';
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 40px Arial';
-  ctx.fillText('PAUSED', W / 2, 56);
-  ctx.font = '16px Arial';
-  ctx.fillText('Esc resumes', W / 2, 82);
 
-  // --- Controls column ---
-  ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(8,15,30,0.82)';
-  ctx.fillRect(58, 100, 320, 260);
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.strokeRect(58, 100, 320, 260);
+  // Title
+  ctx.fillStyle = '#e2e8f0'; ctx.textAlign = 'center';
+  ctx.font = 'bold 28px Arial';
+  ctx.fillText('PAUSED', W / 2, 36);
+  ctx.font = '12px Arial'; ctx.fillStyle = '#94a3b8';
+  ctx.fillText('Esc resumes  |  S save  |  O load  |  N new game', W / 2, 54);
 
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 18px Arial';
-  ctx.fillText('Controls', 84, 128);
-  ctx.font = '14px Arial';
+  // Helper: draw a titled panel
+  function panel(x, y, w, h, title) {
+    ctx.fillStyle = 'rgba(8,15,30,0.85)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = '#38bdf8'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'left';
+    ctx.fillText(title, x + 8, y + 14);
+    return y + 26; // Return first content Y
+  }
+
+  // ── LEFT COLUMN: Controls + Weapons ──
+  const LX = 14, LW = 254;
+  let ly = panel(LX, 66, LW, 168, 'CONTROLS');
+  ctx.font = '11px Arial'; ctx.fillStyle = '#cbd5e1';
   const controls = [
-    'Arrows: steer, climb, dive',
-    'Ctrl: torpedo',
-    'Enter: missile (surface only)',
-    'AltGr: depth charge',
-    'Space: cruise / stabilise / stop',
-    'A: afterburner',
-    'P: periscope mode',
-    'E: disembark  |  M: embark',
-    'Tab: emergency eject (diving bell)',
-    'Esc: pause and settings',
+    'Arrows    steer / climb / dive',
+    'Space     fire selected weapon',
+    'L.Shift   stabilise (all modes)',
+    'S         air/aqua brake',
+    'A         afterburner',
+    'P         periscope  |  Shift+P auto mode',
+    'E / M     disembark / embark',
+    'Tab       emergency eject',
+    'Z / X     aim swivel (on land)',
   ];
-  controls.forEach((line, idx) => ctx.fillText(line, 84, 156 + idx * 20));
+  controls.forEach((line, i) => { ctx.fillText(line, LX + 8, ly + i * 15); });
 
-  // --- Settings column ---
-  ctx.fillStyle = 'rgba(8,15,30,0.82)';
-  ctx.fillRect(400, 100, 342, 260);
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.strokeRect(400, 100, 342, 260);
+  ly = panel(LX, 242, LW, 80, 'WEAPONS (number keys)');
+  ctx.font = '11px Arial'; ctx.fillStyle = '#cbd5e1';
+  const wpnLabel = { 1: 'MG', 2: 'Torpedo', 3: 'Missile', 4: 'Depth Chg', 5: 'Bounce Bomb', 9: 'Railgun' };
+  const wpns = [1, 2, 3, 4, 5, 9];
+  wpns.forEach((slot, i) => {
+    const sel = world.selectedWeapon === slot;
+    ctx.fillStyle = sel ? '#38bdf8' : '#94a3b8';
+    ctx.fillText(`${slot}  ${wpnLabel[slot]}${sel ? ' <<' : ''}`, LX + 8 + (i < 3 ? 0 : 128), ly + (i % 3) * 15);
+  });
 
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 18px Arial';
-  ctx.fillText('Settings', 420, 128);
-  ctx.font = '14px Arial';
-  ctx.fillText(`Sub skin: ${skin.label}`, 420, 156);
-  ctx.fillText('Use [ and ] to cycle skins', 420, 176);
-  ctx.fillText(`Custom hue: ${Math.round(world.settings.customHue)}${skin.customHue ? ' degrees' : ' (Spectrum only)'}`, 420, 200);
-  ctx.fillText('Use , and . to tune hue', 420, 220);
-  ctx.fillText(`Legend: ${world.settings.showLegend ? 'ON' : 'OFF'}  (L to toggle)`, 420, 248);
-  ctx.fillText(`HALO chute: ${world.settings.haloParachute ? 'ON' : 'OFF'}  (H to toggle)`, 420, 268);
-  ctx.fillText(`Deep diver kit: ${world.settings.deepDiverKit ? 'ON' : 'OFF'}  (D to toggle)`, 420, 288);
-  ctx.fillText(`Supply crates: ${getSupplyFrequency(world.settings).label}  (C to cycle)`, 420, 308);
-  ctx.fillText(`Nemesis sub: ${world.settings.nemesisSub ? 'ON' : 'OFF'}  (G to toggle)`, 420, 328);
-  ctx.fillText(`Mission (M to cycle): Strike / Hostage / Escort`, 420, 348);
-  ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 368);
+  // ── MIDDLE COLUMN: Settings ──
+  const MX = 278, MW = 234;
+  ly = panel(MX, 66, MW, 248, 'SETTINGS');
+  ctx.font = '11px Arial';
+  const settingsLines = [
+    { t: `Skin: ${skin.label}`, c: '#cbd5e1' },
+    { t: '[ ] cycle  |  , . tune hue', c: '#64748b' },
+    { t: `Hue: ${Math.round(world.settings.customHue)}${skin.customHue ? '\u00b0' : ' (Spectrum only)'}`, c: '#94a3b8' },
+    { t: `Legend: ${world.settings.showLegend ? 'ON' : 'OFF'}  (L)`, c: '#cbd5e1' },
+    { t: `HALO chute: ${world.settings.haloParachute ? 'ON' : 'OFF'}  (H)`, c: '#cbd5e1' },
+    { t: `Diver kit: ${world.settings.deepDiverKit ? 'ON' : 'OFF'}  (D)`, c: '#cbd5e1' },
+    { t: `Crates: ${getSupplyFrequency(world.settings).label}  (C)`, c: '#cbd5e1' },
+    { t: `Nemesis: ${world.settings.nemesisSub ? 'ON' : 'OFF'}  (G)`, c: '#cbd5e1' },
+    { t: `Auto periscope: ${world.autoPeriscope ? 'ON' : 'OFF'}  (Shift+P)`, c: world.autoPeriscope ? '#38bdf8' : '#94a3b8' },
+  ];
+  settingsLines.forEach((s, i) => { ctx.fillStyle = s.c; ctx.fillText(s.t, MX + 8, ly + i * 16); });
 
-  // --- Game actions panel ---
-  ctx.fillStyle = 'rgba(8,15,30,0.82)';
-  ctx.fillRect(58, 374, 684, 76);
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.strokeRect(58, 374, 684, 76);
+  // Squadron + Mission inside same panel
+  ly += settingsLines.length * 16 + 6;
+  ctx.fillStyle = '#38bdf8'; ctx.font = 'bold 10px Arial';
+  ctx.fillText('SQUADRON & MISSION', MX + 8, ly);
+  ly += 14; ctx.font = '11px Arial';
+  const sqAlive = world.squadron ? world.squadron.filter(s => s.alive).length : 0;
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillText(`Squadron: ${(world.squadronMode||'off').toUpperCase()} (${sqAlive}/${world.squadron ? world.squadron.length : 0})  (Q)`, MX + 8, ly);
+  ctx.fillText(`Mission: ${world.mission ? world.mission.type : 'patrol'}  (M to cycle)`, MX + 8, ly + 15);
+  ctx.fillText(`Leaderboard: ${(world.leaderboard || []).length} entries`, MX + 8, ly + 30);
 
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 18px Arial';
-  ctx.fillText('Game', 84, 402);
-  ctx.font = '14px Arial';
-  const savedTag = hasSavedGame() ? '  (save exists)' : '';
-  ctx.fillText(`S: save game   O: load game${savedTag}   N: new game   Q: quit`, 84, 430);
-
-  // --- Key bindings panel ---
-  ctx.fillStyle = 'rgba(8,15,30,0.82)';
-  ctx.fillRect(58, 454, 684, 126);
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.strokeRect(58, 454, 684, 126);
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 14px Arial';
-  ctx.textAlign = 'left';
-  ctx.fillText('Key Bindings (press number to rebind, Backspace to reset all)', 78, 472);
-  ctx.font = '12px Arial';
-  const bindCols = 2;
-  const colW = 330;
+  // ── RIGHT COLUMN: Key Bindings ──
+  const RX = 522, RW = 264;
+  ly = panel(RX, 66, RW, 248, 'KEY BINDINGS (num to rebind, Bksp reset)');
+  ctx.font = '11px Arial';
   for (let i = 0; i < REBIND_ACTIONS.length; i++) {
     const action = REBIND_ACTIONS[i];
-    const col = i < 5 ? 0 : 1;
-    const row = i < 5 ? i : i - 5;
-    const bx = 84 + col * colW;
-    const by = 490 + row * 18;
+    const row = i;
+    const by = ly + row * 16;
     const isRebinding = rebindAction === action;
-    ctx.fillStyle = isRebinding ? '#ff4444' : '#cbd5e1';
-    ctx.fillText(`${i}: ${action}`, bx, by);
-    ctx.fillStyle = isRebinding ? '#ff8888' : '#94a3b8';
-    ctx.fillText(isRebinding ? '[ press new key... ]' : `= ${keyLabel(keybinds[action])}`, bx + 140, by);
+    ctx.fillStyle = isRebinding ? '#ef4444' : '#94a3b8';
+    ctx.fillText(`${i}: ${action}`, RX + 8, by);
+    ctx.fillStyle = isRebinding ? '#fca5a5' : '#64748b';
+    ctx.fillText(isRebinding ? '[ press key ]' : `= ${keyLabel(keybinds[action])}`, RX + 120, by);
   }
+
+  // ── BOTTOM BAR: Game state ──
+  panel(14, 330, 772, 22, '');
+  ctx.font = '11px Arial'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center';
+  const savedTag = hasSavedGame() ? ' (save exists)' : '';
+  ctx.fillText(`S: save${savedTag}   O: load   N: new game   Score: ${world.score}   Kills: ${world.kills}`, W / 2, 346);
+  ctx.textAlign = 'left';
 }
 
 function drawWarpMenu() {
