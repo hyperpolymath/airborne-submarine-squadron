@@ -4640,6 +4640,7 @@ function initWorld() {
     depthChargeCooldown: 0,
     enemyTimer: 0,
     gameOver: false,
+    quitConfirm: false,
     paused: false,
     menuOpen: false,
     thrustSoundTimer: 0,
@@ -4961,11 +4962,20 @@ function updatePauseMenu() {
   if (keyJustPressed['n'] || keyJustPressed['N']) {
     world = initWorld();
   }
-  // Quit / return to splash
+  // Quit — two-stage: first Q shows quit confirm, second Q closes to desktop
   if (keyJustPressed['q'] || keyJustPressed['Q']) {
-    world = initWorld();
-    world.paused = true;
-    world.gameOver = true;
+    if (world.quitConfirm) {
+      // Second Q — close to desktop with clean port release
+      try { navigator.sendBeacon('/shutdown', ''); } catch {}
+      try { window.close(); } catch {}
+      // If window.close() is blocked (not opened by script), show message
+      world.caveMessage = { text: 'Close this browser tab to exit', timer: 300 };
+    } else {
+      // First Q — show scoring screen and confirm prompt
+      ensureLeaderboardRecorded('QUIT');
+      world.quitConfirm = true;
+      world.gameOver = true;
+    }
   }
   // Enter rebind mode: press R then a number
   if (keyJustPressed['r'] || keyJustPressed['R']) {

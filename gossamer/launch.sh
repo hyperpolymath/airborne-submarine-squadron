@@ -122,7 +122,17 @@ echo ""
 # are all reachable from the same origin (required for WASM fetch).
 deno run --allow-net --allow-read - <<DENO_SERVER &
 const root = "${GAME_ROOT}";
-Deno.serve({ port: ${PORT}, hostname: "127.0.0.1" }, async (req) => {
+const ac = new AbortController();
+
+function shutdown() {
+  ac.abort();
+  Deno.exit(0);
+}
+try { Deno.addSignalListener("SIGINT", shutdown); } catch {}
+try { Deno.addSignalListener("SIGTERM", shutdown); } catch {}
+try { Deno.addSignalListener("SIGHUP", shutdown); } catch {}
+
+const server = Deno.serve({ port: ${PORT}, hostname: "127.0.0.1", signal: ac.signal, onListen() {} }, async (req) => {
   const url = new URL(req.url);
   // Default route: redirect / to the Gossamer game page
   let path = url.pathname === "/" ? "/gossamer/index_gossamer.html" : url.pathname;
@@ -148,6 +158,7 @@ Deno.serve({ port: ${PORT}, hostname: "127.0.0.1" }, async (req) => {
     return new Response("Not Found", { status: 404 });
   }
 });
+await server.finished;
 DENO_SERVER
 SERVER_PID=$!
 echo "$SERVER_PID" > "$GOSSAMER_SERVER_PID_FILE"

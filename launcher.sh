@@ -52,21 +52,46 @@ start_server() {
     if is_server_running; then
         local port
         port=$(cat "$PORT_FILE" 2>/dev/null || echo "8000")
-        echo "Server already running on port $port (PID $(cat "$PID_FILE"))"
+        echo "Server already running on port $port (PID $(cat "$PID_FILE"))" >&2
         echo "$port"
         return 0
     fi
+
+    # Clean up stale PID file (process died without cleanup) and release orphaned ports
+    if [ -f "$PID_FILE" ]; then
+        rm -f "$PID_FILE" "$PORT_FILE"
+    fi
+    _release_game_ports
 
     local port
     port=$(find_free_port)
 
     if command -v deno >/dev/null 2>&1; then
-        # Deno file server — no npm/node needed
-        deno run --allow-net --allow-read --allow-sys - "$WEB_DIR" "$port" <<'DENO_SERVER' &
+        # Deno file server — no npm/node needed.
+        # Uses AbortController + signal handlers to guarantee port release on exit.
+        deno run --allow-net --allow-read --allow-sys --allow-write - "$WEB_DIR" "$port" "$PID_FILE" <<'DENO_SERVER' &
 const dir = Deno.args[0] || ".";
 const port = parseInt(Deno.args[1] || "8000");
+const pidFile = Deno.args[2] || "";
 
-Deno.serve({ port, hostname: "127.0.0.1" }, async (req) => {
+// Write own PID so the launcher can track us accurately
+if (pidFile) {
+    try { Deno.writeTextFileSync(pidFile, String(Deno.pid)); } catch { /* best-effort */ }
+}
+
+const ac = new AbortController();
+
+function shutdown() {
+    ac.abort();
+    if (pidFile) { try { Deno.removeSync(pidFile); } catch { /* already gone */ } }
+    Deno.exit(0);
+}
+
+try { Deno.addSignalListener("SIGINT", shutdown); } catch { /* Windows */ }
+try { Deno.addSignalListener("SIGTERM", shutdown); } catch { /* Windows */ }
+try { Deno.addSignalListener("SIGHUP", shutdown); } catch { /* not always available */ }
+
+const server = Deno.serve({ port, hostname: "127.0.0.1", signal: ac.signal, onListen() {} }, async (req) => {
     const url = new URL(req.url);
     let path = decodeURIComponent(url.pathname);
     if (path === "/") path = "/index.html";
@@ -87,6 +112,8 @@ Deno.serve({ port, hostname: "127.0.0.1" }, async (req) => {
         return new Response("Not Found", { status: 404 });
     }
 });
+
+await server.finished;
 DENO_SERVER
     else
         # Fallback: Python (banned but functional)
@@ -103,7 +130,7 @@ DENO_SERVER
     fi
     echo "$pid" > "$PID_FILE"
     echo "$port" > "$PORT_FILE"
-    echo "Server started on port $port (PID $pid)"
+    echo "Server started on port $port (PID $pid)" >&2
     echo "$port"
 }
 
@@ -168,6 +195,10 @@ stop_server() {
 launch_browser() {
     local port
     port=$(start_server)
+
+    # Ensure the server is cleaned up when the launcher exits (terminal close, Ctrl+C, etc.)
+    trap 'stop_server' INT TERM HUP EXIT
+
     sleep 0.5
     if should_auto_open; then
         echo "Opening http://127.0.0.1:$port/"
@@ -175,6 +206,11 @@ launch_browser() {
     else
         echo "Server ready at http://127.0.0.1:$port/"
         echo "Auto-open skipped (set up a GUI session or unset AIRBORNE_NO_OPEN)"
+    fi
+
+    # Wait for the server process so we stay alive (and the trap can fire)
+    if [ -f "$PID_FILE" ]; then
+        wait "$(cat "$PID_FILE")" 2>/dev/null || true
     fi
 }
 
