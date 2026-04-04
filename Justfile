@@ -49,3 +49,45 @@ build-tray:
 # Run VeriSimDB connectivity test
 test-verisimdb:
   deno run --allow-net test_verisimdb_simple.js
+
+# ── Blitz test suite ─────────────────────────────────────────────────
+
+# Run all blitz tests (smoke → unit → contract → property → mutation → fuzz → regression → compat)
+test:
+  deno test --allow-all test/
+
+# Run smoke tests only (fast gate, <30s)
+test-smoke:
+  deno test --allow-all test/smoke_test.js
+
+# Run unit tests (game logic)
+test-unit:
+  deno test --allow-all test/unit_test.js
+
+# Run contract/invariant tests (K9 compliance)
+test-contract:
+  deno test --allow-all test/contract_test.js
+
+# Run property-based tests
+test-property:
+  deno test --allow-all test/property_test.js
+
+# Run mutation tests
+test-mutation:
+  deno test --allow-all test/mutation_test.js
+
+# Run fuzz tests (adversarial inputs)
+test-fuzz:
+  deno test --allow-all test/fuzz_test.js
+
+# Run regression tests (locked bug fixes)
+test-regression:
+  deno test --allow-all test/regression_test.js
+
+# Run compatibility tests (file formats, schemas)
+test-compat:
+  deno test --allow-all test/compatibility_test.js
+
+# Run benchmarks (Six Sigma baselines)
+bench:
+  deno bench --allow-all test/bench.js

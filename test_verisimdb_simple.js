@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
+//
 // Simple test without imports to avoid path issues
 const VERISIMDB_URL = 'http://localhost:8080';
 
