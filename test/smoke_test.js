@@ -132,13 +132,8 @@ Deno.test("smoke: test_types.as type-checks if AffineScript compiler available",
     stderr: "piped",
   });
   const { code, stderr } = await cmd.output();
-  if (code !== 0) {
-    const err = new TextDecoder().decode(stderr);
-    // test_types.as uses variant type syntax that the parser may not support yet.
-    // Log the error but don't fail — this is a known upstream issue.
-    console.log(`  [warn] test_types.as failed (exit ${code}): ${err.trim()}`);
-    console.log("  [warn] Known issue: variant type syntax not fully supported");
-  }
+  assertEquals(code, 0,
+    `test_types.as type-check failed (exit ${code}): ${new TextDecoder().decode(stderr).trim()}`);
 });
 
 // ── 11. src/main.as type-checks if AffineScript compiler available ──
