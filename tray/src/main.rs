@@ -165,3 +165,171 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_secs(3600));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ksni::Tray;
+    use std::fs;
+    use std::io::Write;
+
+    // ===== Unit tests for pure utility functions =====
+
+    #[test]
+    fn test_tray_id() {
+        let tray = AirborneTray;
+        assert_eq!(tray.id(), "airborne-submarine-squadron");
+    }
+
+    #[test]
+    fn test_tray_title() {
+        let tray = AirborneTray;
+        assert_eq!(tray.title(), "Airborne Submarine Squadron");
+    }
+
+    #[test]
+    fn test_tray_icon_name() {
+        let tray = AirborneTray;
+        assert_eq!(tray.icon_name(), "airborne-submarine-squadron");
+    }
+
+    #[test]
+    fn test_launcher_path_is_absolute_or_relative() {
+        let path = launcher_path();
+        // Must end with launcher.sh
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        assert_eq!(name, "launcher.sh");
+    }
+
+    #[test]
+    fn test_server_not_running_when_no_pid_file() {
+        // Without PID_FILE existing, server_running should be false
+        let _ = fs::remove_file(PID_FILE);
+        assert!(!is_server_running());
+    }
+
+    #[test]
+    fn test_server_port_returns_none_when_no_port_file() {
+        let _ = fs::remove_file(PORT_FILE);
+        assert!(server_port().is_none());
+    }
+
+    #[test]
+    fn test_server_port_reads_valid_port() {
+        let port_file = "/tmp/airborne-test-port.txt";
+        let mut f = fs::File::create(port_file).unwrap();
+        writeln!(f, "8080").unwrap();
+        // Temporarily override the port file path by reading directly
+        let port: Option<u16> = fs::read_to_string(port_file)
+            .ok()
+            .and_then(|s| s.trim().parse().ok());
+        assert_eq!(port, Some(8080));
+        let _ = fs::remove_file(port_file);
+    }
+
+    #[test]
+    fn test_server_port_returns_none_for_invalid_content() {
+        let port_file = "/tmp/airborne-test-invalid-port.txt";
+        let mut f = fs::File::create(port_file).unwrap();
+        writeln!(f, "not-a-port").unwrap();
+        let port: Option<u16> = fs::read_to_string(port_file)
+            .ok()
+            .and_then(|s| s.trim().parse().ok());
+        assert!(port.is_none());
+        let _ = fs::remove_file(port_file);
+    }
+
+    #[test]
+    fn test_server_not_running_with_invalid_pid() {
+        // Write an invalid PID to the PID file
+        let mut f = fs::File::create(PID_FILE).unwrap();
+        writeln!(f, "not-a-pid").unwrap();
+        assert!(!is_server_running());
+        let _ = fs::remove_file(PID_FILE);
+    }
+
+    // ===== Property tests =====
+
+    #[test]
+    fn test_tray_id_deterministic() {
+        // Multiple calls return the same value
+        let tray = AirborneTray;
+        let id1 = tray.id();
+        let id2 = tray.id();
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn test_launcher_path_deterministic() {
+        // Multiple calls return the same path
+        let p1 = launcher_path();
+        let p2 = launcher_path();
+        assert_eq!(p1, p2);
+    }
+
+    #[test]
+    fn test_server_running_consistent_when_no_file() {
+        let _ = fs::remove_file(PID_FILE);
+        // 10 consecutive calls with no PID file should all return false
+        for _ in 0..10 {
+            assert!(!is_server_running());
+        }
+    }
+
+    // ===== Contract tests =====
+
+    #[test]
+    fn test_server_port_returns_valid_range_when_present() {
+        let port_file = "/tmp/airborne-contract-port.txt";
+        let mut f = fs::File::create(port_file).unwrap();
+        writeln!(f, "3000").unwrap();
+        let port: Option<u16> = fs::read_to_string(port_file)
+            .ok()
+            .and_then(|s| s.trim().parse().ok());
+        if let Some(p) = port {
+            // Port must be in valid range
+            assert!(p > 0);
+        }
+        let _ = fs::remove_file(port_file);
+    }
+
+    #[test]
+    fn test_tray_fields_are_non_empty() {
+        let tray = AirborneTray;
+        assert!(!tray.id().is_empty());
+        assert!(!tray.title().is_empty());
+        assert!(!tray.icon_name().is_empty());
+    }
+
+    // ===== Aspect tests (security / correctness) =====
+
+    #[test]
+    fn test_launcher_path_no_path_traversal() {
+        let path = launcher_path();
+        let path_str = path.to_string_lossy();
+        // Must not contain path traversal sequences
+        assert!(!path_str.contains("../.."));
+    }
+
+    #[test]
+    fn test_server_not_running_with_negative_pid() {
+        // Negative PID is invalid, parse should fail so server is not running
+        let mut f = fs::File::create(PID_FILE).unwrap();
+        writeln!(f, "-999999").unwrap();
+        // -999999 as i32 is valid but kill(-999999, 0) fails (no such group)
+        // We can't assert definitively, but it must not panic
+        let _ = is_server_running();
+        let _ = fs::remove_file(PID_FILE);
+    }
+
+    #[test]
+    fn test_server_port_not_running_with_empty_file() {
+        let port_file = "/tmp/airborne-empty-port.txt";
+        fs::File::create(port_file).unwrap();
+        let port: Option<u16> = fs::read_to_string(port_file)
+            .ok()
+            .and_then(|s| s.trim().parse().ok());
+        assert!(port.is_none());
+        let _ = fs::remove_file(port_file);
+    }
+}

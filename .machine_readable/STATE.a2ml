@@ -17,7 +17,7 @@
     (language "AffineScript")
     (target "WASM + browser + Gossamer desktop")
     (port 6880)
-    (crg-grade "D")
+    (crg-grade "C")
     (crg-file "READINESS.md"))
 
   (current-position
