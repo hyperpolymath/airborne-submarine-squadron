@@ -46,6 +46,16 @@ check-tray:
 build-tray:
   cd tray && cargo build --release
 
+# Type-check AffineScript test file
+test-types:
+  if command -v affinescript >/dev/null 2>&1; then \
+    affinescript check test_types.as; \
+  elif [ -n "${AFFINESCRIPT_REPO:-}" ] && [ -x "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" ]; then \
+    "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" check test_types.as; \
+  else \
+    echo "affinescript not found — skipping type check" >&2; \
+  fi
+
 # Run VeriSimDB connectivity test
 test-verisimdb:
   deno run --allow-net test_verisimdb_simple.js
