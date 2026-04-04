@@ -90,7 +90,7 @@ async function detectPlatform() {
   }
 
   // Check if Ephapax native runtime is available
-  const repoRoot  = Deno.cwd();
+  const repoRoot  = new URL(".", import.meta.url).pathname.replace(/\/$/, "");
   const parentDir = repoRoot + "/..";
   const ephapax   = parentDir + "/nextgen-languages/ephapax/target/release/ephapax";
   const libpath   = parentDir + "/gossamer/src/interface/ffi/zig-out/lib/libgossamer.so";
@@ -479,6 +479,11 @@ function head(msg) { console.log(`\n${c.bold}${c.cyan}${msg}${c.reset}`); }
 // MAIN
 // ─────────────────────────────────────────────────────────────────────────────
 if (import.meta.main) {
+  // Ensure CWD is the repo root (critical for desktop shortcuts which may
+  // launch from $HOME or another directory).
+  const __scriptDir = new URL(".", import.meta.url).pathname;
+  try { Deno.chdir(__scriptDir); } catch {}
+
   const args = Deno.args;
 
   if (args.includes("--help") || args.includes("-h")) {
