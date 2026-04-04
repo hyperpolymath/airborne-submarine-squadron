@@ -168,25 +168,40 @@ const AFTERBURNER_LIFT = 0.08;
 const AFTERBURNER_COLOR = '#ff7a18';
 const SPACE_CAMERA_SMOOTH = 0.06;
 const SPACE_TIME_SCALE = 0.22;
-const SOLAR_GM = 1180;
+const SOLAR_GM = 3000; // Tuned for 3× scale — matches original visual orbital speed; de-orbit to Sun still requires shedding ~2.35 units of velocity at 0.003 thrust/frame (~780 frames constant burn)
 const ORBITAL_TURN_RATE = 0.025;          // Was 0.06 — much less twitchy
-const ORBITAL_THRUST = 0.015;             // Was 0.035 — gentler acceleration
-const ORBITAL_RETRO_THRUST = 0.012;       // Was 0.025 — softer braking
-const ORBITAL_AFTERBURNER_THRUST = 0.035; // Was 0.065 — still strong but manageable
+const ORBITAL_THRUST = 0.004;
+const ORBITAL_RETRO_THRUST = 0.003;
+const ORBITAL_AFTERBURNER_THRUST = 0.010;
 const ORBITAL_COLLISION_RADIUS = 12;
+
+// --- Drifting Hazards ---
+const ASTEROID_COUNT         = 60;
+const ASTEROID_BELT_MIN      = 615;   // inner edge (Mars orbit radius)
+const ASTEROID_BELT_MAX      = 780;   // outer edge (Jupiter orbit radius)
+const ASTEROID_COLLISION_DMG = 8;     // base damage per unit of closing speed
+const DEBRIS_CLOUD_COUNT     = 4;
+const DEBRIS_PARTICLES       = 20;    // particles per cloud
+const DEBRIS_COLLECT_SPEED   = 0.4;   // max ship speed to collect resources
+const COMET_COUNT            = 2;
+const ORB_PROJ_TORPEDO_SPEED = 6;
+const ORB_PROJ_MISSILE_SPEED = 3;
+const ORB_PROJ_TORPEDO_LIFE  = 180;   // frames
+const ORB_PROJ_MISSILE_LIFE  = 360;
+
 const SOLAR_SYSTEM_BODIES = [
-  { id: 'sun', label: 'Sun', orbitRadius: 0, radius: 32, color: '#ffd166', period: 1, phase: 0, gm: SOLAR_GM },
-  { id: 'mercury', label: 'Mercury', orbitRadius: 85, radius: 4, color: '#b08968', period: 60, phase: 0.4, gm: 4 },
-  { id: 'venus', label: 'Venus', orbitRadius: 120, radius: 7, color: '#d4a373', period: 90, phase: 1.1, gm: 6 },
-  { id: 'earth', label: 'Earth', orbitRadius: 165, radius: 8, color: '#4ea8de', period: 120, phase: 2.0, gm: 10 },
-  { id: 'mars', label: 'Mars', orbitRadius: 205, radius: 6, color: '#e76f51', period: 190, phase: 2.7, gm: 5 },
-  { id: 'jupiter', label: 'Jupiter', orbitRadius: 260, radius: 16, color: '#d9a066', period: 320, phase: 0.8, gm: 22 },
-  { id: 'saturn', label: 'Saturn', orbitRadius: 315, radius: 14, color: '#e9c46a', period: 420, phase: 1.8, gm: 18, ring: true },
-  { id: 'uranus', label: 'Uranus', orbitRadius: 355, radius: 11, color: '#8ecae6', period: 520, phase: 2.9, gm: 12 },
-  { id: 'neptune', label: 'Neptune', orbitRadius: 395, radius: 11, color: '#4361ee', period: 620, phase: 3.6, gm: 12 },
-  { id: 'pluto', label: 'Pluto', orbitRadius: 440, radius: 3, color: '#a0a0a0', period: 800, phase: 4.2, gm: 1 },
+  { id: 'sun',     label: 'Sun',     orbitRadius:    0, radius:  96, color: '#ffd166', period:   1, phase: 0.0, gm: SOLAR_GM },
+  { id: 'mercury', label: 'Mercury', orbitRadius:  255, radius:  12, color: '#b08968', period:  60, phase: 0.4, gm:  4, soi:  27, ecc: 0.30, peri: 1.35 },
+  { id: 'venus',   label: 'Venus',   orbitRadius:  360, radius:  21, color: '#d4a373', period:  90, phase: 1.1, gm:  6, soi:  45, ecc: 0.05, peri: 2.18 },
+  { id: 'earth',   label: 'Earth',   orbitRadius:  495, radius:  24, color: '#4ea8de', period: 120, phase: 2.0, gm: 10, soi:  72, ecc: 0.07, peri: 1.80 },
+  { id: 'mars',    label: 'Mars',    orbitRadius:  615, radius:  18, color: '#e76f51', period: 190, phase: 2.7, gm:  5, soi:  69, ecc: 0.18, peri: 0.87 },
+  { id: 'jupiter', label: 'Jupiter', orbitRadius:  780, radius:  48, color: '#d9a066', period: 320, phase: 0.8, gm: 22, soi: 159, ecc: 0.10, peri: 0.26 },
+  { id: 'saturn',  label: 'Saturn',  orbitRadius:  945, radius:  42, color: '#e9c46a', period: 420, phase: 1.8, gm: 18, soi: 177, ecc: 0.09, peri: 1.62, ring: true },
+  { id: 'uranus',  label: 'Uranus',  orbitRadius: 1065, radius:  33, color: '#8ecae6', period: 520, phase: 2.9, gm: 12, soi: 168, ecc: 0.07, peri: 2.98 },
+  { id: 'neptune', label: 'Neptune', orbitRadius: 1185, radius:  33, color: '#4361ee', period: 620, phase: 3.6, gm: 12, soi: 189, ecc: 0.05, peri: 0.51 },
+  { id: 'pluto',   label: 'Pluto',   orbitRadius: 1320, radius:   9, color: '#a0a0a0', period: 800, phase: 4.2, gm:  1, soi:  78, ecc: 0.35, peri: 3.91 },
 ];
-const SOLAR_SYSTEM_BOUNDARY = 470; // Hard boundary — cannot fly past this radius
+const SOLAR_SYSTEM_BOUNDARY = 1410; // Hard boundary — cannot fly past this radius
 const PLANETS = [
   { name: 'Aegis', sky: '#041133', water: '#0f1f3b', land: '#2a1a1d', enemy: '#f76262', accent: '#ffb703' },
   { name: 'Nemoris', sky: '#171b1c', water: '#0c3331', land: '#1c2f1d', enemy: '#9de2d6', accent: '#5eead4' },
@@ -220,7 +235,7 @@ const PLANET_HOTKEY_MAP = {
 
 const SOLAR_MAP_SIZE = 110;
 const SOLAR_MAP_PADDING = 12;
-const SOLAR_MAP_SCALE = 0.32;
+const SOLAR_MAP_SCALE = 0.107;
 const SOLAR_MAP_ANIMATION_SPEED = 0.08;
 const SUN_BURN_DURATION = 260;
 const SUN_BURN_DAMAGE = 3.6;
@@ -2575,12 +2590,17 @@ function solarBodyPosition(def, time) {
     return { ...def, x: 0, y: 0, angle: 0 };
   }
   const angle = def.phase + (time * SPACE_TIME_SCALE / def.period) * TWO_PI;
-  return {
-    ...def,
-    angle,
-    x: Math.cos(angle) * def.orbitRadius,
-    y: Math.sin(angle) * def.orbitRadius,
-  };
+  const a = def.orbitRadius;
+  const e = def.ecc || 0;
+  const omega = def.peri || 0;
+  const b = a * Math.sqrt(1 - e * e);   // semi-minor axis
+  // Ellipse with Sun at focus: centre is offset by ae from the focus
+  const ex = -a * e + a * Math.cos(angle); // x relative to Sun before rotation
+  const ey = b * Math.sin(angle);
+  // Rotate by argument of periapsis
+  const x = ex * Math.cos(omega) - ey * Math.sin(omega);
+  const y = ex * Math.sin(omega) + ey * Math.cos(omega);
+  return { ...def, angle, x, y };
 }
 
 function getSolarBodies(time) {
@@ -2601,13 +2621,15 @@ function nearestSolarBody(space, bodies) {
   return best ? { body: best, distance: bestDist } : null;
 }
 
-function createOrbitState(entrySpeedMph) {
-  const earthDef = SOLAR_SYSTEM_BODIES.find((body) => body.id === 'earth');
-  const earth = solarBodyPosition(earthDef, 0);
-  const orbitalRadius = earthDef.orbitRadius + 18;
-  const angle = earth.angle;
+function createOrbitState() {
+  const originId = (world.lastSolarBodyId && world.lastSolarBodyId !== 'sun')
+    ? world.lastSolarBodyId : 'earth';
+  const originDef = SOLAR_SYSTEM_BODIES.find((body) => body.id === originId)
+    || SOLAR_SYSTEM_BODIES.find((body) => body.id === 'earth');
+  const origin = solarBodyPosition(originDef, 0);
+  const orbitalRadius = originDef.orbitRadius + originDef.radius * 2;
+  const angle = origin.angle;
   const orbitalSpeed = Math.sqrt(SOLAR_GM / orbitalRadius);
-  const speedBonus = Math.max(0, entrySpeedMph - ORBIT_TRIGGER_SPEED_MPH) / 150;
   // Space tourist ship — travels between planets
   const touristFromIdx = Math.floor(Math.random() * (SOLAR_SYSTEM_BODIES.length - 1)) + 1;
   let touristToIdx = touristFromIdx;
@@ -2617,13 +2639,15 @@ function createOrbitState(entrySpeedMph) {
     time: 0,
     shipX: Math.cos(angle) * orbitalRadius,
     shipY: Math.sin(angle) * orbitalRadius,
-    shipVx: -Math.sin(angle) * (orbitalSpeed + speedBonus),
-    shipVy: Math.cos(angle) * (orbitalSpeed + speedBonus),
+    shipVx: -Math.sin(angle) * orbitalSpeed,
+    shipVy: Math.cos(angle) * orbitalSpeed,
     shipAngle: angle + Math.PI / 2,
     cameraX: 0,
     cameraY: 0,
+    cameraZoom: 1,
+    currentSOI: null,
     trail: [],
-    nearestBody: { body: earth, distance: 18 },
+    nearestBody: { body: origin, distance: originDef.radius * 2 },
     autopilotTarget: null,
     touristShip: {
       x: fromBody.x, y: fromBody.y,
@@ -2640,7 +2664,7 @@ function createOrbitState(entrySpeedMph) {
 function enterOrbitMode(entrySpeedMph) {
   const sub = world.sub;
   world.mode = 'orbit';
-  world.space = createOrbitState(entrySpeedMph);
+  world.space = createOrbitState();
   world.torpedoes = [];
   world.missiles = [];
   world.depthCharges = [];
@@ -4583,6 +4607,7 @@ function initWorld() {
       launchReady: false,
     },
     space: null,
+    lastSolarBodyId: 'earth',
     currentPlanet: 0,
     planetPalette: PLANETS[0],
     currentDestination: PLANET_DESTINATIONS[0],
@@ -5457,8 +5482,27 @@ function updateOrbitMode(dt) {
     }
   }
 
-  // Boundary enforcement — cannot fly past Pluto's orbit
+  // Solar proximity — exponential heat damage and surface collision
   const distFromSun = Math.hypot(space.shipX, space.shipY);
+  const sunBody = SOLAR_SYSTEM_BODIES[0]; // Sun is always index 0
+  if (distFromSun < sunBody.radius * 8) {
+    const heatDamage = 0.8 * Math.pow(sunBody.radius / Math.max(distFromSun, sunBody.radius), 4) * dt;
+    damageRandomPart(sub.parts, heatDamage);
+    if (world.tick % 60 === 0) {
+      const intensity = distFromSun < sunBody.radius * 2 ? 'CRITICAL' : distFromSun < sunBody.radius * 4 ? 'EXTREME' : 'HIGH';
+      world.caveMessage = { text: `SOLAR HEAT: ${intensity}`, timer: 80 };
+    }
+  }
+  if (distFromSun < sunBody.radius + ORBITAL_COLLISION_RADIUS) {
+    // Hit the Sun — game over
+    addExplosion(space.shipX, space.shipY, 'big');
+    world.caveMessage = { text: 'SOLAR IMPACT — TOTAL LOSS', timer: 300 };
+    world.gameOver = true;
+    SFX.gameOver();
+    ensureLeaderboardRecorded('SOLAR IMPACT');
+  }
+
+  // Boundary enforcement — cannot fly past Pluto's orbit
   if (distFromSun > SOLAR_SYSTEM_BOUNDARY) {
     // Push back toward centre
     const bAngle = Math.atan2(space.shipY, space.shipX);
@@ -5525,6 +5569,33 @@ function updateOrbitMode(dt) {
   space.cameraX += (space.shipX - space.cameraX) * SPACE_CAMERA_SMOOTH * dt * 4;
   space.cameraY += (space.shipY - space.cameraY) * SPACE_CAMERA_SMOOTH * dt * 4;
 
+  // SOI capture: find the body whose SOI the ship is most deeply inside (smallest dist/soi ratio)
+  let capturedBody = null;
+  let bestRatio = 1;
+  for (const body of bodies) {
+    if (!body.soi) continue;
+    const dist = Math.hypot(space.shipX - body.x, space.shipY - body.y);
+    const ratio = dist / body.soi;
+    if (ratio < 1 && ratio < bestRatio) {
+      bestRatio = ratio;
+      capturedBody = body;
+    }
+  }
+  const prevSOI = space.currentSOI;
+  space.currentSOI = capturedBody;
+  if (capturedBody && (!prevSOI || prevSOI.id !== capturedBody.id)) {
+    world.caveMessage = { text: `SOI: ${capturedBody.label.toUpperCase()}`, timer: 120 };
+  }
+
+  // Camera zoom: 1× in open space, up to 4× at planet surface inside SOI
+  let targetZoom = 1;
+  if (space.currentSOI) {
+    const dist = Math.hypot(space.shipX - space.currentSOI.x, space.shipY - space.currentSOI.y);
+    const t = 1 - dist / space.currentSOI.soi; // 0 at SOI edge, 1 at centre
+    targetZoom = 1 + t * t * 3;
+  }
+  space.cameraZoom += (targetZoom - space.cameraZoom) * 0.03 * dt * 4;
+
   const nearest = nearestSolarBody(space, bodies);
   space.nearestBody = nearest;
   if (nearest && nearest.distance < nearest.body.radius + ORBITAL_COLLISION_RADIUS) {
@@ -5533,15 +5604,58 @@ function updateOrbitMode(dt) {
     const dist = Math.max(1, Math.hypot(dx, dy));
     const nx = dx / dist;
     const ny = dy / dist;
-    const edge = nearest.body.radius + ORBITAL_COLLISION_RADIUS + 2;
-    space.shipX = nearest.body.x + nx * edge;
-    space.shipY = nearest.body.y + ny * edge;
-    const dot = space.shipVx * nx + space.shipVy * ny;
-    if (dot < 0) {
-      space.shipVx -= dot * 1.8 * nx;
-      space.shipVy -= dot * 1.8 * ny;
+    // Radial approach speed (positive = moving toward planet)
+    const impactSpeed = -(space.shipVx * nx + space.shipVy * ny);
+
+    if (impactSpeed > 0.5) {
+      // Too fast — crash
+      damageRandomPart(sub.parts, 40);
+      damageRandomPart(sub.parts, 40);
+      addExplosion(space.shipX, space.shipY, 'big');
+      world.caveMessage = { text: `IMPACT: ${nearest.body.label.toUpperCase()} — HULL CRITICAL`, timer: 180 };
+      SFX.damage();
+      // Push ship back to surface edge, zero approach velocity
+      const edge = nearest.body.radius + ORBITAL_COLLISION_RADIUS + 2;
+      space.shipX = nearest.body.x + nx * edge;
+      space.shipY = nearest.body.y + ny * edge;
+      const dot = space.shipVx * nx + space.shipVy * ny;
+      if (dot < 0) {
+        space.shipVx -= dot * nx;
+        space.shipVy -= dot * ny;
+      }
+    } else {
+      // Gentle approach — land on the planet using warp logic (bypasses atmospheric guard)
+      world.lastSolarBodyId = nearest.body.id;
+      const isSun = nearest.body.id === 'sun';
+      let destination;
+      if (isSun) {
+        destination = SUN_DESTINATION;
+      } else {
+        world.currentPlanet = (world.currentPlanet + 1) % PLANETS.length;
+        destination = PLANETS[world.currentPlanet];
+      }
+      world.planetPalette = destination;
+      world.currentDestination = destination;
+      world.caveMessage = { text: `LANDING: ${nearest.body.label.toUpperCase()} — ${destination.name.toUpperCase()}`, timer: 160 };
+      world.terrain = generateTerrain(TERRAIN_LENGTH);
+      const baseX = Math.random() * (TERRAIN_LENGTH - 200) + 100;
+      world.sub.worldX = baseX;
+      world.sub.y = -150;
+      world.sub.vx = 0;
+      world.sub.vy = 0;
+      world.sub.angle = 0;
+      world.sub.floating = false;
+      world.sub.liftingOff = false;
+      world.sub.wasInWater = false;
+      world.sub.periscopeMode = false;
+      world.sub.diverMode = false;
+      world.cameraX = world.sub.worldX - W * 0.4;
+      world.cameraY = -120;
+      world.menuOpen = false;
+      world.sunBurnTimer = isSun ? SUN_BURN_DURATION : 0;
+      world.sunBurnTick  = isSun ? SUN_BURN_TICK  : 0;
+      world.mode = 'flight';
     }
-    world.caveMessage = { text: `ORBIT SKIM: ${nearest.body.label.toUpperCase()}`, timer: 90 };
   }
 
   sub.worldX = space.shipX;
@@ -7013,7 +7127,9 @@ function drawOrbitScene() {
   ctx.globalAlpha = 1;
 
   ctx.save();
-  ctx.translate(W / 2 - space.cameraX, H / 2 - space.cameraY);
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(space.cameraZoom, space.cameraZoom);
+  ctx.translate(-space.cameraX, -space.cameraY);
 
   ctx.strokeStyle = 'rgba(148,163,184,0.18)';
   ctx.lineWidth = 1;
@@ -7023,6 +7139,19 @@ function drawOrbitScene() {
     ctx.arc(0, 0, body.orbitRadius, 0, TWO_PI);
     ctx.stroke();
   }
+
+  // SOI circles — dashed, highlighted when ship is inside
+  ctx.setLineDash([3, 7]);
+  for (const body of bodies) {
+    if (!body.soi) continue;
+    const inside = space.currentSOI && space.currentSOI.id === body.id;
+    ctx.strokeStyle = inside ? 'rgba(250,220,80,0.35)' : 'rgba(255,255,255,0.09)';
+    ctx.lineWidth = inside ? 1 / space.cameraZoom : 0.5 / space.cameraZoom;
+    ctx.beginPath();
+    ctx.arc(body.x, body.y, body.soi, 0, TWO_PI);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
 
   for (const point of space.trail) {
     ctx.globalAlpha = Math.max(0.08, 0.5 - point.age * 0.01);
