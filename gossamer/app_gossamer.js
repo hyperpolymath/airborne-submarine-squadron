@@ -5600,19 +5600,20 @@ function updateOrbitalProjectiles(space, bodies, dt) {
     p.y += p.vy * dt * 4;
     p.age++;
 
-    // Asteroid collision
+    // Asteroid collision — snapshot to avoid iterating over fragments pushed by damageAsteroid
     let hit = false;
-    for (const a of space.asteroids) {
+    const asteroidSnapshot = space.asteroids.slice();
+    for (const a of asteroidSnapshot) {
       if (Math.hypot(p.x - a.x, p.y - a.y) < a.radius + 3) {
         damageAsteroid(space, a, 1);
         hit = true;
         break;
       }
     }
-    space.asteroids = space.asteroids.filter(a => a.hp > 0);
 
     if (!hit) survivors.push(p);
   }
+  space.asteroids = space.asteroids.filter(a => a.hp > 0);
   space.projectiles = survivors;
 }
 
