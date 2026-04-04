@@ -153,14 +153,17 @@ const GUN_POST_BULLET_LIFE = 60;
 // --- Mission timer ---
 const MISSION_TYPES = {
   patrol:  { timed: false, label: 'PATROL' },
-  strike:  { timed: true, duration: 6000, label: 'STRIKE' },
+  strike:  { timed: true, duration: 6000, label: 'STRIKE', killTarget: 8 },
   hostage: { timed: true, duration: 5400, label: 'HOSTAGE RESCUE', mandatory: true, hostageCount: 3 },
-  escort:  { timed: true, duration: 8000, label: 'ESCORT' },
+  escort:  { timed: true, duration: 8000, label: 'ESCORT', mandatory: true },
 };
 const DIVING_BELL_RADIUS = 12;
 const HOSTAGE_RESCUE_RANGE = 60;         // How close sub must be to rescue
 const HOSTAGE_SCORE_BONUS = 1000;        // Points per rescued hostage
 const HOSTAGE_FLARE_INTERVAL = 120;      // Ticks between signal flares
+const STRIKE_KILL_BONUS = 500;           // Points per kill during strike mission
+const STRIKE_COMPLETE_BONUS = 3000;      // Bonus for completing all kills in time
+const ESCORT_COMPLETE_BONUS = 4000;      // Bonus for surviving escort duration
 
 const AFTERBURNER_MAX_CHARGE = 100;
 const AFTERBURNER_DRAIN = 1.4;
@@ -1647,14 +1650,28 @@ function startMission(typeKey) {
     active: true,
     failed: false,
     completed: false,
+    killTarget: def.killTarget || 0,
+    killCount: 0,
+    escortShipAlive: true,
   };
-  // Spawn hostages for rescue missions
+  const secs = Math.round((def.duration || 0) / 60);
   if (typeKey === 'hostage' && def.hostageCount) {
     world.hostages = spawnHostages(def.hostageCount);
     const count = world.hostages.length;
-    world.caveMessage = { text: `MISSION: RESCUE ${count} HOSTAGES — ${Math.round(def.duration / 60)}s`, timer: 150 };
+    world.caveMessage = { text: `MISSION: RESCUE ${count} HOSTAGES — ${secs}s`, timer: 150 };
+  } else if (typeKey === 'strike') {
+    world.mission.killCount = 0;
+    world.mission._lastKnownKills = world.kills;
+    world.caveMessage = { text: `MISSION: DESTROY ${def.killTarget} TARGETS — ${secs}s`, timer: 150 };
+  } else if (typeKey === 'escort') {
+    // Ensure passenger ship is alive for escort
+    if (world.terrain.passengerShip) {
+      world.terrain.passengerShip.hp = Math.max(world.terrain.passengerShip.hp, 30);
+      world.terrain.passengerShip.destroyed = false;
+    }
+    world.caveMessage = { text: `MISSION: ESCORT PASSENGER SHIP — ${secs}s`, timer: 150 };
   } else if (def.timed) {
-    world.caveMessage = { text: `MISSION: ${def.label} — ${Math.round(def.duration / 60)}s`, timer: 120 };
+    world.caveMessage = { text: `MISSION: ${def.label} — ${secs}s`, timer: 120 };
   }
 }
 
@@ -1662,6 +1679,39 @@ function updateMissionTimer(dt) {
   const m = world.mission;
   if (!m || !m.active || !m.timed) return;
   m.timer -= dt;
+
+  // Strike mission: check kill objective
+  if (m.type === 'strike' && m.killTarget > 0 && m.killCount >= m.killTarget) {
+    m.active = false;
+    m.completed = true;
+    world.score += STRIKE_COMPLETE_BONUS;
+    world.caveMessage = { text: `STRIKE COMPLETE! +${STRIKE_COMPLETE_BONUS}pts`, timer: 150 };
+    return;
+  }
+
+  // Escort mission: check if passenger ship was destroyed
+  if (m.type === 'escort') {
+    const ship = world.terrain.passengerShip;
+    if (ship && ship.destroyed) {
+      m.active = false;
+      m.failed = true;
+      world.caveMessage = { text: 'MISSION FAILED: PASSENGER SHIP DESTROYED', timer: 200 };
+      world.gameOver = true;
+      SFX.gameOver();
+      return;
+    }
+    // Escort succeeds when timer runs out (survived the full duration)
+    if (m.timer <= 0) {
+      m.timer = 0;
+      m.active = false;
+      m.completed = true;
+      world.score += ESCORT_COMPLETE_BONUS;
+      world.caveMessage = { text: `ESCORT COMPLETE! Ship safe. +${ESCORT_COMPLETE_BONUS}pts`, timer: 150 };
+      return;
+    }
+  }
+
+  // General timeout
   if (m.timer <= 0) {
     m.timer = 0;
     m.failed = true;
@@ -1672,6 +1722,24 @@ function updateMissionTimer(dt) {
       SFX.gameOver();
     } else {
       world.caveMessage = { text: `TIME EXPIRED: ${m.label} — bonus lost`, timer: 150 };
+    }
+  }
+}
+
+// Track strike kills by watching world.kills — called every frame
+function updateStrikeKills() {
+  const m = world.mission;
+  if (!m || !m.active || m.type !== 'strike') return;
+  // Detect new kills since last check
+  const prevKills = m._lastKnownKills || 0;
+  const newKills = world.kills - prevKills;
+  m._lastKnownKills = world.kills;
+  if (newKills > 0) {
+    m.killCount += newKills;
+    world.score += STRIKE_KILL_BONUS * newKills;
+    const remaining = m.killTarget - m.killCount;
+    if (remaining > 0) {
+      world.caveMessage = { text: `TARGET DOWN — ${remaining} remaining`, timer: 60 };
     }
   }
 }
@@ -1698,11 +1766,17 @@ function drawMissionTimer() {
 
   ctx.fillStyle = '#94a3b8';
   ctx.font = '9px Arial';
-  // Show hostage rescue progress if applicable
+  // Show mission-specific progress
   if (m.type === 'hostage' && world.hostages && world.hostages.length > 0) {
     const rescued = world.hostages.filter(h => h.rescued).length;
     const total = world.hostages.length;
     ctx.fillText(`${m.label} — ${rescued}/${total}`, W / 2, 38);
+  } else if (m.type === 'strike' && m.killTarget > 0) {
+    ctx.fillText(`${m.label} — ${m.killCount}/${m.killTarget} kills`, W / 2, 38);
+  } else if (m.type === 'escort') {
+    const ship = world.terrain.passengerShip;
+    const shipHp = ship ? Math.round((ship.hp / (ship.maxHp || 60)) * 100) : 0;
+    ctx.fillText(`${m.label} — Ship: ${shipHp}%`, W / 2, 38);
   } else {
     ctx.fillText(m.label, W / 2, 38);
   }
@@ -2529,9 +2603,13 @@ function updatePauseMenu() {
     world.settings.nemesisSub = !world.settings.nemesisSub;
     saveSettings(world.settings);
   }
-  // Start hostage rescue mission (M key) — only if no mission active
+  // Cycle through missions (M key) — only if no mission active
   if ((keyJustPressed['m'] || keyJustPressed['M']) && (!world.mission || !world.mission.active)) {
-    startMission('hostage');
+    const missionCycle = ['strike', 'hostage', 'escort'];
+    const lastType = world.mission ? world.mission.type : 'patrol';
+    const idx = missionCycle.indexOf(lastType);
+    const nextType = missionCycle[(idx + 1) % missionCycle.length];
+    startMission(nextType);
   }
   // Save game
   if (keyJustPressed['s'] || keyJustPressed['S']) {
@@ -4141,6 +4219,7 @@ function update(dt) {
   updateHangars(dt);
   updateDestroyer(dt);
   updateMissionTimer(dt);
+  updateStrikeKills();
   updateHostages(dt);
   updatePassengerShip(dt);
   updateInterceptors(dt);
@@ -4517,7 +4596,7 @@ function drawPauseOverlay() {
   ctx.fillText(`Deep diver kit: ${world.settings.deepDiverKit ? 'ON' : 'OFF'}  (D to toggle)`, 420, 288);
   ctx.fillText(`Supply crates: ${getSupplyFrequency(world.settings).label}  (C to cycle)`, 420, 308);
   ctx.fillText(`Nemesis sub: ${world.settings.nemesisSub ? 'ON' : 'OFF'}  (G to toggle)`, 420, 328);
-  ctx.fillText(`Hostage rescue: M to start mission`, 420, 348);
+  ctx.fillText(`Mission (M to cycle): Strike / Hostage / Escort`, 420, 348);
   ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 368);
 
   // --- Game actions panel ---
