@@ -22,7 +22,7 @@
 
   (current-position
     (phase "alpha")
-    (completion-percentage 89)
+    (completion-percentage 91)
     (milestone "Major gameplay + infrastructure overhaul 2026-04-04: four aircraft types,
                 commander HP, scoring, damage-aware cruise, pressure system, mine variety,
                 desktop shortcut fixed, Deno crash resolved, port 6880."))
@@ -146,13 +146,18 @@
       (workaround "Game tested via unit/property/fuzz; E2E marked N/A in blitz")))
 
   (critical-next-actions
-    (action-1 "Playtest aircraft balance — Berkut/Lightning/Nemesis spawn thresholds and AI")
-    (action-2 "Add mission system with hostage rescue scenarios")
-    (action-3 "Consider modular split of app_gossamer.js (~9000 lines) if it grows further")
-    (action-4 "Wire VeriSimDB integration for game state persistence")
-    (action-5 "Multi-platform CI (Linux + macOS) for CRG grade B"))
+    (action-1 "Wire VeriSimDB integration for game state persistence")
+    (action-2 "Multi-platform CI (Linux + macOS) for CRG grade B")
+    (action-3 "Add strike and escort mission types (timer + kill objectives)")
+    (action-4 "Further modular split: extract HUD/rendering (~1000 lines) from app_gossamer.js")
+    (action-5 "Playtest hostage rescue mission difficulty + aircraft balance curve in-game"))
 
   (session-history
     ("2026-04-04" "Claude Opus 4.6" "Full blitz test suite: 94 tests + 6 benchmarks across 10 categories.
                    CRG D→C. hypatia-scan.yml added. K9 port fixed 6860→6880. test_types.as wired.
-                   Mutation score 100% (10/10 killed, 2 equivalent). Six Sigma baselines established.")))
+                   Mutation score 100% (10/10 killed, 2 equivalent). Six Sigma baselines established.")
+    ("2026-04-04" "Claude Opus 4.6" "Gameplay session: aircraft balance tuned (progression curve
+                   0→1000→3500→6000), hostage rescue missions implemented (3 hostages, 90s timer,
+                   signal flares, M key trigger, +1000pts per rescue). Modular split: enemies.js
+                   extracted (9100→6556 main, 2583 enemies). AffineScript parser fix upstream
+                   (inline variant types). 96 tests passing.")))
