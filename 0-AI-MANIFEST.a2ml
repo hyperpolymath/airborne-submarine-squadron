@@ -51,7 +51,7 @@
     (wasm-coproc "build/airborne-final-working.wasm" "AffineScript physics co-processor")
     (tray       "tray/src/main.rs"                   "Rust system tray (ksni)")
     (ffi        "ffi/zig/"                           "Zig FFI layer")
-    (ports      "browser:6860 gossamer-fallback:6870-6879"))
+    (ports      "browser:6880 gossamer-fallback:6881-6884"))
 
   (critical-invariants
     (rule "AGPL-3.0-or-later only — do NOT change license or relicense")

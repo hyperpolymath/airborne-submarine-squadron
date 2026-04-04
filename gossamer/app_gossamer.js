@@ -5765,17 +5765,45 @@ function update(dt) {
       sub.afterburnerCharge = Math.min(AFTERBURNER_MAX_CHARGE, sub.afterburnerCharge + AFTERBURNER_RECHARGE * dt);
     }
 
-    // Space bar: cruise (air) / stabilise (water)
+    // Space bar: cruise (air) / stabilise (water) — affected by damage
     if (keys[' '] && !sub.disembarked) {
       if (sub.y < WATER_LINE - 5 && !sub.floating) {
-        // In air: cruise mode — level out angle, hold altitude
-        sub.angle *= 0.8;
-        sub.vy *= 0.9;
+        // In air: level cruise — effectiveness depends on damage
+        const towerOk = sub.parts.tower > 0;
+        const wingsOk = sub.parts.wings > 0;
+        const wingPct = sub.parts.wings / 60;
+        if (!towerOk) {
+          // Cockpit destroyed — cruise not available, cannot level out
+          // (do nothing — sub continues on current trajectory)
+        } else if (!wingsOk) {
+          // Wings destroyed — forced descent, cannot hold altitude
+          sub.vy += 0.08 * dt; // Sink
+          sub.angle *= 0.95;   // Sluggish levelling
+        } else {
+          // Normal cruise — effectiveness scaled by wing condition
+          const cruiseEff = 0.5 + wingPct * 0.5; // 50-100% effectiveness
+          sub.angle *= 1 - (0.2 * cruiseEff);
+          sub.vy *= 1 - (0.1 * cruiseEff);
+          // Damaged wings: slight descent tendency
+          if (wingPct < 0.5) sub.vy += 0.03 * (1 - wingPct) * dt;
+        }
       } else if (sub.y > WATER_LINE || sub.floating) {
-        // Underwater / on surface: stabilise — damp all velocity
-        sub.vx *= 0.92;
-        sub.vy *= 0.92;
-        sub.angle *= 0.85;
+        // Underwater / on surface: stabilise across all axes
+        const hullPct = sub.parts.hull / 120;
+        if (hullPct > 0.3) {
+          // Hull intact enough — full stabilisation
+          sub.vx *= 0.92;
+          sub.vy *= 0.92;
+          sub.angle *= 0.85;
+        } else if (hullPct > 0) {
+          // Hull badly damaged — slower stabilisation, tendency to sink
+          sub.vx *= 0.95;
+          sub.vy *= 0.96;
+          sub.angle *= 0.92;
+          sub.vy += 0.04 * (1 - hullPct) * dt; // Sink faster with more damage
+        } else {
+          // Hull destroyed — no stabilisation at all
+        }
       }
     }
 
@@ -6487,22 +6515,29 @@ function update(dt) {
     const inDeep = getThermalLayer(sub.y) === 2;
     const enteringDeep = sub.y > THERMAL_LAYER_2_MAX - 5 && sub.vy > 0;
 
-    // Block entry to deep layer if hull is too damaged
-    if (enteringDeep && hullPct < HULL_DEEP_THRESHOLD && !inDeep) {
-      sub.y = THERMAL_LAYER_2_MAX - 6;
-      sub.vy = 0;
-      if (world.tick % 60 < 2) {
-        world.caveMessage = { text: 'HULL TOO DAMAGED FOR DEEP WATER — PRESSURE WARNING', timer: 90 };
+    // Deep layer with damaged hull — progressive pressure damage + warnings
+    if (inDeep && hullPct < HULL_DEEP_THRESHOLD && hullPct > 0) {
+      if (hullPct < HULL_DEEP_CRUSH_THRESHOLD) {
+        // Below 20% — crushed
+        sub.parts.hull = 0;
+        addExplosion(sub.worldX, sub.y, 'big');
+        addParticles(sub.worldX, sub.y, 20, '#1a5276');
+        world.caveMessage = { text: 'HULL CRUSHED BY DEEP WATER PRESSURE', timer: 200 };
+        SFX.explodeBig();
+      } else {
+        // 20-40% hull — pressure damage ticks, warnings
+        if (world.tick % 30 === 0) {
+          sub.parts.hull = Math.max(0, sub.parts.hull - 2);
+          addParticles(sub.worldX, sub.y, 3, '#1a5276');
+        }
+        if (world.tick % 60 < 2) {
+          world.caveMessage = { text: '⚠ PRESSURE WARNING — HULL INTEGRITY CRITICAL', timer: 55 };
+        }
       }
     }
-
-    // Crushed if hull drops below threshold while already deep
-    if (inDeep && hullPct < HULL_DEEP_CRUSH_THRESHOLD && hullPct > 0) {
-      sub.parts.hull = 0;
-      addExplosion(sub.worldX, sub.y, 'big');
-      addParticles(sub.worldX, sub.y, 20, '#1a5276');
-      world.caveMessage = { text: 'HULL CRUSHED BY DEEP WATER PRESSURE', timer: 200 };
-      SFX.explodeBig();
+    // Entering deep with damaged hull — show initial warning
+    if (enteringDeep && hullPct < HULL_DEEP_THRESHOLD && !inDeep && hullPct > 0) {
+      world.caveMessage = { text: '⚠ PRESSURE WARNING — HULL DAMAGE WILL INCREASE AT DEPTH', timer: 100 };
     }
   }
 
@@ -8032,6 +8067,13 @@ function draw() {
   if (world.gameOver || world.levelComplete) {
     drawMissionScoringScreen();
     if (keyJustPressed['r']||keyJustPressed['R']) world = initWorld();
+    // Q from scoring screen → quit to desktop
+    if ((keyJustPressed['q']||keyJustPressed['Q']) && world.quitConfirm) {
+      try { navigator.sendBeacon('/shutdown', ''); } catch {}
+      try { window.close(); } catch {}
+    } else if (keyJustPressed['q']||keyJustPressed['Q']) {
+      world.quitConfirm = true;
+    }
   }
 
   // Pause
@@ -8625,7 +8667,11 @@ function drawMissionScoringScreen() {
   ctx.textAlign = 'center';
   ctx.font = '18px Arial';
   ctx.fillStyle = '#bdc3c7';
-  ctx.fillText('Press R to restart', W / 2, row);
+  if (world.quitConfirm) {
+    ctx.fillText('Press R to restart  |  Press Q to quit to desktop', W / 2, row);
+  } else {
+    ctx.fillText('Press R to restart  |  Press Esc then Q to quit', W / 2, row);
+  }
 }
 
 // ============================================================

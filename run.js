@@ -29,8 +29,8 @@ const REGISTRY = {
     build: "build/airborne-final-working.wasm",
   },
   ports: {
-    primary:  6860,
-    fallback: [6870, 6871, 6872, 6873, 6874],
+    primary:  6880,
+    fallback: [6881, 6882, 6883, 6884],
   },
   launchers: {
     native:   "gossamer/launch.sh",
@@ -247,7 +247,7 @@ async function findFreePort() {
       return port;
     } catch { /* port in use */ }
   }
-  throw new Error("No free port found in range 6860–6874");
+  throw new Error("No free port found in range 6880–6884");
 }
 
 // Release a locked port by killing whatever process holds it.
@@ -296,10 +296,12 @@ async function launchDeno(platform) {
   if (!platform.denoAvailable) return false;
   log("Launching via Deno file server...");
 
-  // Kill anything holding the primary port before probing.
+  // Kill anything holding ANY of our ports before probing.
   // This handles orphaned servers from previous runs (e.g. terminal closed
   // without Ctrl+C, or run.js killed before the child server was cleaned up).
-  await freePort(REGISTRY.ports.primary, platform.os);
+  for (const p of [REGISTRY.ports.primary, ...REGISTRY.ports.fallback]) {
+    await freePort(p, platform.os);
+  }
 
   const port = await findFreePort();
   const url  = `http://127.0.0.1:${port}/`;
@@ -317,6 +319,12 @@ async function launchDeno(platform) {
     { port, hostname: "127.0.0.1", signal: ac.signal, onListen: () => {} },
     async (req) => {
       const { pathname } = new URL(req.url);
+      // Graceful shutdown from browser quit button
+      if (req.method === "POST" && pathname === "/shutdown") {
+        log("Shutdown requested from game — closing server");
+        setTimeout(() => { ac.abort(); Deno.exit(0); }, 200);
+        return new Response("ok", { status: 200, headers: CORS });
+      }
       if (req.method === "POST" && pathname === "/crash-report") {
         try {
           const body = await req.json();

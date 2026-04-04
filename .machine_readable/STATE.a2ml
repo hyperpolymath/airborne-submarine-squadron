@@ -16,7 +16,7 @@
     (monorepo "games & trivia")
     (language "AffineScript")
     (target "WASM + browser + Gossamer desktop")
-    (port 6860)
+    (port 6880)
     (crg-grade "D")
     (crg-file "READINESS.md"))
 
