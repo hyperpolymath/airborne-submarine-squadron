@@ -177,7 +177,7 @@ function updateSopwith(dt) {
       sw.angered = true;
       sw.manoeuvre = 'immelmann';
       sw.acrobatTimer = 0;
-      world.caveMessage = { text: 'THE RED BARON AWAKENS!', timer: 120 };
+      midNotice('THE RED BARON AWAKENS!', 120);
     }
   }
 
@@ -235,7 +235,7 @@ function updateSopwith(dt) {
     addParticles(sw.x, sw.y, 20, '#e74c3c');
     world.score += SOPWITH_SCORE;
     world.kills++;
-    world.caveMessage = { text: 'RED BARON SHOT DOWN!', timer: 150 };
+    ticker('Red Baron shot down!', 70); actionIcon('2b50', 50, '#fbbf24');
     SFX.enemyDestroyed();
     return;
   }
@@ -562,7 +562,7 @@ function updateAirSupremacy(dt) {
   // Spawn check
   if (!world.airSupremacy && world.score >= BERKUT_SPAWN_SCORE) {
     world.airSupremacy = spawnBerkut();
-    world.caveMessage = { text: 'WARNING: Su-47 BERKUT INBOUND', timer: 120 };
+    hudFlash('Su-47 BERKUT INBOUND', 100, '#ef4444');
   }
   const bk = world.airSupremacy;
   if (!bk || !bk.alive) return;
@@ -637,7 +637,7 @@ function updateAirSupremacy(dt) {
     addParticles(bk.x, bk.y, 25, '#334155');
     world.score += BERKUT_SCORE;
     world.kills++;
-    world.caveMessage = { text: 'Su-47 BERKUT DESTROYED!', timer: 150 };
+    ticker('Su-47 Berkut destroyed!', 70); actionIcon('2b50', 50, '#fbbf24');
     SFX.enemyDestroyed();
     return;
   }
@@ -853,7 +853,7 @@ function updateAirInterceptors(dt) {
   if (aliveCount === 0 && world.airInterceptorTimer > LIGHTNING_SQUAD_SPAWN_INTERVAL && world.score > 1000) {
     world.airInterceptors = spawnLightningSquad();
     world.airInterceptorTimer = 0;
-    world.caveMessage = { text: 'LIGHTNING SQUADRON INCOMING', timer: 80 };
+    hudFlash('LIGHTNING SQUADRON INCOMING', 80, '#a78bfa');
   }
 
   for (const li of world.airInterceptors) {
@@ -1098,7 +1098,7 @@ function updateNemesis(dt) {
   if (!world.nemesis && shouldSpawn) {
     world.nemesis = spawnNemesis();
     // Announce after a short delay (the nemesis is deep; player won't see it yet)
-    world.caveMessage = { text: 'DEEP SONAR CONTACT — UNKNOWN VESSEL', timer: 140 };
+    hudFlash('DEEP SONAR CONTACT', 100, '#38bdf8');
   }
   const nm = world.nemesis;
   if (!nm || !nm.alive) return;
@@ -1124,7 +1124,7 @@ function updateNemesis(dt) {
       nm.vy = 0;
       nm.state = 'hunt';
       nm.stateTimer = 0;
-      world.caveMessage = { text: 'WARNING: NEMESIS SUB SURFACING', timer: 150 };
+      hudFlash('NEMESIS SUB SURFACING', 100, '#ef4444');
     }
     return;  // No combat while emerging
   }
@@ -1173,7 +1173,7 @@ function updateNemesis(dt) {
     addParticles(nm.x, nm.y, 20, '#475569');
     world.score += NEMESIS_SCORE;
     world.kills++;
-    world.caveMessage = { text: 'NEMESIS SUB DESTROYED!', timer: 150 };
+    midNotice('NEMESIS SUB DESTROYED!', 120);
     SFX.enemyDestroyed();
     return;
   }
@@ -1579,7 +1579,7 @@ function updateDestroyer(dt) {
         addParticles(d.x, d.y, 30, '#e74c3c');
         world.score += 2000;
         world.kills++;
-        world.caveMessage = { text: 'DESTROYER SUNK! +2000', timer: 150 };
+        midNotice('DESTROYER SUNK! +2000', 120);
         SFX.enemyDestroyed();
       }
       return false;
@@ -1981,7 +1981,7 @@ function updateMotorcyclists(dt) {
       addParticles(m.x, m.y, m.isEvel ? 16 : 8, m.isEvel ? '#fbbf24' : '#64748b');
       world.score += m.isEvel ? EVEL_SCORE : 200;
       world.kills++;
-      if (m.isEvel) world.caveMessage = { text: 'EVEL KNIEVEL DOWN!', timer: 120 };
+      if (m.isEvel) ticker('Evel Knievel down!', 60);
       SFX.enemyDestroyed();
       continue;
     }
@@ -2009,7 +2009,7 @@ function updateMotorcyclists(dt) {
           m.island = isl;
           m.jumpTrail = [];
           if (m.isEvel) {
-            world.caveMessage = { text: 'EVEL KNIEVEL LANDS!', timer: 60 };
+            ticker('Evel Knievel lands!', 40);
             addParticles(m.x, m.y, 6, '#fbbf24');
           }
           break;
@@ -2020,7 +2020,7 @@ function updateMotorcyclists(dt) {
         m.alive = false;
         addParticles(m.x, WATER_LINE, 8, '#85c1e9');
         SFX.waterSplash();
-        if (m.isEvel) world.caveMessage = { text: 'EVEL MISSED THE LANDING!', timer: 100 };
+        if (m.isEvel) ticker('Evel missed the landing!', 60);
       }
       continue;
     }
@@ -2071,7 +2071,7 @@ function updateMotorcyclists(dt) {
           m.jumpVy = -EVEL_JUMP_SPEED * 0.7; // Arc upward
           m.jumpCooldown = 300 + Math.random() * 200;
           m.jumpTrail = [];
-          world.caveMessage = { text: 'EVEL KNIEVEL JUMPS!', timer: 80 };
+          ticker('Evel Knievel jumps!', 50);
         }
       }
     }
@@ -2310,7 +2310,7 @@ function updateAkulaMolot(dt) {
         t.vx += (Math.random() - 0.5) * 3;
         t.vy += (Math.random() - 0.5) * 2;
         addParticles(t.worldX, t.y, 4, '#60a5fa');
-        world.caveMessage = { text: 'TORPEDO DEFLECTED BY SONAR FIELD', timer: 60 };
+        ticker('Torpedo deflected by sonar field', 50);
         return true; // Torpedo survives but is knocked off course
       }
       ak.hp -= 20;

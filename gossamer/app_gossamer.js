@@ -725,7 +725,7 @@ function collectSupply(sub) {
   sub.torpedoAmmo = Math.min(START_TORPEDOES, sub.torpedoAmmo + refillTorpedo);
   sub.missileAmmo = Math.min(START_MISSILES, sub.missileAmmo + refillMissile);
   sub.depthChargeAmmo = Math.min(START_DEPTH_CHARGES, sub.depthChargeAmmo + refillDepthCharge);
-  world.caveMessage = { text: 'SUPPLY COLLECTED', timer: 80 };
+  ticker('Supply collected', 50);
   SFX.embark();
 }
 
@@ -2634,7 +2634,7 @@ function saveGameState() {
     };
     window.localStorage.setItem('ass_save_state', JSON.stringify(snapshot));
     if (typeof verisimdbSaveGame === 'function') verisimdbSaveGame(snapshot);
-    world.caveMessage = { text: 'Game saved', timer: 90 };
+    ticker('Game saved', 60);
     return true;
   } catch {
     world.caveMessage = { text: 'Save failed — storage unavailable', timer: 120 };
@@ -2678,7 +2678,7 @@ function loadGameState() {
       if (s.parts) fresh.sub.parts = s.parts;
     }
     world = fresh;
-    world.caveMessage = { text: 'Game loaded', timer: 90 };
+    ticker('Game loaded', 60);
     return true;
   } catch {
     world.caveMessage = { text: 'Load failed — corrupt save data', timer: 120 };
@@ -2759,7 +2759,7 @@ function updatePauseMenu() {
     const label = world.squadronMode === 'off' ? 'SQUADRON: OFF' :
                   world.squadronMode === 'astro' ? 'SQUADRON: ASTRO (COMING SOON)' :
                   `SQUADRON: ${world.squadronMode.toUpperCase()}`;
-    world.caveMessage = { text: label, timer: 60 };
+    ticker(label, 50);
   }
   // Cycle through missions (M key) — only if no mission active
   if ((keyJustPressed['m'] || keyJustPressed['M']) && (!world.mission || !world.mission.active)) {
@@ -2943,10 +2943,7 @@ function emergencyEject(sub) {
       // Sub is now uncrewed — it will fly on under physics until it crashes
       // Don't set disembarked — the sub physics loop still runs, just no input
       sub.disembarked = false; // Sub is NOT docked — it's flying uncrewed
-      world.caveMessage = {
-        text: halo ? 'HALO EJECT — CHUTE DEPLOYS LOW' : 'EMERGENCY EJECT — COMMANDER AWAY',
-        timer: 150,
-      };
+      midNotice(halo ? 'HALO EJECT — CHUTE DEPLOYS LOW' : 'EMERGENCY EJECT — COMMANDER AWAY', 150);
       SFX.disembark();
     }
   }
@@ -3487,9 +3484,9 @@ function update(dt) {
       sub.commanderAimAngle = Math.max(-Math.PI * 0.7, Math.min(Math.PI * 0.7, sub.commanderAimAngle));
 
       // Weapon selection: 1=pistol, 2=grenade, 9=PPC
-      if (keyJustPressed['1']) { world.commanderWeapon = 1; world.caveMessage = { text: 'PISTOL SELECTED', timer: 40 }; }
-      if (keyJustPressed['2']) { world.commanderWeapon = 2; world.caveMessage = { text: 'GRENADE SELECTED', timer: 40 }; }
-      if (keyJustPressed['9']) { world.commanderWeapon = 9; world.caveMessage = { text: 'PARTICLE PROJECTOR SELECTED', timer: 40 }; }
+      if (keyJustPressed['1']) { world.commanderWeapon = 1; ticker('Pistol selected', 35); }
+      if (keyJustPressed['2']) { world.commanderWeapon = 2; ticker('Grenade selected', 35); }
+      if (keyJustPressed['9']) { world.commanderWeapon = 9; ticker('PPC selected', 35); }
 
       // Spacebar fires selected commander weapon
       world.commanderFireCooldown = Math.max(0, world.commanderFireCooldown - dt);
@@ -3554,10 +3551,7 @@ function update(dt) {
   // Shift+P toggles auto/manual mode
   if ((keyJustPressed['p'] || keyJustPressed['P']) && keys['Shift']) {
     world.autoPeriscope = !world.autoPeriscope;
-    world.caveMessage = {
-      text: world.autoPeriscope ? 'AUTO PERISCOPE: ON — extends on water, hides from air/radar' : 'AUTO PERISCOPE: OFF — manual control only',
-      timer: 80,
-    };
+    ticker(world.autoPeriscope ? 'Auto periscope: ON — hides from air/radar' : 'Auto periscope: OFF — manual only', 60);
   } else {
     // P alone: manual toggle
     const periscopeToggle = keyJustPressed['p'] || keyJustPressed['P'];
@@ -3573,7 +3567,7 @@ function update(dt) {
   // Flight always retracts — can't fly with periscope deployed
   if (inFlight && sub.periscopeMode) {
     exitPeriscopeMode(sub);
-    world.caveMessage = { text: 'PERISCOPE RETRACTED — AIRBORNE', timer: 40 };
+    ticker('Periscope retracted — airborne', 35);
   }
 
   // Auto-extend when in AUTO mode and settled on water surface
@@ -3765,14 +3759,14 @@ function update(dt) {
         sub.vx += (Math.random() - 0.5) * 0.04 * dt;
         sub.angle += (Math.random() - 0.5) * 0.02 * dt;
         if (world.tick % 30 === 0) {
-          world.caveMessage = { text: 'STALL — INCREASE SPEED', timer: 30 };
+          actionIcon('2b07Fe0f', 30, '#ef4444'); hudFlash('STALL — INCREASE SPEED', 30);
         }
       } else if (fwdSpeedAbs < STALL_SPEED) {
         // Stall warning — sluggish, slight nose drop tendency
         sub.angle += 0.01 * dt;
         sub.vy += 0.02 * dt;
         if (world.tick % 60 === 0) {
-          world.caveMessage = { text: 'STALL WARNING — LOW AIRSPEED', timer: 25 };
+          hudFlash('STALL WARNING — LOW AIRSPEED', 25, '#f59e0b');
         }
       }
     }
@@ -3836,7 +3830,7 @@ function update(dt) {
         sub.floating = false;
         sub.vx *= 0.7;
         sub.vy *= 0.5;
-        world.caveMessage = { text: 'BELLYFLOP!', timer: 80 };
+        actionIcon('D83dDca5', 45, '#ef4444'); ticker('BELLYFLOP!', 50);
       } else {
         // Slow or medium entry at a bad angle — no damage, just enter water
         sub.floating = false;
@@ -3910,7 +3904,7 @@ function update(dt) {
     world._fluxReady = true;
     // Periodic message
     if (world._fluxFlashTimer > 0 && world._fluxFlashTimer < 3) {
-      world.caveMessage = { text: '88 MPH — PULL UP TO LAUNCH!', timer: 20 };
+      hudFlash('88 MPH — PULL UP TO LAUNCH!', 20, '#f97316');
     }
   } else {
     world._fluxReady = false;
@@ -3970,7 +3964,7 @@ function update(dt) {
     sub.floating = false; SFX.islandCrash();
     addExplosion(sub.worldX, sub.y + 10, 'big');
     addParticles(sub.worldX, sub.y + 10, 12, '#5d4037');
-    if (sub.caterpillarDrive) { sub.caterpillarDrive = false; world.caveMessage = { text: 'STEALTH BROKEN — COLLISION', timer: 60 }; }
+    if (sub.caterpillarDrive) { sub.caterpillarDrive = false; hudFlash('STEALTH BROKEN — COLLISION', 50, '#f97316'); }
   }
 
   // --- Caterpillar drive toggle (underwater only, requires engine) ---
@@ -3979,10 +3973,7 @@ function update(dt) {
       world.caveMessage = { text: 'ENGINE CRITICAL — CATERPILLAR DRIVE OFFLINE', timer: 80 };
     } else {
       sub.caterpillarDrive = !sub.caterpillarDrive;
-      world.caveMessage = {
-        text: sub.caterpillarDrive ? 'CATERPILLAR DRIVE ENGAGED — SILENT RUNNING' : 'CATERPILLAR DRIVE DISENGAGED',
-        timer: 80,
-      };
+      ticker(sub.caterpillarDrive ? 'Caterpillar drive engaged — silent running' : 'Caterpillar drive disengaged', 60);
     }
   }
   // Auto-disengage caterpillar when engine goes critical or leaving water
@@ -3991,12 +3982,12 @@ function update(dt) {
   }
 
   // --- Weapon selection (1=MG, 2=torpedo, 3=missile, 4=depth charge, 9=railgun) ---
-  if (keyJustPressed['1']) { world.selectedWeapon = 1; world.caveMessage = { text: 'MACHINE GUN SELECTED', timer: 40 }; }
-  if (keyJustPressed['2']) { world.selectedWeapon = 2; world.caveMessage = { text: 'TORPEDO SELECTED', timer: 40 }; }
-  if (keyJustPressed['3']) { world.selectedWeapon = 3; world.caveMessage = { text: 'MISSILE SELECTED', timer: 40 }; }
-  if (keyJustPressed['4']) { world.selectedWeapon = 4; world.caveMessage = { text: 'DEPTH CHARGE SELECTED', timer: 40 }; }
-  if (keyJustPressed['5']) { world.selectedWeapon = 5; world.caveMessage = { text: 'BOUNCING BOMB SELECTED — LEVEL FLIGHT, LOW ALT', timer: 60 }; }
-  if (keyJustPressed['9']) { world.selectedWeapon = 9; world.caveMessage = { text: 'GAUSS RAILGUN SELECTED', timer: 40 }; }
+  if (keyJustPressed['1']) { world.selectedWeapon = 1; ticker('Machine gun selected', 40); }
+  if (keyJustPressed['2']) { world.selectedWeapon = 2; ticker('Torpedo selected', 40); }
+  if (keyJustPressed['3']) { world.selectedWeapon = 3; ticker('Missile selected', 40); }
+  if (keyJustPressed['4']) { world.selectedWeapon = 4; ticker('Depth charge selected', 40); }
+  if (keyJustPressed['5']) { world.selectedWeapon = 5; ticker('Bouncing bomb selected — level flight, low alt', 60); }
+  if (keyJustPressed['9']) { world.selectedWeapon = 9; ticker('Gauss railgun selected', 40); }
 
   // --- Firing (Spacebar fires selected weapon) ---
   // Each weapon has its OWN cooldown so switching weapons doesn't block firing.
@@ -4009,7 +4000,7 @@ function update(dt) {
   const wantFire = keys[' '] || keys[keybinds.fire];
 
   function breakStealth() {
-    if (sub.caterpillarDrive) { sub.caterpillarDrive = false; world.caveMessage = { text: 'STEALTH BROKEN — WEAPON FIRED', timer: 60 }; }
+    if (sub.caterpillarDrive) { sub.caterpillarDrive = false; hudFlash('STEALTH BROKEN', 50, '#f97316'); }
   }
 
   // SLOT 1: Machine gun — default, infinite ammo, rapid fire
@@ -4040,7 +4031,7 @@ function update(dt) {
       lgt: isLGT, lgtTarget: null, lgtOrbitAngle: 0, lgtJumpTimer: 0,
     });
     wc[2] = FIRE_COOLDOWN; SFX.torpedoLaunch(); breakStealth();
-    if (isLGT) world.caveMessage = { text: 'LGT TORPEDO DEPLOYED', timer: 50 };
+    if (isLGT) ticker('LGT torpedo deployed', 40);
   }
 
   // SLOT 3: Missile (air or surface — not underwater or periscope)
@@ -4078,7 +4069,7 @@ function update(dt) {
     const inAir = sub.y < WATER_LINE - 5 && !sub.floating;
 
     if (!inAir) {
-      world.caveMessage = { text: 'BOUNCING BOMB REQUIRES AIRBORNE RELEASE', timer: 60 };
+      hudFlash('BOMB: MUST BE AIRBORNE', 50, '#f59e0b');
     } else if (altAboveWater > BBOMB_MAX_ALT) {
       world.caveMessage = { text: 'TOO HIGH — DESCEND BELOW ' + BBOMB_MAX_ALT + ' METRES', timer: 60 };
     } else if (fwdSpeed < BBOMB_MIN_SPEED) {
@@ -4126,7 +4117,7 @@ function update(dt) {
     SFX.explodeBig(); breakStealth();
     // Brief screen shake effect
     world._screenShake = 12;
-    world.caveMessage = { text: `RAILGUN FIRED — ${sub.railgunAmmo} ROUNDS LEFT`, timer: 60 };
+    ticker(`Railgun fired — ${sub.railgunAmmo} rounds left`, 60);
   }
 
   // --- Update torpedoes (world coords) ---
@@ -5120,7 +5111,7 @@ function updateNewProjectiles(dt) {
         addParticles(bb.worldX, WATER_LINE, 8, '#85c1e9');
         SFX.waterSplash();
         world.bouncingBombs.splice(i, 1);
-        world.caveMessage = { text: 'BOMB SANK — DUD', timer: 50 };
+        ticker('Bomb sank — dud', 40);
         continue;
       }
       // Bounce: reflect vy, lose energy — big water plume each bounce
@@ -5166,7 +5157,7 @@ function updateNewProjectiles(dt) {
         }
       }
       world.bouncingBombs.splice(i, 1);
-      world.caveMessage = { text: 'DIRECT HIT — BOUNCING BOMB DETONATED', timer: 80 };
+      midNotice('BOUNCING BOMB — DIRECT HIT!', 80);
       continue;
     }
   }
@@ -5220,6 +5211,29 @@ function updateEffects(dt) {
     p.worldX += p.vx*dt; p.y += p.vy*dt; p.vy += 0.08*dt; p.age += dt;
     return p.age < p.life;
   });
+}
+
+// ── Notification helpers — four tiers ──
+// midNotice(text, timer)   — big centre-screen banner for critical events
+// hudFlash(text, timer, color) — pulsing warning in bottom-left HUD
+// ticker(text, timer)      — small scrolling text at bottom
+// actionIcon(symbol, timer, color) — floating symbol near the sub
+function midNotice(text, timer) {
+  world.caveMessage = { text, timer: timer || 120, tier: 'mid' };
+}
+function hudFlash(text, timer, color) {
+  if (!world._notifications) world._notifications = { ticker: [], hudFlash: null, actionIcon: null };
+  world._notifications.hudFlash = { text, timer: timer || 80, color: color || '#ef4444' };
+}
+function ticker(text, timer) {
+  if (!world._notifications) world._notifications = { ticker: [], hudFlash: null, actionIcon: null };
+  world._notifications.ticker.push({ text, timer: timer || 60 });
+  if (world._notifications.ticker.length > 5) world._notifications.ticker.shift();
+}
+function actionIcon(symbol, timer, color, offsetX, offsetY) {
+  if (!world._notifications) world._notifications = { ticker: [], hudFlash: null, actionIcon: null };
+  const maxT = timer || 40;
+  world._notifications.actionIcon = { symbol, timer: maxT, maxTimer: maxT, color: color || '#fbbf24', offsetX: offsetX || 0, offsetY: offsetY || 0 };
 }
 
 function addExplosion(wx, y, size) {

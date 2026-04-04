@@ -608,14 +608,71 @@ function drawOrbitScene() {
     ctx.fillText(`Range: ${Math.round(space.nearestBody.distance)} Mm`, 24, H - 46);
   }
 
+  // ── Multi-tier notification system ──
+  // Initialise queues if needed
+  if (!world._notifications) world._notifications = { ticker: [], hudFlash: null, actionIcon: null };
+  const notif = world._notifications;
+
+  // ── TIER 1: Midscreen banner — critical/dramatic only ──
   if (world.caveMessage && world.caveMessage.timer > 0) {
     world.caveMessage.timer--;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(W / 2 - 210, 24, 420, 34);
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 16px Arial';
+    if (world.caveMessage.tier === 'mid' || !world.caveMessage.tier) {
+      const alpha = Math.min(1, world.caveMessage.timer / 20);
+      ctx.fillStyle = `rgba(0,0,0,${0.55 * alpha})`;
+      ctx.fillRect(W / 2 - 210, 24, 420, 34);
+      ctx.fillStyle = `rgba(248,250,252,${alpha})`;
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(world.caveMessage.text, W / 2, 47);
+    }
+  }
+
+  // ── TIER 2: HUD flash — warning text pulses in top-left ──
+  if (notif.hudFlash && notif.hudFlash.timer > 0) {
+    notif.hudFlash.timer--;
+    const flash = notif.hudFlash;
+    const pulse = Math.sin(world.tick * 0.3) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(0,0,0,0.5)`;
+    ctx.fillRect(8, H - 38, 260, 22);
+    ctx.fillStyle = flash.color || '#ef4444';
+    ctx.globalAlpha = pulse;
+    ctx.font = 'bold 11px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('⚠ ' + flash.text, 14, H - 22);
+    ctx.globalAlpha = 1;
+  }
+
+  // ── TIER 3: Ticker — scrolling text at very bottom ──
+  // Show up to 2 recent ticker messages, stacked
+  for (let i = notif.ticker.length - 1; i >= 0; i--) {
+    notif.ticker[i].timer--;
+    if (notif.ticker[i].timer <= 0) notif.ticker.splice(i, 1);
+  }
+  const visibleTickers = notif.ticker.slice(-2);
+  for (let i = 0; i < visibleTickers.length; i++) {
+    const tk = visibleTickers[i];
+    const alpha = Math.min(1, tk.timer / 15);
+    const ty = H - 6 - i * 14;
+    ctx.fillStyle = `rgba(148,163,184,${alpha * 0.7})`;
+    ctx.font = '10px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(world.caveMessage.text, W / 2, 47);
+    ctx.fillText(tk.text, W / 2, ty);
+  }
+
+  // ── TIER 4: Action icon — small symbol near the sub ──
+  if (notif.actionIcon && notif.actionIcon.timer > 0) {
+    notif.actionIcon.timer--;
+    const ai = notif.actionIcon;
+    const sx = toScreen(world.sub.worldX);
+    const sy = world.sub.y - world.cameraY;
+    const alpha = Math.min(1, ai.timer / 10);
+    const rise = (ai.maxTimer - ai.timer) * 0.4; // Float upward
+    ctx.globalAlpha = alpha;
+    ctx.font = ai.size || '18px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = ai.color || '#fbbf24';
+    ctx.fillText(ai.symbol, sx + (ai.offsetX || 0), sy - 25 - rise + (ai.offsetY || 0));
+    ctx.globalAlpha = 1;
   }
 
   if (world.paused) drawPauseOverlay();
