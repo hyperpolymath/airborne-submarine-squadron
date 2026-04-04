@@ -7201,6 +7201,26 @@ function drawWarpMenu() {
   ctx.fillText('Press F or Esc to close this menu', W/2, H/2 + 78);
 }
 
+function drawAsteroids(space) {
+  for (const a of space.asteroids) {
+    ctx.save();
+    ctx.translate(a.x, a.y);
+    ctx.fillStyle = a.color;
+    // Rough polygon shape
+    ctx.beginPath();
+    const sides = 6 + Math.floor(a.radius / 4);
+    for (let i = 0; i < sides; i++) {
+      const ang = (i / sides) * Math.PI * 2;
+      const r   = a.radius * (0.75 + 0.25 * Math.sin(ang * 3 + a.id));
+      i === 0 ? ctx.moveTo(Math.cos(ang) * r, Math.sin(ang) * r)
+              : ctx.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 function drawOrbitScene() {
   const space = world.space;
   const bodies = getSolarBodies(space.time);
@@ -7332,6 +7352,7 @@ function drawOrbitScene() {
     ctx.restore();
   }
 
+  drawAsteroids(space);
   ctx.restore(); // End camera transform
 
   drawHUD();
