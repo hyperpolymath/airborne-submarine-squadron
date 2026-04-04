@@ -22,7 +22,7 @@
 
   (current-position
     (phase "alpha")
-    (completion-percentage 87)
+    (completion-percentage 89)
     (milestone "Major gameplay + infrastructure overhaul 2026-04-04: four aircraft types,
                 commander HP, scoring, damage-aware cruise, pressure system, mine variety,
                 desktop shortcut fixed, Deno crash resolved, port 6880."))
@@ -137,23 +137,22 @@
 
   (blockers-and-issues
     (blocker-1
-      (description "hypatia-scan.yml workflow missing — required for RSR compliance and CRG grade D lock")
-      (severity "medium")
-      (workaround "Other CI workflows present; hypatia scan not yet blocking"))
-    (blocker-2
-      (description "No formal test runner — test_types.as and test_verisimdb_simple.js exist but
-                    are not wired to justfile. CRG v2.0 requires all declared tests to pass for grade D.")
-      (severity "medium")
-      (workaround "Manual testing only; justfile wiring is the next action"))
-    (blocker-3
       (description "Gossamer desktop runtime requires WebKitGTK")
       (severity "low")
-      (workaround "Browser fallback works everywhere")))
+      (workaround "Browser fallback works everywhere"))
+    (blocker-2
+      (description "No headless browser runtime for E2E tests")
+      (severity "low")
+      (workaround "Game tested via unit/property/fuzz; E2E marked N/A in blitz")))
 
   (critical-next-actions
-    (action-1 "Add hypatia-scan.yml workflow from RSR template (required for RSR compliance)")
-    (action-2 "Wire test_types.as and test_verisimdb_simple.js to justfile 'test' recipe")
-    (action-3 "Verify all declared tests pass — this locks CRG grade D per READINESS.md")
-    (action-4 "Playtest aircraft balance — Berkut/Lightning/Nemesis spawn thresholds and AI")
-    (action-5 "Add mission system with hostage rescue scenarios")
-    (action-6 "Consider modular split of app_gossamer.js (~9000 lines) if it grows further")))
+    (action-1 "Playtest aircraft balance — Berkut/Lightning/Nemesis spawn thresholds and AI")
+    (action-2 "Add mission system with hostage rescue scenarios")
+    (action-3 "Consider modular split of app_gossamer.js (~9000 lines) if it grows further")
+    (action-4 "Wire VeriSimDB integration for game state persistence")
+    (action-5 "Multi-platform CI (Linux + macOS) for CRG grade B"))
+
+  (session-history
+    ("2026-04-04" "Claude Opus 4.6" "Full blitz test suite: 94 tests + 6 benchmarks across 10 categories.
+                   CRG D→C. hypatia-scan.yml added. K9 port fixed 6860→6880. test_types.as wired.
+                   Mutation score 100% (10/10 killed, 2 equivalent). Six Sigma baselines established.")))
