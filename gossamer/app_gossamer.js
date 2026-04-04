@@ -5436,6 +5436,45 @@ function updateDiverMode(sub, dt) {
   }
 }
 
+function updateAsteroids(space, bodies, sub, dt) {
+  const next = [];
+  for (const a of space.asteroids) {
+    // Gravity from all bodies
+    for (const body of bodies) {
+      const dx = body.x - a.x;
+      const dy = body.y - a.y;
+      const distSq = Math.max(dx * dx + dy * dy, (body.radius + a.radius) ** 2);
+      const dist   = Math.sqrt(distSq);
+      const accel  = (body.gm || 0) / distSq;
+      a.vx += (dx / dist) * accel * dt;
+      a.vy += (dy / dist) * accel * dt;
+    }
+    a.x += a.vx * dt * 4;
+    a.y += a.vy * dt * 4;
+
+    // Ship collision
+    const dxS = space.shipX - a.x;
+    const dyS = space.shipY - a.y;
+    if (Math.hypot(dxS, dyS) < a.radius + ORBITAL_COLLISION_RADIUS) {
+      const closingSpeed = Math.hypot(space.shipVx - a.vx, space.shipVy - a.vy);
+      damageRandomPart(sub.parts, ASTEROID_COLLISION_DMG * closingSpeed);
+      SFX.damage();
+      addExplosion(a.x, a.y, 'small');
+      world.caveMessage = { text: `ASTEROID IMPACT`, timer: 80 };
+      // Push ship away
+      const mag = Math.max(1, Math.hypot(dxS, dyS));
+      const nx = dxS / mag;
+      const ny = dyS / mag;
+      space.shipVx += nx * closingSpeed * 0.5;
+      space.shipVy += ny * closingSpeed * 0.5;
+      continue; // remove this asteroid on collision
+    }
+
+    next.push(a);
+  }
+  space.asteroids = next;
+}
+
 function updateOrbitMode(dt) {
   const sub = world.sub;
   const space = world.space;
@@ -5591,6 +5630,7 @@ function updateOrbitMode(dt) {
 
   space.shipX += space.shipVx * dt * 4;
   space.shipY += space.shipVy * dt * 4;
+  updateAsteroids(space, bodies, sub, dt);
   space.cameraX += (space.shipX - space.cameraX) * SPACE_CAMERA_SMOOTH * dt * 4;
   space.cameraY += (space.shipY - space.cameraY) * SPACE_CAMERA_SMOOTH * dt * 4;
 
