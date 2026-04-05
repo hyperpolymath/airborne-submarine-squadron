@@ -8,6 +8,19 @@ K9!
 #
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath)
 
+# ── Pedigree (Nickel-syntax preface for k9-validate-action) ─────────
+# This block is read by hyperpolymath/k9-validate-action to satisfy the
+# contract-validation schema. The YAML body below the --- separator
+# carries the actual K9 coordination data; they coexist because the
+# validator and the game tooling each parse only their portion.
+pedigree = {
+  name = "coordination",
+  version = "1.0.0",
+  leash = "kennel",
+  schema_version = "1.0.0",
+  signature = "none",
+}
+
 ---
 metadata:
   schema: k9-coordination

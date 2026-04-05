@@ -4,6 +4,14 @@
 ; META.a2ml -- Airborne Submarine Squadron architecture decisions and meta-information
 ; Updated: 2026-04-04
 
+
+; Front-matter required by hyperpolymath/a2ml-validate-action.
+; The validator matches ^(name|project|version) = "..." at line start.
+name = "airborne-submarine-squadron"
+project = "airborne-submarine-squadron"
+version = "0.5.0"
+schema_version = "1.0.0"
+
 (meta
   (metadata
     (version "1.0.1")

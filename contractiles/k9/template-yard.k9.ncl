@@ -6,6 +6,8 @@ K9!
 
 {
   pedigree = {
+    name = "template-yard",
+    version = "1.0.0",
     schema_version = "1.0.0",
     component_type = "TODO: describe component type (e.g., 'validated-config', 'schema')",
     security = {
