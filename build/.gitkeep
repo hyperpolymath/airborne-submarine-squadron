@@ -1,0 +1,2 @@
+# Keep build/ tracked so the K9 protected-paths contract test passes.
+# Actual build artifacts (*.wasm, etc.) are gitignored via .gitignore.

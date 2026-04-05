@@ -96,8 +96,9 @@ jobs:
           FLEET_DIR="/tmp/gitbot-fleet-$$"
           git clone https://github.com/hyperpolymath/gitbot-fleet.git "$FLEET_DIR"
 
-          # Run submission script
-          bash "$FLEET_DIR/scripts/submit-finding.sh" hypatia-findings.json
+          # Run submission script — pass absolute path because the script
+          # may cd into its own directory before reading the findings file.
+          bash "$FLEET_DIR/scripts/submit-finding.sh" "$PWD/hypatia-findings.json"
 
           # Cleanup
           rm -rf "$FLEET_DIR"
