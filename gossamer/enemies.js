@@ -155,7 +155,26 @@ function createSopwith(terrain) {
     dodgeDir: 1,           // Direction of current dodge
     timesHit: 0,           // Track total hits — gets wilier with each
     lastHitTick: 0,        // When last hit — affects repair rate
+    // Aggro target — the Baron attacks whoever hit him first, then swaps
+    // to anyone else who lands a hit (sub, radar SAMs, Evel, interceptors).
+    target: null,          // Current target (object reference)
+    targetKind: null,      // 'sub' | 'motorcyclist' | 'interceptor' | 'radar'
   };
+}
+
+// Read a target's world position — works across units with (worldX,y) or (x,y).
+function sopwithTargetPos(t) {
+  if (!t) return null;
+  const x = t.worldX !== undefined ? t.worldX : t.x;
+  return { x, y: t.y };
+}
+
+// Is the given target still a valid thing to chase?
+function sopwithTargetValid(t) {
+  if (!t) return false;
+  if (t.destroyed) return false;
+  if (t.alive === false) return false;
+  return true;
 }
 
 function updateSopwith(dt) {
@@ -172,7 +191,8 @@ function updateSopwith(dt) {
     sw.hp = Math.min(sw.maxHp, sw.hp + repairRate * dt);
   }
 
-  // Update bullets
+  // Update bullets — they can hurt the sub OR whichever enemy the Baron is
+  // currently aggroed on (a Sopwith fight is a genuine dogfight).
   for (let i = sw.bullets.length - 1; i >= 0; i--) {
     const b = sw.bullets[i];
     b.x += b.vx * dt; b.y += b.vy * dt;
@@ -184,6 +204,19 @@ function updateSopwith(dt) {
       SFX.damage();
       sw.bullets.splice(i, 1);
       continue;
+    }
+    // Hit current non-sub target? (Evel, interceptor, radar, etc.)
+    const tgt = sw.target;
+    if (tgt && tgt !== sub && sopwithTargetValid(tgt)) {
+      const tx = tgt.worldX !== undefined ? tgt.worldX : tgt.x;
+      if (Math.abs(b.x - tx) < 14 && Math.abs(b.y - tgt.y) < 10) {
+        // Apply damage appropriately for the target kind
+        if (tgt.hp !== undefined) tgt.hp -= 3;
+        addParticles(tx, tgt.y, 3, '#fbbf24');
+        SFX.damage();
+        sw.bullets.splice(i, 1);
+        continue;
+      }
     }
     if (b.life <= 0 || b.y > WATER_LINE || b.y < 5) sw.bullets.splice(i, 1);
   }
@@ -248,12 +281,36 @@ function updateSopwith(dt) {
     }
   }
 
+  // Record a hit and re-target onto the attacker. Attribution lets the Baron
+  // retaliate against whoever actually shot him — sub, radar SAM, Evel, an
+  // interceptor that missed its real target — not just the player every time.
+  function setAttacker(attacker, kind) {
+    if (!sopwithTargetValid(attacker)) return;
+    if (sw.target !== attacker) {
+      sw.target = attacker;
+      sw.targetKind = kind;
+      sw.manoeuvre = 'chase';
+      sw.acrobatTimer = 0;
+      // Visible feedback so the player can see the Baron switching targets.
+      // (Previously it looked like he always attacked the sub no matter who
+      // shot him; this makes the aggro swap observable.)
+      const label = kind === 'sub' ? 'the sub'
+                  : kind === 'motorcyclist' && attacker.isEvel ? 'Evel Knievel'
+                  : kind === 'motorcyclist' ? 'a motorcyclist'
+                  : kind === 'radar' ? 'a radar tower'
+                  : kind === 'interceptor' ? 'an interceptor'
+                  : 'someone';
+      if (typeof ticker === 'function') ticker(`Red Baron targets ${label}!`, 60);
+    }
+  }
+
   // Graze mechanic — the Baron's wild manoeuvres cause some shots to only clip him
-  function applyDamage(baseDmg) {
+  function applyDamage(baseDmg, attacker, kind) {
     sw.lastHitTick = world.tick;
     sw.timesHit++;
     // Gets increasingly evasive with each hit (dodge cooldown drops)
     sw.dodgeCooldown = Math.max(0, sw.dodgeCooldown - 10);
+    setAttacker(attacker, kind);
     if (sw.angered && Math.random() < SOPWITH_GRAZE_CHANCE) {
       // Glancing hit — half damage
       sw.hp -= baseDmg * 0.5;
@@ -266,8 +323,9 @@ function updateSopwith(dt) {
   // Player torpedoes
   for (let i = world.torpedoes.length - 1; i >= 0; i--) {
     const t = world.torpedoes[i];
+    if (t.fromSub === false) continue; // Enemy torpedoes handled below
     if (Math.abs(t.worldX - sw.x) < 20 * hitShrink && Math.abs(t.y - sw.y) < 14 * hitShrink) {
-      applyDamage(1); awakenBaron();
+      applyDamage(1, sub, 'sub'); awakenBaron();
       addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
       world.torpedoes.splice(i, 1); break;
     }
@@ -275,8 +333,9 @@ function updateSopwith(dt) {
   // Player missiles
   for (let i = world.missiles.length - 1; i >= 0; i--) {
     const m = world.missiles[i];
+    if (m.fromEnemy) continue; // Enemy missiles handled below
     if (Math.abs(m.worldX - sw.x) < 20 * hitShrink && Math.abs(m.y - sw.y) < 14 * hitShrink) {
-      applyDamage(2); awakenBaron();
+      applyDamage(2, sub, 'sub'); awakenBaron();
       addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
       world.missiles.splice(i, 1); break;
     }
@@ -285,7 +344,7 @@ function updateSopwith(dt) {
   for (let i = world.subMgBullets.length - 1; i >= 0; i--) {
     const b = world.subMgBullets[i];
     if (Math.abs(b.worldX - sw.x) < 14 * hitShrink && Math.abs(b.y - sw.y) < 10 * hitShrink) {
-      applyDamage(1); awakenBaron();
+      applyDamage(1, sub, 'sub'); awakenBaron();
       addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
       world.subMgBullets.splice(i, 1); break;
     }
@@ -293,7 +352,7 @@ function updateSopwith(dt) {
   // Railgun (pierces but still damages — even the Baron fears this)
   for (const r of world.railgunShots) {
     if (Math.abs(r.worldX - sw.x) < 16 * hitShrink && Math.abs(r.y - sw.y) < 12 * hitShrink) {
-      applyDamage(3); awakenBaron();
+      applyDamage(3, sub, 'sub'); awakenBaron();
       addExplosion(sw.x, sw.y, 'big'); SFX.explodeBig(); break;
     }
   }
@@ -303,10 +362,39 @@ function updateSopwith(dt) {
     for (let i = li.bullets.length - 1; i >= 0; i--) {
       const b = li.bullets[i];
       if (Math.abs(b.x - sw.x) < 12 * hitShrink && Math.abs(b.y - sw.y) < 8 * hitShrink) {
-        applyDamage(1); awakenBaron();
+        applyDamage(1, li, 'interceptor'); awakenBaron();
         addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
         li.bullets.splice(i, 1); break;
       }
+    }
+  }
+  // Stray motorcyclist bullets (Evel and other bikers — yes, even Evel can
+  // piss off the Baron with a wild potshot from a bike).
+  if (world.terrain && world.terrain.motorcyclists) {
+    for (const mc of world.terrain.motorcyclists) {
+      if (!mc.alive || !mc.bullets) continue;
+      for (let i = mc.bullets.length - 1; i >= 0; i--) {
+        const b = mc.bullets[i];
+        if (Math.abs(b.x - sw.x) < 12 * hitShrink && Math.abs(b.y - sw.y) < 8 * hitShrink) {
+          applyDamage(1, mc, 'motorcyclist'); awakenBaron();
+          addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
+          mc.bullets.splice(i, 1); break;
+        }
+      }
+    }
+  }
+  // Stray enemy missiles — SAMs from radar towers that wander into his path.
+  // These home on the sub but can clip the Baron if he's between radar + sub.
+  for (let i = world.missiles.length - 1; i >= 0; i--) {
+    const m = world.missiles[i];
+    if (!m.fromEnemy) continue;
+    if (Math.abs(m.worldX - sw.x) < 18 * hitShrink && Math.abs(m.y - sw.y) < 12 * hitShrink) {
+      // Attribute to source radar if tagged, else to a generic "radar" marker
+      const attacker = m.sourceRadar || m.owner || null;
+      applyDamage(2, attacker, attacker ? 'radar' : null);
+      awakenBaron();
+      addExplosion(sw.x, sw.y, 'small'); SFX.explodeSmall();
+      world.missiles.splice(i, 1); break;
     }
   }
 
@@ -334,9 +422,35 @@ function updateSopwith(dt) {
     }
   }
 
-  const distToSub = Math.hypot(sub.worldX - sw.x, sub.y - sw.y);
+  // Resolve aggro target — if the chosen target died/destroyed, fall back to
+  // the sub (the Baron will still chase *someone*).
+  if (!sopwithTargetValid(sw.target)) {
+    sw.target = sub;
+    sw.targetKind = 'sub';
+  }
+  const target = sw.target;
+  const targetIsSub = (target === sub);
+  const targetPos = sopwithTargetPos(target);
+  const tX = targetPos.x, tY = targetPos.y;
+  const distToTarget = Math.hypot(tX - sw.x, tY - sw.y);
+  const distToSub = distToTarget; // preserved name for existing chandelle/strafe logic
   const speed = sw.angered ? SOPWITH_ACROBAT_SPEED : SOPWITH_SPEED;
-  const dir = sw.vx >= 0 ? 1 : -1;
+  // Direction choice: when far from the target, force `dir` toward the target
+  // so acrobatic manoeuvres (which use `dir` instead of angleToSub) don't
+  // drift the Baron off into the map edge and stay there.
+  const dxToTarget = tX - sw.x;
+  const farFromTarget = distToTarget > W * 0.75; // ~600px at 800 canvas
+  const dir = farFromTarget
+    ? (dxToTarget >= 0 ? 1 : -1)
+    : (sw.vx >= 0 ? 1 : -1);
+
+  // When the Baron wanders too far from his target (off-screen + drifting),
+  // abandon whatever manoeuvre he's in and strafe straight at the target.
+  if (sw.angered && farFromTarget
+      && sw.manoeuvre !== 'strafingRun' && sw.manoeuvre !== 'chandelle') {
+    sw.manoeuvre = 'strafingRun';
+    sw.acrobatTimer = 0;
+  }
 
   if (!sw.angered) {
     // PASSIVE MODE — oblivious biplane buzzing along at low altitude,
@@ -350,150 +464,135 @@ function updateSopwith(dt) {
     // Reverse at terrain edges
     if (sw.x < 100 || sw.x > TERRAIN_LENGTH - 100) sw.vx = -sw.vx;
   } else {
-    // RED BARON MODE — aggressive acrobatics, Sopwith-style combat.
-    // Never stays in one manoeuvre long. Cycles faster the more damaged he is.
-    const manoeuvreTimeout = Math.max(30, 80 * hpPct); // Faster cycling when hurt
+    // RED BARON MODE — retro Sopwith arcade style on purpose. 8-directional
+    // movement, straight-line MG bursts, visible loop-the-loops, occasional
+    // stalls and recoveries. Comic, chunky, out of place — all intentional.
     sw.acrobatTimer += dt;
-    // If sub is hidden (periscope / underwater), orbit last known position
-    const hidden = isSubHiddenFromAir(sub);
-    if (!hidden) { sw._lastKnownX = sub.worldX; sw._lastKnownY = sub.y; }
-    const tgtX = hidden ? (sw._lastKnownX || sub.worldX) : sub.worldX;
-    const tgtY = hidden ? Math.min(sw._lastKnownY || sub.y, WATER_LINE - 35) : sub.y;
-    const toSubX = tgtX - sw.x;
-    const toSubY = tgtY - sw.y;
-    const angleToSub = Math.atan2(toSubY, toSubX);
-    if (hidden) {
-      // Lost target — circle and search, don't fire
-      const orbit = angleToSub + Math.PI / 2;
-      sw.vx += (Math.cos(orbit) * 0.08 + Math.cos(angleToSub) * 0.02) * dt;
-      sw.vy += Math.sin(orbit) * 0.05 * dt;
-      sw.vy -= 0.01 * dt; // Drift upward while searching
-      const spd = Math.hypot(sw.vx, sw.vy);
-      if (spd > SOPWITH_SPEED) { sw.vx *= SOPWITH_SPEED / spd; sw.vy *= SOPWITH_SPEED / spd; }
-      sw.x += sw.vx * dt; sw.y += sw.vy * dt;
-      sw.y = clamp(sw.y, 30, WATER_LINE - 25);
-    } else
+    const hidden = targetIsSub && isSubHiddenFromAir(sub);
+    if (!hidden) { sw._lastKnownX = tX; sw._lastKnownY = tY; }
+    const tgtX = hidden ? (sw._lastKnownX || tX) : tX;
+    const tgtY = hidden ? Math.min(sw._lastKnownY || tY, WATER_LINE - 35) : tY;
+
+    // 8-direction unit vectors, clockwise from "right" (E,SE,S,SW,W,NW,N,NE)
+    const DIRS8 = [
+      [ 1,  0], [ 0.7071,  0.7071], [ 0,  1], [-0.7071,  0.7071],
+      [-1,  0], [-0.7071, -0.7071], [ 0, -1], [ 0.7071, -0.7071],
+    ];
+    function quantize8(dx, dy) {
+      const a = Math.atan2(dy, dx);
+      // Map -π..π to 0..7 by rounding to nearest eighth turn
+      let idx = Math.round((a / (Math.PI / 4)) + 8) % 8;
+      if (idx < 0) idx += 8;
+      return idx;
+    }
+
+    // Sane retro states: 'chase', 'loop', 'stall', 'recover'
+    if (sw.manoeuvre !== 'chase' && sw.manoeuvre !== 'loop'
+        && sw.manoeuvre !== 'stall' && sw.manoeuvre !== 'recover') {
+      sw.manoeuvre = 'chase';
+      sw.acrobatTimer = 0;
+    }
+
+    // ── STALL chance — unpredictable, ruins whatever he's doing ──
+    // More likely when wounded ("oil everywhere, engine coughing").
+    const stallChance = 0.002 + (1 - hpPct) * 0.004; // ~0.2% → 0.6% per tick
+    if (sw.manoeuvre !== 'stall' && sw.manoeuvre !== 'recover'
+        && Math.random() < stallChance * dt) {
+      sw.manoeuvre = 'stall';
+      sw.acrobatTimer = 0;
+      sw._stallSpinPhase = 0;
+    }
 
     switch (sw.manoeuvre) {
-      case 'strafingRun': {
-        // Dive toward sub, firing bullets
-        sw.vx += Math.cos(angleToSub) * 0.15 * dt;
-        sw.vy += Math.sin(angleToSub) * 0.12 * dt;
-        const spd = Math.hypot(sw.vx, sw.vy);
-        if (spd > speed * 1.3) { sw.vx *= speed * 1.3 / spd; sw.vy *= speed * 1.3 / spd; }
-        // Fire bullet stream — Sopwith style (pairs of small bullets)
-        if (sw.fireCooldown <= 0 && distToSub < 300) {
-          const bDir = Math.atan2(sub.y - sw.y, sub.worldX - sw.x);
-          const spread = (Math.random() - 0.5) * 0.15;
+      case 'chase': {
+        // Snap heading to the nearest 8-dir toward the target. No smooth
+        // interpolation — the whole plane "clicks" into its new heading
+        // every few ticks like the original arcade cabinet.
+        if (!sw._dirLockTimer || sw._dirLockTimer <= 0) {
+          sw._dirIdx = quantize8(tgtX - sw.x, tgtY - sw.y);
+          sw._dirLockTimer = 6 + Math.floor(Math.random() * 4); // re-aim every 6-9 ticks
+        } else {
+          sw._dirLockTimer -= dt;
+        }
+        const [ux, uy] = DIRS8[sw._dirIdx];
+        sw.vx = ux * speed;
+        sw.vy = uy * speed;
+        // Straight-line MG burst along current heading — no targeting
+        if (sw.fireCooldown <= 0 && distToTarget < 340 && !hidden) {
           sw.bullets.push({
             x: sw.x, y: sw.y,
-            vx: Math.cos(bDir + spread) * SOPWITH_BULLET_SPEED,
-            vy: Math.sin(bDir + spread) * SOPWITH_BULLET_SPEED,
+            vx: ux * SOPWITH_BULLET_SPEED,
+            vy: uy * SOPWITH_BULLET_SPEED,
             life: 80,
           });
-          // Double tap when hurt — fires two bullets at once
           if (hpPct < 0.5) {
+            // Damaged: pilot panics and fires a second round immediately
             sw.bullets.push({
               x: sw.x, y: sw.y + 3,
-              vx: Math.cos(bDir - spread) * SOPWITH_BULLET_SPEED,
-              vy: Math.sin(bDir - spread) * SOPWITH_BULLET_SPEED,
+              vx: ux * SOPWITH_BULLET_SPEED,
+              vy: uy * SOPWITH_BULLET_SPEED,
               life: 80,
             });
           }
           sw.fireCooldown = SOPWITH_FIRE_COOLDOWN;
         }
-        // Pull up after getting close or after timeout
-        if (distToSub < 60 || sw.acrobatTimer > manoeuvreTimeout * 1.5) {
+        // Trigger a loop periodically — longer cooldown when healthy, more
+        // frequent when taking a beating (confused, flailing).
+        const loopWait = Math.max(50, 140 * hpPct);
+        if (sw.acrobatTimer > loopWait && Math.random() < 0.02 * dt) {
           sw.manoeuvre = 'loop';
           sw.acrobatTimer = 0;
+          sw._loopStartIdx = sw._dirIdx || 0;
         }
         break;
       }
       case 'loop': {
-        // Full loop — Sopwith signature move
-        const loopDuration = 65; // Tighter loop when experienced
-        const loopAngle = (sw.acrobatTimer / loopDuration) * TWO_PI;
-        sw.vx = dir * speed * Math.cos(loopAngle);
-        sw.vy = -speed * Math.sin(loopAngle);
-        if (sw.acrobatTimer > loopDuration) {
-          sw.manoeuvre = 'chandelle';
+        // Visible circular loop — cycle through all 8 directions in order.
+        // Each 1/8 of the loop takes ~7 ticks, so the full loop is ~56 ticks.
+        const tickPerStep = 7;
+        const step = Math.floor(sw.acrobatTimer / tickPerStep);
+        const loopIdx = ((sw._loopStartIdx || 0) + step) % 8;
+        const [ux, uy] = DIRS8[loopIdx];
+        sw.vx = ux * speed * 1.1;
+        sw.vy = uy * speed * 1.1;
+        sw._dirIdx = loopIdx;
+        // No firing during loop
+        if (step >= 8) {
+          sw.manoeuvre = 'chase';
+          sw.acrobatTimer = 0;
+          sw._dirLockTimer = 0;
+        }
+        break;
+      }
+      case 'stall': {
+        // Engine sputters, plane tumbles and falls. Slight wobble, no firing.
+        sw._stallSpinPhase = (sw._stallSpinPhase || 0) + dt * 0.4;
+        sw.vx *= 0.92;
+        sw.vy += 0.08 * dt; // gravity drag
+        sw.vx += Math.sin(sw._stallSpinPhase) * 0.15 * dt; // comical wobble
+        if (world.tick % 20 === 0) {
+          addParticles(sw.x, sw.y, 2, '#555'); // black smoke puff
+        }
+        // Bail out if we get dangerously low
+        if (sw.acrobatTimer > 30 || sw.y > WATER_LINE - 40) {
+          sw.manoeuvre = 'recover';
           sw.acrobatTimer = 0;
         }
         break;
       }
-      case 'immelmann': {
-        // Half loop + roll — immediate direction reversal
-        const immDuration = 40;
-        const immAngle = (sw.acrobatTimer / immDuration) * Math.PI;
-        sw.vx = dir * speed * Math.cos(immAngle);
-        sw.vy = -speed * Math.abs(Math.sin(immAngle));
-        if (sw.acrobatTimer > immDuration) {
-          sw.vx = -sw.vx; // Reverse heading
-          sw.manoeuvre = 'strafingRun';
+      case 'recover': {
+        // Power climb — full throttle up and forward toward target.
+        const recoverIdx = tgtX > sw.x ? 7 : 5; // NE or NW
+        const [ux, uy] = DIRS8[recoverIdx];
+        sw.vx = ux * speed * 1.2;
+        sw.vy = uy * speed * 1.2;
+        sw._dirIdx = recoverIdx;
+        if (sw.acrobatTimer > 18) {
+          sw.manoeuvre = 'chase';
           sw.acrobatTimer = 0;
+          sw._dirLockTimer = 0;
         }
         break;
-      }
-      case 'chandelle': {
-        // Climbing turn toward sub
-        sw.vx += Math.cos(angleToSub) * 0.08 * dt;
-        sw.vy -= 0.06 * dt; // Climb
-        const spd = Math.hypot(sw.vx, sw.vy);
-        if (spd > speed) { sw.vx *= speed / spd; sw.vy *= speed / spd; }
-        if (sw.acrobatTimer > manoeuvreTimeout || sw.y < 30) {
-          sw.manoeuvre = 'strafingRun';
-          sw.acrobatTimer = 0;
-        }
-        break;
-      }
-      case 'barrelRoll': {
-        // Spiral evasion — very hard to hit during this
-        const rollDuration = 35;
-        const rollAngle = (sw.acrobatTimer / rollDuration) * TWO_PI * 2.5;
-        sw.vx = dir * speed * 1.2;
-        sw.vy = Math.sin(rollAngle) * speed * 0.9;
-        if (sw.acrobatTimer > rollDuration) {
-          sw.manoeuvre = 'strafingRun';
-          sw.acrobatTimer = 0;
-          sw.dodging = false;
-        }
-        break;
-      }
-      case 'splitS': {
-        // Half roll then half loop downward — quick altitude loss and direction change
-        const splitDuration = 45;
-        const splitAngle = (sw.acrobatTimer / splitDuration) * Math.PI;
-        sw.vx = -dir * speed * Math.cos(splitAngle);
-        sw.vy = speed * Math.abs(Math.sin(splitAngle));
-        if (sw.acrobatTimer > splitDuration) {
-          sw.manoeuvre = 'chandelle'; // Pull back up after split-S
-          sw.acrobatTimer = 0;
-          sw.dodging = false;
-        }
-        break;
-      }
-      case 'snapTurn': {
-        // Violent flat turn — instant heading change, throws off aim
-        const snapDuration = 20;
-        const snapAngle = (sw.acrobatTimer / snapDuration) * Math.PI;
-        sw.vx = -dir * speed * 1.3;
-        sw.vy += (Math.random() - 0.5) * 0.4 * dt;
-        if (sw.acrobatTimer > snapDuration) {
-          sw.manoeuvre = 'strafingRun';
-          sw.acrobatTimer = 0;
-          sw.dodging = false;
-        }
-        break;
-      }
-      default: { // cruise/fallthrough
-        sw.vx += Math.cos(angleToSub) * 0.05 * dt;
-        sw.vy += Math.sin(angleToSub) * 0.03 * dt;
-        if (sw.acrobatTimer > manoeuvreTimeout * 0.5) {
-          // Pick a random acrobatic manoeuvre — more varied than before
-          const moves = ['strafingRun', 'loop', 'immelmann', 'chandelle', 'barrelRoll', 'splitS', 'snapTurn'];
-          sw.manoeuvre = moves[Math.floor(Math.random() * moves.length)];
-          sw.acrobatTimer = 0;
-        }
       }
     }
 
@@ -2195,7 +2294,7 @@ function updateMotorcyclists(dt) {
       const b = m.bullets[i];
       b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
       if (Math.abs(b.x - sub.worldX) < 16 && Math.abs(b.y - sub.y) < 12) {
-        damageRandomPart(sub.parts, MOTORCYCLE_MG_DAMAGE);
+        damageRandomPart(sub.parts, b.dmg || MOTORCYCLE_MG_DAMAGE);
         SFX.damage();
         m.bullets.splice(i, 1); continue;
       }
@@ -2339,18 +2438,90 @@ function updateMotorcyclists(dt) {
     if (m.x <= islLeft) { m.x = islLeft; m.vx = Math.abs(m.vx); }
     if (m.x >= islRight) { m.x = islRight; m.vx = -Math.abs(m.vx); }
 
-    // Fire at sub if in range and sub is visible
+    // ── Evel flying-jump for the ladder ──
+    // Different from the static-hover offer. If the ladder is dangling and
+    // Evel judges the pass close enough, he'll launch himself at it. If he
+    // catches, he clings and becomes a flight impediment the player must
+    // shake off (by dragging through water erratically) or crush on land.
+    if (m.isEvel && !m.jumping && !m.swimming && !m.captured
+        && sub.ladderDeployed && !sub.ladderPassenger) {
+      const ladderTipY = sub.y + sub.ladderLength;
+      const dxTip = sub.worldX - m.x;
+      const dyTip = ladderTipY - m.y;
+      const subSpeed = Math.hypot(sub.vx, sub.vy);
+      const inReach = Math.abs(dxTip) < 50 && dyTip > -30 && dyTip < 10;
+      const flyingPast = !sub.floating && subSpeed > 1.0;
+      if (inReach && flyingPast && (!m._laddersnatchCd || m._laddersnatchCd <= 0)) {
+        m._laddersnatchCd = 90;
+        if (Math.random() < 0.25) {
+          ticker('Evel leaps for the ladder!', 60);
+          if (Math.abs(dxTip) < 30 && Math.abs(dyTip) < 30) {
+            sub.ladderPassenger = { kind: 'evel', ref: m };
+            m.alive = false;
+            m.captured = false;
+            midNotice('EVEL SNAGGED THE LADDER — SHAKE HIM OFF!', 140);
+            SFX.damage && SFX.damage();
+          } else {
+            ticker('Evel\'s jump fell short.', 40);
+          }
+        }
+      }
+    }
+    if (m._laddersnatchCd > 0) m._laddersnatchCd -= dt;
+
+    // ── Rescue-ladder capture (Evel only, while grounded) ──
+    // If the player dangles the ladder over him while holding station, Evel
+    // MIGHT grab it — 1 in 10 offers. He's a professional showman; rescue is
+    // beneath him most of the time. Without VTOL, holding station is nearly
+    // impossible so the player rarely gets an offer at all.
+    if (m.isEvel && !m.jumping && !m.swimming && !m.captured
+        && sub.ladderDeployed && !sub.ladderPassenger) {
+      const ladderReach = sub.ladderLength + 6;
+      const tipY = sub.y + ladderReach;
+      const overEvel = Math.abs(sub.worldX - m.x) < 14 && Math.abs(tipY - m.y) < 16;
+      const stable = Math.hypot(sub.vx, sub.vy) < (sub.vtolUpgrade ? 1.2 : 0.25);
+      if (overEvel && stable) {
+        // One offer per stable hover — track via a per-frame timer
+        if (!m._ladderOfferCd || m._ladderOfferCd <= 0) {
+          m._ladderOfferCd = 45; // ~3/4 sec between offers
+          if (Math.random() < 0.10) {
+            m.captured = true;
+            m.alive = false;
+            world.score += EVEL_SCORE;
+            midNotice('EVEL KNIEVEL GRABBED THE LADDER!', 120);
+            ticker('Evel: "Alright, you got me." (prisoner)', 80);
+            SFX.embark && SFX.embark();
+          } else {
+            ticker('Evel scoffs at the ladder.', 40);
+          }
+        }
+      }
+    }
+    if (m._ladderOfferCd > 0) m._ladderOfferCd -= dt;
+
+    // Fire at sub if in range and sub is visible.
+    // Evel is a showman AND a professional — when he's on a bike he's much
+    // deadlier than regular bikers: longer range, faster cycling, burst fire,
+    // tighter aim, heavier damage per round.
+    const evelRange = m.isEvel ? MOTORCYCLE_MG_RANGE * 1.7 : MOTORCYCLE_MG_RANGE;
     const dist = Math.hypot(sub.worldX - m.x, sub.y - m.y);
-    if (dist < MOTORCYCLE_MG_RANGE && m.mgCooldown <= 0 && !isSubHiddenFromAir(sub)) {
+    if (dist < evelRange && m.mgCooldown <= 0 && !isSubHiddenFromAir(sub)) {
       const angle = Math.atan2(sub.y - m.y, sub.worldX - m.x);
-      const spread = (Math.random() - 0.5) * 0.2;
-      m.bullets.push({
-        x: m.x, y: m.y - 4,
-        vx: Math.cos(angle + spread) * MOTORCYCLE_MG_SPEED,
-        vy: Math.sin(angle + spread) * MOTORCYCLE_MG_SPEED,
-        life: MOTORCYCLE_BULLET_LIFE,
-      });
-      m.mgCooldown = MOTORCYCLE_MG_COOLDOWN;
+      const spread = (Math.random() - 0.5) * (m.isEvel ? 0.08 : 0.2);
+      const bulletSpeed = m.isEvel ? MOTORCYCLE_MG_SPEED * 1.35 : MOTORCYCLE_MG_SPEED;
+      const burst = m.isEvel ? 3 : 1;
+      for (let k = 0; k < burst; k++) {
+        const s = spread + (k - (burst - 1) / 2) * 0.04;
+        m.bullets.push({
+          x: m.x, y: m.y - 4,
+          vx: Math.cos(angle + s) * bulletSpeed,
+          vy: Math.sin(angle + s) * bulletSpeed,
+          life: MOTORCYCLE_BULLET_LIFE + (m.isEvel ? 20 : 0),
+          // Custom per-bullet damage tag read by the player-hit check below.
+          dmg: m.isEvel ? 4 : MOTORCYCLE_MG_DAMAGE,
+        });
+      }
+      m.mgCooldown = m.isEvel ? MOTORCYCLE_MG_COOLDOWN * 0.55 : MOTORCYCLE_MG_COOLDOWN;
     }
 
     // ── Evel Knievel: predictive jump — anticipates where you're headed ──

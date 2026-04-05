@@ -456,6 +456,110 @@
             color: #fca5a5;
         }
 
+        /* --- Main menu (appears after boot completes) --- */
+        .splash-menu {
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 14px;
+            align-items: center;
+        }
+        #loading.accepting-input .splash-menu {
+            display: flex;
+        }
+        .splash-menu-btn {
+            background: rgba(8, 14, 28, 0.85);
+            color: #f8fafc;
+            border: 1px solid rgba(110, 194, 255, 0.5);
+            padding: 10px 28px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+            min-width: 280px;
+            text-align: center;
+        }
+        .splash-menu-btn:hover,
+        .splash-menu-btn:focus {
+            background: rgba(56, 189, 248, 0.18);
+            border-color: rgba(147, 219, 255, 0.9);
+            outline: none;
+            transform: translateY(-1px);
+        }
+        .splash-menu-btn.primary {
+            border-color: rgba(46, 204, 113, 0.7);
+            color: #a7f3d0;
+        }
+        .splash-menu-btn.primary:hover,
+        .splash-menu-btn.primary:focus {
+            background: rgba(46, 204, 113, 0.2);
+            border-color: rgba(134, 239, 172, 0.9);
+        }
+        .splash-menu-btn.disabled {
+            color: #64748b;
+            border-color: rgba(100, 116, 139, 0.4);
+            cursor: not-allowed;
+        }
+        .splash-menu-btn.disabled:hover,
+        .splash-menu-btn.disabled:focus {
+            background: rgba(8, 14, 28, 0.85);
+            transform: none;
+        }
+
+        /* --- Settings panel (shown over the splash when requested) --- */
+        .settings-panel {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(6, 10, 20, 0.95);
+            padding: 30px 40px;
+            overflow-y: auto;
+            z-index: 5;
+        }
+        .settings-panel.visible { display: block; }
+        .settings-panel h2 {
+            color: #7df9ff;
+            font-size: 1.3rem;
+            margin: 0 0 16px 0;
+            letter-spacing: 0.08em;
+            text-align: center;
+        }
+        .settings-panel .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            color: #cbd5e1;
+            font-size: 0.9rem;
+        }
+        .settings-panel .row button {
+            background: rgba(56, 189, 248, 0.15);
+            color: #f8fafc;
+            border: 1px solid rgba(110, 194, 255, 0.4);
+            padding: 4px 14px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .settings-panel .row button:hover { background: rgba(56, 189, 248, 0.3); }
+        .settings-panel .back {
+            display: block;
+            margin: 20px auto 0;
+            background: transparent;
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.5);
+            padding: 8px 24px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .settings-panel .back:hover {
+            color: #f8fafc;
+            border-color: rgba(203, 213, 225, 0.9);
+        }
+
         .splash-stars {
             position: absolute;
             inset: 0;
@@ -474,6 +578,17 @@
             to { background-position: -400px 200px, 200px -400px, -800px 600px; }
         }
     </style>
+    <script>
+    // Read ?debug=1 from the URL and expose it as a global. Debug-gated
+    // features in the game JS check window.DEBUG_MODE.
+    (function () {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        window.DEBUG_MODE = params.get('debug') === '1';
+        if (window.DEBUG_MODE) console.log('[ASS] DEBUG MODE active — diagnostics overlay ON');
+      } catch (_) { window.DEBUG_MODE = false; }
+    })();
+    </script>
 </head>
 <body>
     <div id="scaleContainer">
@@ -513,9 +628,29 @@
             </div>
             <div id="loadingStatus" class="loading-status">Calibrating vector pulses…</div>
             <div id="loadingHint" class="splash-hint">Stand by until the burst completes, then press any key to engage.</div>
+            <div class="splash-menu" id="splashMenu">
+                <button class="splash-menu-btn primary" id="btnPlayAirborne" type="button">PLAY — AIRBORNE SUBMARINE</button>
+                <button class="splash-menu-btn disabled" id="btnPlaySubCommando" type="button">PLAY — SUBCOMMANDO (coming in v2)</button>
+                <button class="splash-menu-btn" id="btnHostMP" type="button">HOST GAME (multiplayer)</button>
+                <button class="splash-menu-btn" id="btnJoinMP" type="button">JOIN GAME (multiplayer)</button>
+                <button class="splash-menu-btn" id="btnSettings" type="button">SETTINGS</button>
+            </div>
         </div>
         <div class="splash-stars"></div>
+        <div class="settings-panel" id="settingsPanel">
+            <h2>SETTINGS</h2>
+            <div id="settingsRows"></div>
+            <button class="back" id="settingsBack" type="button">← BACK TO MENU</button>
+        </div>
+        <div class="settings-panel" id="lobbyPanel">
+            <h2 id="lobbyTitle">MULTIPLAYER LOBBY</h2>
+            <div id="lobbyBody" style="color:#cbd5e1;font-size:0.95rem;text-align:center;margin-top:20px;"></div>
+            <div id="lobbyStatus" style="color:#7df9ff;font-size:0.85rem;text-align:center;margin-top:16px;font-family:monospace;"></div>
+            <button class="back" id="lobbyBack" type="button">← BACK TO MENU</button>
+        </div>
     </div>
+
+    <script src="net/signalling.js"></script>
 
     <!--
       Scaling layer: auto-fit the 800x600 canvas to the window.
@@ -601,7 +736,7 @@
                 state.acceptingInput = true;
                 if (progress) progress.style.width = '100%';
                 if (status) status.textContent = 'Burst complete. Engage on command.';
-                setHint('Press any key, click, or tap now to launch.', 'ready');
+                setHint('Pick a mode below — or press any key for Airborne Submarine. S opens settings.', 'ready');
                 if (splash) splash.classList.add('accepting-input');
                 readyPromptShown = true;
                 attemptComplete();
@@ -675,13 +810,208 @@
                         if (performance.now() - startTime >= MIN_BOOT_MS) markReadyForInput();
                         attemptComplete();
                     },
-                    markUserReady() {
+                    markUserReady(mode) {
+                        // Record chosen mode on the window so the game engine can read it.
+                        // 'airborne' is the default. SubCommando is not playable yet.
+                        window.__chosenGameMode = mode || 'airborne';
                         state.user = true;
                         attemptComplete();
                     }
                 };
+
+                // --- Menu wiring ---
+                const btnAirborne    = document.getElementById('btnPlayAirborne');
+                const btnSubCommando = document.getElementById('btnPlaySubCommando');
+                const btnSettings    = document.getElementById('btnSettings');
+                const settingsPanel  = document.getElementById('settingsPanel');
+                const settingsRows   = document.getElementById('settingsRows');
+                const settingsBack   = document.getElementById('settingsBack');
+
+                // Simple persistent pre-game settings (localStorage).
+                // These feed into world.settings when the game starts; the in-game
+                // legend panel still lets players flip them during play.
+                const PREGAME_KEYS = [
+                    { key: 'haloParachute', label: 'HALO parachute',        def: true  },
+                    { key: 'deepDiverKit',  label: 'Deep diver kit',        def: false },
+                    { key: 'nemesisSub',    label: 'Nemesis sub encounter', def: false },
+                    { key: 'showLegend',    label: 'Show in-game legend',   def: true  },
+                    { key: 'supplyFrequency', label: 'Crate drops',         def: 'normal',
+                      // 'unlimited' = resource limits off entirely. NOT "lots of crates":
+                      // no crates spawn in that mode because ammo is infinite.
+                      options: ['none', 'few', 'normal', 'many', 'unlimited'],
+                      display: { none: 'NONE', few: 'FEW', normal: 'NORMAL', many: 'MANY', unlimited: 'OFF — INFINITE AMMO' } },
+                ];
+                function loadPregame() {
+                    try {
+                        const raw = localStorage.getItem('ass_pregame_settings');
+                        return raw ? JSON.parse(raw) : {};
+                    } catch (_) { return {}; }
+                }
+                function savePregame(s) {
+                    try { localStorage.setItem('ass_pregame_settings', JSON.stringify(s)); } catch (_) {}
+                }
+                let pregame = loadPregame();
+                // Expose to the game engine
+                window.__pregameSettings = new Proxy(pregame, {
+                    get(t, k) { return (k in t) ? t[k] : PREGAME_KEYS.find(p => p.key === k)?.def; },
+                });
+
+                function renderSettings() {
+                    if (!settingsRows) return;
+                    settingsRows.innerHTML = '';
+                    PREGAME_KEYS.forEach(def => {
+                        const row = document.createElement('div');
+                        row.className = 'row';
+                        const label = document.createElement('span');
+                        label.textContent = def.label;
+                        const btn = document.createElement('button');
+                        const current = (def.key in pregame) ? pregame[def.key] : def.def;
+                        if (def.options) {
+                            btn.textContent = (def.display && def.display[current]) || String(current).toUpperCase();
+                            btn.addEventListener('click', () => {
+                                const idx = def.options.indexOf(current);
+                                pregame[def.key] = def.options[(idx + 1) % def.options.length];
+                                savePregame(pregame);
+                                renderSettings();
+                            });
+                        } else {
+                            btn.textContent = current ? 'ON' : 'OFF';
+                            btn.addEventListener('click', () => {
+                                pregame[def.key] = !current;
+                                savePregame(pregame);
+                                renderSettings();
+                            });
+                        }
+                        row.appendChild(label);
+                        row.appendChild(btn);
+                        settingsRows.appendChild(row);
+                    });
+                }
+                function showSettings() {
+                    renderSettings();
+                    if (settingsPanel) settingsPanel.classList.add('visible');
+                }
+                function hideSettings() {
+                    if (settingsPanel) settingsPanel.classList.remove('visible');
+                }
+
+                if (btnAirborne) btnAirborne.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    window.__gossamerSplash.markUserReady('airborne');
+                });
+                if (btnSubCommando) btnSubCommando.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    setHint('SubCommando arrives in v2 — stand by.', 'warning');
+                });
+                if (btnSettings) btnSettings.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showSettings();
+                });
+                if (settingsBack) settingsBack.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    hideSettings();
+                });
+
+                // --- Multiplayer lobby ---
+                const btnHostMP = document.getElementById('btnHostMP');
+                const btnJoinMP = document.getElementById('btnJoinMP');
+                const lobbyPanel = document.getElementById('lobbyPanel');
+                const lobbyTitle = document.getElementById('lobbyTitle');
+                const lobbyBody = document.getElementById('lobbyBody');
+                const lobbyStatus = document.getElementById('lobbyStatus');
+                const lobbyBack = document.getElementById('lobbyBack');
+                let activePeer = null;
+
+                function showLobby() { if (lobbyPanel) lobbyPanel.classList.add('visible'); }
+                function hideLobby() {
+                    if (lobbyPanel) lobbyPanel.classList.remove('visible');
+                    if (activePeer) { try { activePeer.close(); } catch (_) {} activePeer = null; }
+                    if (lobbyBody) lobbyBody.innerHTML = '';
+                    if (lobbyStatus) lobbyStatus.textContent = '';
+                }
+                function setLobbyStatus(txt) { if (lobbyStatus) lobbyStatus.textContent = txt; }
+
+                async function startHost() {
+                    if (!window.ASSNet) { setLobbyStatus('Net module failed to load.'); return; }
+                    const code = window.ASSNet.generateRoomCode();
+                    lobbyTitle.textContent = 'HOSTING — WAITING FOR JOINER';
+                    lobbyBody.innerHTML = `<div style="font-size:2.4rem;letter-spacing:0.3em;color:#a7f3d0;margin:18px 0;font-family:monospace;">${code}</div><div>Share this code with the joiner.</div>`;
+                    setLobbyStatus('Creating offer...');
+                    try {
+                        activePeer = await window.ASSNet.createHost(code);
+                        activePeer.addEventListener('ice-state', (e) => {
+                            setLobbyStatus('ICE: ' + e.detail);
+                        });
+                        activePeer.addEventListener('open', () => {
+                            setLobbyStatus('DataChannel OPEN — peer connected.');
+                            lobbyBody.innerHTML += '<div style="color:#2ecc71;margin-top:14px;">Peer connected.</div>';
+                            activePeer.send({ t: 'hello', from: 'host' });
+                        });
+                        activePeer.addEventListener('message', (e) => {
+                            const m = e.detail;
+                            const el = document.createElement('div');
+                            el.style.cssText = 'color:#7df9ff;font-family:monospace;font-size:0.8rem;margin-top:6px;';
+                            el.textContent = '< ' + JSON.stringify(m);
+                            lobbyBody.appendChild(el);
+                        });
+                    } catch (e) {
+                        setLobbyStatus('Host failed: ' + e.message);
+                    }
+                }
+
+                async function startJoin() {
+                    if (!window.ASSNet) { setLobbyStatus('Net module failed to load.'); return; }
+                    const code = (prompt('Enter 6-character room code:') || '').trim().toUpperCase();
+                    if (!/^[A-Z0-9]{4,12}$/.test(code)) { setLobbyStatus('Invalid code.'); return; }
+                    lobbyTitle.textContent = 'JOINING — CONNECTING TO HOST';
+                    lobbyBody.innerHTML = `<div style="font-size:2.4rem;letter-spacing:0.3em;color:#93dbff;margin:18px 0;font-family:monospace;">${code}</div>`;
+                    setLobbyStatus('Polling for offer...');
+                    try {
+                        activePeer = await window.ASSNet.joinHost(code);
+                        activePeer.addEventListener('ice-state', (e) => {
+                            setLobbyStatus('ICE: ' + e.detail);
+                        });
+                        activePeer.addEventListener('open', () => {
+                            setLobbyStatus('DataChannel OPEN — connected to host.');
+                            lobbyBody.innerHTML += '<div style="color:#2ecc71;margin-top:14px;">Connected to host.</div>';
+                            activePeer.send({ t: 'hello', from: 'client' });
+                        });
+                        activePeer.addEventListener('message', (e) => {
+                            const m = e.detail;
+                            const el = document.createElement('div');
+                            el.style.cssText = 'color:#7df9ff;font-family:monospace;font-size:0.8rem;margin-top:6px;';
+                            el.textContent = '< ' + JSON.stringify(m);
+                            lobbyBody.appendChild(el);
+                        });
+                    } catch (e) {
+                        setLobbyStatus('Join failed: ' + e.message);
+                    }
+                }
+
+                if (btnHostMP) btnHostMP.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showLobby();
+                    startHost();
+                });
+                if (btnJoinMP) btnJoinMP.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showLobby();
+                    startJoin();
+                });
+                if (lobbyBack) lobbyBack.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    hideLobby();
+                });
+
                 const handleUserInput = (e) => {
                     if (state.finished) return;
+                    // If settings / lobby panel is open, only let its back button close it.
+                    if (settingsPanel && settingsPanel.classList.contains('visible')) return;
+                    if (lobbyPanel && lobbyPanel.classList.contains('visible')) return;
+                    // Let menu button clicks pass through to their own handlers.
+                    if (e && e.target && e.target.classList && e.target.classList.contains('splash-menu-btn')) {
+                        return;
+                    }
                     e && e.preventDefault && e.preventDefault();
                     if (!state.acceptingInput) {
                         if (status) status.textContent = 'Stand by. Boot sequence still running…';
@@ -693,7 +1023,13 @@
                         }
                         return;
                     }
-                    window.__gossamerSplash.markUserReady();
+                    // Keyboard shortcut: Enter/Space = play airborne
+                    if (e && (e.type === 'keydown')) {
+                        const key = e.key;
+                        if (key === 'Escape') { hideSettings(); return; }
+                        if (key === 's' || key === 'S') { showSettings(); return; }
+                    }
+                    window.__gossamerSplash.markUserReady('airborne');
                 };
                 inputGuard = handleUserInput;
                 function cleanup() {

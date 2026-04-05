@@ -312,8 +312,30 @@ async function launchDeno(platform) {
   const { serveDir } = await import("jsr:@std/http@1/file-server");
   await Deno.mkdir("logs", { recursive: true });
 
-  const CORS = { "Access-Control-Allow-Origin": "*" };
+  const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "content-type" };
   const ac   = new AbortController();
+
+  // ── WebRTC signalling rooms ────────────────────────────────────────────
+  // In-memory FIFO mailbox per 6-char room code. Peers POST signalling
+  // blobs (offer / answer / ICE candidates) and GET queues them. No
+  // persistence — rooms evict after 10 min of inactivity. This is the
+  // bare minimum to let two browsers exchange SDP; the actual data path
+  // is peer-to-peer via WebRTC DataChannel after the handshake finishes.
+  /** @type {Map<string, { box: any[], last: number }>} */
+  const rooms = new Map();
+  const ROOM_TTL_MS = 10 * 60 * 1000;
+  function sweepRooms() {
+    const now = Date.now();
+    for (const [code, r] of rooms) {
+      if (now - r.last > ROOM_TTL_MS) rooms.delete(code);
+    }
+  }
+  // In debug mode: disable all browser caching so JS/HTML/WASM edits are
+  // picked up on every reload. Critical when iterating on live code.
+  const DEBUG = Deno.env.get("AIRBORNE_DEBUG") === "1";
+  const NO_CACHE = DEBUG
+    ? { "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache", "Expires": "0" }
+    : {};
 
   const server = Deno.serve(
     { port, hostname: "127.0.0.1", signal: ac.signal, onListen: () => {} },
@@ -341,7 +363,47 @@ async function launchDeno(platform) {
         }
       }
       if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-      return serveDir(req, { fsRoot: ".", quiet: true });
+
+      // ── Signalling endpoint ────────────────────────────────────────────
+      // POST /room/ABCDEF  body=<any JSON>  -> pushes into the room's box
+      // GET  /room/ABCDEF                    -> drains the box (JSON array)
+      const roomMatch = pathname.match(/^\/room\/([A-Za-z0-9]{4,12})$/);
+      if (roomMatch) {
+        sweepRooms();
+        const code = roomMatch[1].toUpperCase();
+        if (!rooms.has(code)) rooms.set(code, { box: [], last: Date.now() });
+        const r = rooms.get(code);
+        r.last = Date.now();
+        if (req.method === "POST") {
+          try {
+            const blob = await req.json();
+            r.box.push(blob);
+            return new Response(JSON.stringify({ ok: true }), {
+              status: 200,
+              headers: { ...CORS, "content-type": "application/json" },
+            });
+          } catch (e) {
+            return new Response(JSON.stringify({ ok: false, error: e.message }), {
+              status: 400,
+              headers: { ...CORS, "content-type": "application/json" },
+            });
+          }
+        }
+        if (req.method === "GET") {
+          // Drain-and-return: consumer gets all pending blobs at once.
+          const drained = r.box.splice(0);
+          return new Response(JSON.stringify(drained), {
+            status: 200,
+            headers: { ...CORS, "content-type": "application/json" },
+          });
+        }
+      }
+
+      const resp = await serveDir(req, { fsRoot: ".", quiet: true });
+      if (DEBUG) {
+        for (const [k, v] of Object.entries(NO_CACHE)) resp.headers.set(k, v);
+      }
+      return resp;
     },
   );
 
@@ -360,8 +422,11 @@ async function launchDeno(platform) {
     Deno.addSignalListener("SIGTERM", shutdown);
   } catch { /* Windows — signals not fully supported */ }
 
-  // Open the Gossamer entry point (not root index.html)
-  const gameUrl = `${url}gossamer/index_gossamer.html`;
+  // Open the Gossamer entry point (not root index.html).
+  // In debug mode, add ?debug=1 query param + cache-buster so the game JS
+  // can turn on diagnostics and the browser always fetches fresh files.
+  const debugQS = DEBUG ? `?debug=1&cb=${Date.now()}` : "";
+  const gameUrl = `${url}gossamer/index_gossamer.html${debugQS}`;
   if (platform.browserCmd) {
     log(`Opening Gossamer at ${gameUrl}`);
     // Fire and forget — don't await xdg-open (it can block or spawn duplicates)
@@ -510,6 +575,11 @@ full git cycle (add, commit, push to origin and mirrors).
 
   const skipGit    = args.includes("--no-git");
   const launchOnly = !args.includes("--no-launch");
+  const debugMode  = args.includes("--debug");
+  if (debugMode) {
+    Deno.env.set("AIRBORNE_DEBUG", "1");
+    log("DEBUG MODE ENABLED — cache busting + on-screen diagnostics");
+  }
 
   head(`${REGISTRY.identity.display} v${REGISTRY.identity.version}`);
 

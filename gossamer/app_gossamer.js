@@ -324,11 +324,14 @@ const DEFAULT_SETTINGS = {
 // 'interval' is a multiplier applied to SUPPLY_DROP_INTERVAL — higher = fewer crates.
 // 'unlimited' disables ammo consumption entirely (no crates spawn).
 const SUPPLY_FREQUENCY_LEVELS = [
-  { id: 'none',      label: 'None',      interval: Infinity },
-  { id: 'few',       label: 'Few',       interval: 3.0 },
-  { id: 'normal',    label: 'Normal',    interval: 1.6 },
-  { id: 'many',      label: 'Many',      interval: 1.0 },
-  { id: 'unlimited', label: 'Unlimited', interval: Infinity },
+  { id: 'none',      label: 'None (crates off)',             interval: Infinity },
+  { id: 'few',       label: 'Few crates',                    interval: 3.0 },
+  { id: 'normal',    label: 'Normal crate drops',            interval: 1.6 },
+  { id: 'many',      label: 'Many crates',                   interval: 1.0 },
+  // "Unlimited" means infinite ammo — the resource system is disabled entirely.
+  // No crates spawn because they'd be pointless. Kept above in the cycle so
+  // the label (and the 'god mode' framing) is unambiguous to the player.
+  { id: 'unlimited', label: 'No Limits (infinite ammo, no crates)', interval: Infinity },
 ];
 
 function getSupplyFrequency(settings) {
@@ -1127,45 +1130,72 @@ function drawEvelCameratron() {
 
 function generateMines(terrain) {
   const mines = [];
-  const sample = terrain.islands.length;
-  for (let i = 0; i < MINE_COUNT; i++) {
-    const isl = terrain.islands[Math.floor(Math.random() * sample)];
-    const baseX = isl ? isl.x : Math.random() * TERRAIN_LENGTH;
-    const spread = isl ? isl.baseW * 0.5 : 120;
-    const x = baseX + (Math.random() - 0.5) * spread;
-    const seaFloorY = groundYFromTerrain(terrain, x);
-    // Mine zone determines chain length and difficulty:
-    // - Middle zone (thermocline): longer chains, easier to detach (wide chain target)
-    // - Deep zone: shorter chains anchored near floor, harder to cut without detonating
-    const zoneRoll = Math.random();
-    let chainLen, anchorY;
-    if (zoneRoll < 0.4) {
-      // Middle zone mine — long chain from floor up into thermocline
-      chainLen = 100 + Math.random() * 80; // 100-180, tall chains
-      anchorY = seaFloorY - 4;
-    } else if (zoneRoll < 0.7) {
-      // Deep zone mine — short chain near floor, harder to cut
-      chainLen = 15 + Math.random() * 30; // 15-45, short chains
-      anchorY = seaFloorY - 4;
-    } else {
-      // Standard shallow mine
-      chainLen = 30 + Math.random() * 60;
-      anchorY = seaFloorY - 4;
+  // Enforce reasonable spacing: no two mine floats should be nearer than this.
+  // Uses 2D distance so horizontally-close mines at different heights are still
+  // allowed (they form a vertical curtain instead of a flat cluster).
+  const MIN_SPACING_XY = 70;
+  const MAX_PLACEMENT_ATTEMPTS = 40;
+
+  // Helper — true if a candidate (x, y) is far enough from every placed mine.
+  function farEnough(candX, candY) {
+    for (const m of mines) {
+      const dx = m.x - candX;
+      const dy = m.y - candY;
+      if (dx * dx + dy * dy < MIN_SPACING_XY * MIN_SPACING_XY) return false;
     }
-    const floatY = Math.max(WATER_LINE + 12, anchorY - chainLen);
-    mines.push({
-      x, y: floatY,
-      anchorY,
-      chainLength: chainLen,
-      swayPhase: Math.random() * Math.PI * 2,
-      swaySpeed: 0.015 + Math.random() * 0.015,
-      swayAmplitude: 3 + Math.random() * 5,
-      active: true,
-      pulse: Math.random() * Math.PI * 2,
-      chainCut: false,
-      freed: false,
-      floatVy: 0,
-    });
+    return true;
+  }
+
+  const islandCount = terrain.islands.length;
+  for (let i = 0; i < MINE_COUNT; i++) {
+    let placed = false;
+    for (let attempt = 0; attempt < MAX_PLACEMENT_ATTEMPTS && !placed; attempt++) {
+      // Mix of island-anchored and open-water mines. Open-water mines spread
+      // the field along the whole corridor instead of clumping near islands.
+      let x;
+      const openWater = Math.random() < 0.35 || islandCount === 0;
+      if (openWater) {
+        x = 400 + Math.random() * Math.max(800, TERRAIN_LENGTH - 800);
+      } else {
+        const isl = terrain.islands[Math.floor(Math.random() * islandCount)];
+        const spread = Math.max(140, isl.baseW * 1.6);
+        x = isl.x + (Math.random() - 0.5) * spread;
+      }
+      const seaFloorY = groundYFromTerrain(terrain, x);
+      // Mine zone determines chain length and difficulty:
+      // - Middle zone (thermocline): longer chains, easier to detach
+      // - Deep zone: shorter chains anchored near floor, harder to cut
+      // - Shallow: typical WW2 harbour mine
+      const zoneRoll = Math.random();
+      let chainLen;
+      if (zoneRoll < 0.35) {
+        chainLen = 100 + Math.random() * 80;  // long chains, up into thermocline
+      } else if (zoneRoll < 0.65) {
+        chainLen = 15 + Math.random() * 30;   // short, deep
+      } else {
+        chainLen = 45 + Math.random() * 55;   // standard shallow
+      }
+      const anchorY = seaFloorY - 4;
+      const floatY = Math.max(WATER_LINE + 12, anchorY - chainLen);
+      if (!farEnough(x, floatY)) continue;
+      mines.push({
+        x, y: floatY,
+        anchorY,
+        chainLength: chainLen,
+        swayPhase: Math.random() * Math.PI * 2,
+        swaySpeed: 0.015 + Math.random() * 0.015,
+        swayAmplitude: 3 + Math.random() * 5,
+        active: true,
+        pulse: Math.random() * Math.PI * 2,
+        chainCut: false,
+        freed: false,
+        floatVy: 0,
+        chainFuse: 0,  // Ticks until domino-chain detonation fires
+      });
+      placed = true;
+    }
+    // If we couldn't place this one after many attempts, the field is dense
+    // enough — drop it rather than cram another overlap in.
   }
   return mines;
 }
@@ -1185,18 +1215,29 @@ function updateMines(world, dt) {
     mine.pulse += dt * 0.04;
     mine.swayPhase += mine.swaySpeed * dt;
 
+    // Chain-detonation fuse (set by triggerMine on a neighbour) — tick down
+    // and cook off when it reaches zero. The flashing pulse speeds up as the
+    // fuse burns so the player can see the cascade coming.
+    if (mine.chainFuse > 0) {
+      mine.chainFuse -= dt;
+      mine.pulse += dt * 0.25; // rapid blink
+      if (mine.chainFuse <= 0) {
+        triggerMine(world, mine);
+        continue;
+      }
+    }
+
     // --- Freed mine: floating upward ---
     if (mine.freed) {
       mine.floatVy = Math.max(-1.2, mine.floatVy - 0.02 * dt); // Accelerate upward
       mine.y += mine.floatVy * dt;
       mine.x += Math.sin(mine.swayPhase) * 0.1 * dt; // Slight lateral drift
 
-      // Hit sub — lethal
+      // Hit sub — lethal, obliterates sub + commander
       const subDist = Math.hypot(sub.worldX - mine.x, sub.y - mine.y);
       if (subDist < MINE_RADIUS + 12) {
         triggerMine(world, mine);
-        sub.parts.hull = 0; // Instant kill
-        world.caveMessage = { text: 'MINE IMPACT — HULL DESTROYED', timer: 200 };
+        obliterateSubByMine(world);
         continue;
       }
 
@@ -1285,8 +1326,7 @@ function updateMines(world, dt) {
     const dist = Math.hypot(sub.worldX - mine.x, sub.y - mine.y);
     if (dist < MINE_RADIUS + 12 && thermallyVisible(sub.y, mine.y)) {
       triggerMine(world, mine);
-      sub.parts.hull = 0; // Mines are lethal
-      world.caveMessage = { text: 'MINE IMPACT — HULL DESTROYED', timer: 200 };
+      obliterateSubByMine(world);
       continue;
     }
     // Torpedoes hitting the mine body directly
@@ -1302,6 +1342,42 @@ function updateMines(world, dt) {
   }
 }
 
+// Record the cause of death once. Don't overwrite — the FIRST thing that
+// killed you is what gets reported on the scoring screen. (If the sub explodes
+// from mine damage, we don't want a subsequent "hull destroyed" check to
+// re-brand it as a boring hull breach.)
+function setDeathCause(world, cause, detail) {
+  if (world.deathCause) return;
+  world.deathCause = { cause, detail: detail || null };
+}
+
+// A direct mine hit is catastrophic: the sub is utterly destroyed and the
+// commander is killed. Used by both "chained mine" and "freed mine" collision
+// paths so the end-of-mission screen consistently shows the full carnage.
+function obliterateSubByMine(world) {
+  setDeathCause(world, 'mine');
+  const sub = world.sub;
+  // Every part to zero — not just the hull — so the scoring screen shows
+  // every bar empty.
+  for (const def of SUB_PARTS) sub.parts[def.id] = 0;
+  sub.commanderHp = 0;
+  world.gameOver = true;
+  world.caveMessage = { text: 'MINE — SUB AND COMMANDER LOST', timer: 240 };
+  addExplosion(sub.worldX, sub.y, 'big');
+  addExplosion(sub.worldX - 8, sub.y + 4, 'big');
+  addExplosion(sub.worldX + 8, sub.y - 4, 'big');
+  addParticles(sub.worldX, sub.y, 40, '#ef4444');
+  SFX.gameOver();
+}
+
+// Domino chain radius — any other active mine within this distance of a
+// detonating mine gets a short fuse and cooks off, which cascades if several
+// mines were placed as a cluster. Each link in the chain adds a tiny delay
+// so the blasts arrive in a rolling wave, not simultaneously.
+const MINE_CHAIN_RADIUS = 80;
+const MINE_CHAIN_FUSE_BASE = 6;   // ticks before neighbour lights
+const MINE_CHAIN_FUSE_JITTER = 6; // random extra ticks per neighbour
+
 function triggerMine(world, mine) {
   if (!mine.active) return;
   mine.active = false;
@@ -1309,6 +1385,18 @@ function triggerMine(world, mine) {
   addParticles(mine.x, mine.y, 16, '#f44336');
   damageRandomPart(world.sub.parts, MINE_DAMAGE);
   world.score += 120;
+
+  // Domino: every nearby active mine lights its fuse. The fuse is processed
+  // in updateMines so the explosion visually cascades across the cluster.
+  for (const other of world.mines) {
+    if (other === mine || !other.active) continue;
+    if (other.chainFuse > 0) continue; // Already ticking
+    const dx = other.x - mine.x;
+    const dy = other.y - mine.y;
+    if (dx * dx + dy * dy <= MINE_CHAIN_RADIUS * MINE_CHAIN_RADIUS) {
+      other.chainFuse = MINE_CHAIN_FUSE_BASE + Math.random() * MINE_CHAIN_FUSE_JITTER;
+    }
+  }
 }
 
 function drawMines(world) {
@@ -1461,6 +1549,7 @@ function damageRandomPart(parts, amount) {
           if (world.sub.commanderHp <= 0) {
             world.caveMessage = { text: 'COMMANDER KIA — MISSION OVER', timer: 200 };
             world.gameOver = true;
+            setDeathCause(world, 'commander-shot');
             SFX.gameOver();
           }
         }
@@ -1580,9 +1669,19 @@ function loadSettings() {
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
+    // Pre-game splash-menu settings (if set) override the in-game saved ones
+    // for this session. This lets the splash "SETTINGS" button dictate what
+    // the player actually starts with, without trampling their persisted
+    // in-game tweaks on disk.
+    let pregame = {};
+    try {
+      const rawPre = window.localStorage.getItem('ass_pregame_settings');
+      if (rawPre) pregame = JSON.parse(rawPre) || {};
+    } catch (_) {}
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      ...pregame,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -1858,6 +1957,7 @@ function startPlanetWarp(target = null) {
   }
 
   world.currentDestination = destination;
+  world.hasWarped = true;
   world.terrain = generateTerrain(TERRAIN_LENGTH);
   const baseX = Math.random() * (TERRAIN_LENGTH - 200) + 100;
   world.sub.worldX = baseX;
@@ -2032,6 +2132,7 @@ function updateMissionTimer(dt) {
       m.failed = true;
       world.caveMessage = { text: 'MISSION FAILED: PASSENGER SHIP DESTROYED', timer: 200 };
       world.gameOver = true;
+      setDeathCause(world, 'civilian-ship');
       SFX.gameOver();
       finishMission('failed_ship_destroyed');
       return;
@@ -2056,6 +2157,7 @@ function updateMissionTimer(dt) {
     if (m.mandatory) {
       world.caveMessage = { text: `MISSION FAILED: ${m.label} — TIME EXPIRED`, timer: 200 };
       world.gameOver = true;
+      setDeathCause(world, 'timeout', m.label);
       SFX.gameOver();
       finishMission('failed_timeout_mandatory');
     } else {
@@ -2154,10 +2256,20 @@ function updateHostages(dt) {
     }
     // Signal flare timer
     h.flareTimer += dt;
-    // Rescue proximity check — sub must be near the island at water level
+    // Rescue proximity check. Two valid modes:
+    //   (a) Sub floating at waterline alongside the island (original style)
+    //   (b) Sub hovering above the hostage with the rescue ladder down — the
+    //       hostage climbs up. Without the VTOL upgrade this is very hard to
+    //       line up, because the sub won't hold station.
     const dx = Math.abs(sub.worldX - h.x);
     const dy = Math.abs(sub.y - h.y);
-    if (dx < HOSTAGE_RESCUE_RANGE && dy < HOSTAGE_RESCUE_RANGE + 30 && sub.floating) {
+    const ladderReach = sub.ladderDeployed ? sub.ladderLength + 6 : 0;
+    const ladderTipY = sub.y + ladderReach;
+    const ladderAt = sub.ladderDeployed
+      && Math.abs(sub.worldX - h.x) < 14
+      && Math.abs(ladderTipY - h.y) < 14
+      && Math.hypot(sub.vx, sub.vy) < (sub.vtolUpgrade ? 1.2 : 0.25); // stable enough?
+    if ((dx < HOSTAGE_RESCUE_RANGE && dy < HOSTAGE_RESCUE_RANGE + 30 && sub.floating) || ladderAt) {
       h.rescued = true;
       h.rescueAnim = 60;
       world.score += HOSTAGE_SCORE_BONUS;
@@ -2617,6 +2729,15 @@ function initWorld() {
       commanderAimAngle: 0,       // Swivel angle for disembarked aiming (z/x)
       commanderGrenades: CMDR_GRENADE_MAX,
       commanderPpcAmmo: CMDR_PPC_AMMO,
+      // Rescue ladder — toggled with CapsLock. Drops from the sub's belly
+      // and can pluck hostages / Evel off islands without disembarking.
+      // Effectively useless without the VTOL upgrade because you can't hold
+      // position steady enough to line up the winch.
+      ladderDeployed: false,
+      ladderLength: 0,            // Current extended length (animates)
+      vtolUpgrade: false,         // Unlocked later — lets sub hover stable
+      ladderPassenger: null,      // {kind, ref} if something is clinging on
+      ladderShakeAccum: 0,        // Builds up while player swings erratically
     },
     torpedoes: [],       // All positions in world coords
     missiles: [],
@@ -2650,6 +2771,10 @@ function initWorld() {
     commanderFireCooldown: 0,
     enemyTimer: 0,
     gameOver: false,
+    deathCause: null,  // { cause, detail } set when gameOver is triggered
+    // Game mode chosen on the splash menu. Currently only 'airborne' is
+    // playable; 'subcommando' is reserved for v2.
+    gameMode: (typeof window !== 'undefined' && window.__chosenGameMode) || 'airborne',
     quitConfirm: false,
     paused: false,
     menuOpen: false,
@@ -3039,6 +3164,7 @@ function updatePauseMenu() {
       ensureLeaderboardRecorded('QUIT');
       world.quitConfirm = true;
       world.gameOver = true;
+      setDeathCause(world, 'quit');
     }
   }
   // Enter rebind mode: press R then a number
@@ -3292,12 +3418,14 @@ function updateAirEject(dt) {
     world.caveMessage = { text: 'COMMANDER IN THE WATER — GAME OVER', timer: 200 };
     // Trigger game over after a delay
     world.gameOver = true;
+    setDeathCause(world, 'eject-water');
   } else if (ej.pilotY >= pilotGroundY - 4) {
     ej.pilotY = pilotGroundY - 4;
     ej.landed = true;
     ej.pilotVy = 0;
     world.caveMessage = { text: 'COMMANDER LANDED — GAME OVER', timer: 200 };
     world.gameOver = true;
+    setDeathCause(world, 'eject-ground');
   }
 
   // Enemy fire can kill the commander during descent
@@ -3311,6 +3439,7 @@ function updateAirEject(dt) {
         ej.dead = true;
         world.caveMessage = { text: 'COMMANDER KIA', timer: 200 };
         world.gameOver = true;
+        setDeathCause(world, 'eject-shot');
         SFX.damage();
       }
     }
@@ -4078,6 +4207,32 @@ function update(dt) {
   // World bounds
   sub.worldX = Math.max(30, Math.min(TERRAIN_LENGTH - 30, sub.worldX));
 
+  // --- Surface-skim spray effect ---
+  // When the sub hedgehops along the water with its propeller dipping into
+  // the surface, kick up a spray trail. Rewards careful low-altitude flight.
+  // Conditions: airborne, very low alt (prop in the water), moving forward.
+  {
+    const propY = sub.y + 4;          // propeller sits a bit below sub centre
+    const propInWater = propY > WATER_LINE - 2 && propY < WATER_LINE + 6;
+    const airborne = !sub.floating && !sub.periscopeMode && sub.y < WATER_LINE - 2;
+    const fwdSpeed = Math.abs(sub.vx);
+    if (airborne && propInWater && fwdSpeed > 1.0 && world.tick % 2 === 0) {
+      // Spray behind the sub — a short curling arc of water droplets.
+      const rearX = sub.worldX - Math.sign(sub.vx || sub.facing || 1) * 16;
+      const intensity = Math.min(1, (fwdSpeed - 1.0) / 3.0); // 0..1 by speed
+      const count = 2 + Math.floor(intensity * 3);
+      for (let k = 0; k < count; k++) {
+        const jx = (Math.random() - 0.5) * 8;
+        const jy = (Math.random() - 0.2) * 4;
+        addParticles(rearX + jx, WATER_LINE + jy, 1, '#bfe6ff');
+      }
+      // Occasional bigger droplet for visual punch
+      if (Math.random() < 0.25) {
+        addParticles(rearX - Math.sign(sub.vx) * 6, WATER_LINE - 2, 1, '#85c1e9');
+      }
+    }
+  }
+
   // --- Water physics ---
   const inWater = sub.y + 9 > WATER_LINE;
   if (!sub.periscopeMode) {
@@ -4261,6 +4416,75 @@ function update(dt) {
   // Auto-disengage caterpillar when engine goes critical or leaving water
   if (sub.caterpillarDrive && (sub.y <= WATER_LINE || isEngineCritical(sub.parts))) {
     sub.caterpillarDrive = false;
+  }
+
+  // --- Rescue ladder toggle (CapsLock) ---
+  // Drops a rope ladder from the sub's belly. Used to winch up hostages
+  // (and very occasionally Evel) WITHOUT disembarking. Without the VTOL
+  // upgrade the sub can't hold station, so the ladder swings uselessly.
+  // CANNOT retract while something is clinging on.
+  if (keyJustPressed['CapsLock']) {
+    if (sub.ladderPassenger) {
+      ticker('Can\'t retract — passenger on the ladder!', 60);
+    } else {
+      sub.ladderDeployed = !sub.ladderDeployed;
+      ticker(sub.ladderDeployed
+        ? (sub.vtolUpgrade ? 'Rescue ladder deployed' : 'Ladder deployed — hover unstable without VTOL')
+        : 'Rescue ladder retracted', 80);
+    }
+  }
+  // Extend/retract ladder smoothly — forced deployed while someone clings.
+  {
+    const targetLen = (sub.ladderDeployed || sub.ladderPassenger) ? 50 : 0;
+    sub.ladderLength += (targetLen - sub.ladderLength) * 0.15 * dt;
+  }
+
+  // --- Ladder passenger physics ---
+  // A clinging passenger drags on the sub: extra vx damping + slight downward
+  // pull. Shake-off requires violent velocity swings (best done by skimming
+  // the water erratically) OR crushing on a land/island surface.
+  if (sub.ladderPassenger) {
+    const p = sub.ladderPassenger;
+    // Drag penalty — feels like carrying a sack of trouble
+    sub.vx *= 0.985;
+    sub.vy += 0.04 * dt;
+    // Erratic-swing shake-off: accumulate based on lateral jerk
+    const prevVx = sub._prevVxForShake || 0;
+    const jerk = Math.abs(sub.vx - prevVx);
+    sub._prevVxForShake = sub.vx;
+    // Only counts while the ladder tip is in the water (drag-through-water)
+    const tipY = sub.y + sub.ladderLength;
+    if (tipY > WATER_LINE) {
+      sub.ladderShakeAccum += jerk * 8 * dt;
+    } else {
+      sub.ladderShakeAccum *= 0.98; // leaks when airborne
+    }
+    if (sub.ladderShakeAccum > 14) {
+      // Shaken loose — flings them into the water
+      ticker('Shook him loose!', 80);
+      if (p.ref) {
+        p.ref.swimming = true;
+        p.ref.alive = true;
+        p.ref.swimTarget = null;
+        p.ref.y = WATER_LINE + 2;
+      }
+      sub.ladderPassenger = null;
+      sub.ladderShakeAccum = 0;
+      SFX.waterSplash && SFX.waterSplash();
+    }
+    // Crush on land/island: if the ladder tip hits terrain while moving fast
+    const groundY = getGroundY(sub.worldX);
+    const islandHit = islandHitTest(sub.worldX, tipY);
+    if ((tipY >= groundY - 2 || islandHit) && Math.hypot(sub.vx, sub.vy) > 1.0) {
+      midNotice('PASSENGER CRUSHED ON LAND', 100);
+      if (p.ref) { p.ref.alive = false; }
+      addParticles(sub.worldX, tipY, 10, '#b91c1c');
+      SFX.islandCrash && SFX.islandCrash();
+      sub.ladderPassenger = null;
+      sub.ladderShakeAccum = 0;
+    }
+  } else {
+    sub.ladderShakeAccum = Math.max(0, sub.ladderShakeAccum - 0.05 * dt);
   }
 
   // --- Weapon selection (1=MG, 2=torpedo, 3=missile, 4=depth charge, 9=railgun) ---
@@ -4660,6 +4884,7 @@ function update(dt) {
         phase: 'ignite', dropTimer: 0, life: 200, trail: [],
         fromEnemy: true, sam: true,
         targetPart: 'tower', // Specifically targets cockpit
+        sourceRadar: r,      // For aggro attribution (e.g. Red Baron retaliation)
       });
       r.cooldown = 80;
       SFX.missileLaunch();
@@ -4786,6 +5011,66 @@ function update(dt) {
         SFX.damage(); e.health = 0;
         world.enemies = world.enemies.filter(en => en.health > 0);
         break;
+      }
+    }
+    // Sopwith / Red Baron ram collision — not in world.enemies so needs its
+    // own check. Ramming him hurts the sub but he takes big structural damage.
+    const sw = world.sopwith;
+    if (sw && sw.alive
+        && Math.abs(sw.x - sub.worldX) < 22
+        && Math.abs(sw.y - sub.y) < 16) {
+      damageRandomPart(sub.parts, 20);
+      sw.hp -= 6; // Ramming does big damage — biplanes are fragile
+      sw.lastHitTick = world.tick;
+      sw.timesHit++;
+      // A ram counts as the sub attacking him — aggro snaps to sub
+      sw.target = sub;
+      sw.targetKind = 'sub';
+      if (!sw.angered) {
+        sw.angered = true;
+        sw.manoeuvre = 'immelmann';
+        sw.acrobatTimer = 0;
+        midNotice('THE RED BARON AWAKENS!', 120);
+      }
+      addExplosion((sw.x + sub.worldX) / 2, (sw.y + sub.y) / 2, 'big');
+      SFX.damage();
+      // Knock the sub back so you don't stick to him
+      const knockDir = sub.worldX < sw.x ? -1 : 1;
+      sub.vx += knockDir * 1.5;
+      sub.vy -= 0.6;
+    }
+
+    // Nemesis lair rock wall — the cave mouth is passable but the surrounding
+    // rock face is solid. Ramming the rock damages the sub and bounces it off.
+    const lair = world.terrain.nemesisLair;
+    if (lair) {
+      const lhw = lair.w / 2;
+      const lhh = lair.h / 2;
+      const dx = sub.worldX - lair.x;
+      const dy = sub.y - lair.y;
+      // Outer rock bounds (matches the rock polygon in drawNemesisLair)
+      const outerHW = lhw + 28;
+      const outerTop = -(lhh + 20);
+      const outerBot = lhh + 28;
+      const insideOuter = Math.abs(dx) < outerHW && dy > outerTop && dy < outerBot;
+      if (insideOuter) {
+        // Mouth opening (passable ellipse) — same as the void gradient ellipse
+        const mouthRX = lhw * 0.72;
+        const mouthRY = lhh * 0.62;
+        const nx = dx / mouthRX, ny = dy / mouthRY;
+        const insideMouth = (nx * nx + ny * ny) < 1;
+        if (!insideMouth) {
+          // Hit rock — damage scales with impact speed
+          const spd = Math.hypot(sub.vx, sub.vy);
+          const dmg = Math.max(6, Math.min(30, spd * 6));
+          damageRandomPart(sub.parts, dmg);
+          addExplosion(sub.worldX, sub.y, 'small'); SFX.islandCrash();
+          // Bounce the sub away from the lair centre
+          const bx = Math.sign(dx) || 1;
+          const by = Math.sign(dy) || 1;
+          sub.vx = bx * Math.max(1.2, Math.abs(sub.vx) * 0.6);
+          sub.vy = by * Math.max(0.8, Math.abs(sub.vy) * 0.5);
+        }
       }
     }
   }
@@ -4916,6 +5201,7 @@ function update(dt) {
   // Game over: hull destroyed
   if (sub.parts.hull <= 0) {
     world.gameOver = true;
+    setDeathCause(world, 'hull');
     addExplosion(sub.worldX, sub.y, 'big'); SFX.gameOver();
     ensureLeaderboardRecorded('HULL BREACH');
   }
@@ -5407,6 +5693,56 @@ function updateNewProjectiles(dt) {
       addParticles(bb.worldX + 8, WATER_LINE - 4, 3, '#bfe6ff');
       SFX.waterSplash();
       world._screenShake = Math.max(world._screenShake || 0, 4); // Slight shake on impact
+    }
+
+    // Ship contact — a bouncing bomb skipping across the water is supposed
+    // to smash into surface ships (that's the whole Barnes Wallis point).
+    // Check every surface vessel along the bomb's path and detonate on hit.
+    let hitShip = null;
+    const bbY = bb.y;
+    // Bombs only interact with ships while roughly at surface level (bomb is
+    // arcing between bounces or cruising low). Ships sit at WATER_LINE - ~6
+    // to - ~8, so anything within ~50px vertically counts as a hull strike.
+    // Use a generous vertical window so a bomb mid-arc still hits a tall hull.
+    if (bbY > WATER_LINE - 60 && bbY < WATER_LINE + 25) {
+      const dest = world.terrain.destroyer;
+      if (dest && !dest.destroyed && Math.abs(bb.worldX - dest.x) < 55) {
+        hitShip = { obj: dest, kind: 'destroyer', score: 2000, civilian: false };
+      }
+      if (!hitShip) {
+        const pass = world.terrain.passengerShip;
+        if (pass && !pass.destroyed && Math.abs(bb.worldX - pass.x) < 45) {
+          hitShip = { obj: pass, kind: 'passenger', score: 0, civilian: true };
+        }
+      }
+      if (!hitShip) {
+        for (const boat of (world.terrain.interceptors || [])) {
+          if (boat.destroyed) continue;
+          if (Math.abs(bb.worldX - boat.x) < 32) {
+            hitShip = { obj: boat, kind: 'interceptor', score: 400, civilian: false };
+            break;
+          }
+        }
+      }
+    }
+    if (hitShip) {
+      addExplosion(bb.worldX, bb.y, 'big');
+      addExplosion(bb.worldX - 12, bb.y - 4, 'big');
+      addParticles(bb.worldX, bb.y, 20, '#ff6b00');
+      SFX.explodeBig();
+      hitShip.obj.hp = 0;
+      hitShip.obj.destroyed = true;
+      if (hitShip.civilian) {
+        world.score = 0;
+        world.caveMessage = { text: 'BOUNCING BOMB HIT CIVILIAN SHIP — SCORE ZERO', timer: 250 };
+        SFX.gameOver();
+      } else {
+        world.score += hitShip.score;
+        world.kills++;
+        midNotice(`BOUNCING BOMB — ${hitShip.kind.toUpperCase()} SUNK!`, 80);
+      }
+      world.bouncingBombs.splice(i, 1);
+      continue;
     }
 
     // Land/island contact — EXPLODE
@@ -6618,6 +6954,32 @@ function draw() {
   drawGunPost();
   drawMissionTimer();
 
+  // --- DEBUG OVERLAY — only when launched with --debug ---
+  // Shows camera/sub/pilot state; cache-busted so every reload picks up latest JS.
+  if (typeof window !== 'undefined' && window.DEBUG_MODE) {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ff00ff';
+    ctx.fillRect(W/2 - 220, 10, 440, 128);
+    ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3;
+    ctx.strokeRect(W/2 - 220, 10, 440, 128);
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    const _s = world.sub;
+    const _hx = 420 - 20 - world.cameraY;
+    const _sx = _s.y - world.cameraY;
+    const _x0 = W/2 - 210;
+    ctx.fillText('DEBUG MODE ACTIVE', _x0, 30);
+    ctx.fillText('sub.y       = ' + _s.y.toFixed(1), _x0, 48);
+    ctx.fillText('cameraY     = ' + world.cameraY.toFixed(1), _x0, 66);
+    ctx.fillText('disembarked = ' + _s.disembarked, _x0, 84);
+    ctx.fillText('pilotY      = ' + (_s.pilotY != null ? _s.pilotY.toFixed(1) : 'n/a'), _x0, 102);
+    ctx.fillText('hangar scrY = ' + _hx.toFixed(1) + ' (want 0-600)', _x0, 120);
+    ctx.fillText('sub scrY    = ' + _sx.toFixed(1) + ' (want ~270)', _x0, 136);
+    ctx.restore();
+  }
+
   // Cave message notification
   if (world.caveMessage && world.caveMessage.timer > 0) {
     world.caveMessage.timer--;
@@ -6733,6 +7095,48 @@ function drawSub(sub) {
   const sx = toScreen(sub.worldX);
   const f = sub.facing; // 1=right, -1=left
   const skin = resolveSubSkin(world.settings);
+
+  // --- Rescue ladder ---
+  // Rendered BEFORE the sub body so the rope appears to come out of the belly.
+  if (sub.ladderLength > 1) {
+    const len = sub.ladderLength;
+    const swingAmp = sub.vtolUpgrade ? 2 : 7;
+    const swing = Math.sin(world.tick * 0.12) * swingAmp;
+    const ladderTopY = sub.y + 4;
+    const ladderBotY = ladderTopY + len;
+    const ladderBotX = sx + swing;
+    // Two rails
+    ctx.strokeStyle = '#8a6a3a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx - 3, ladderTopY); ctx.lineTo(ladderBotX - 3, ladderBotY);
+    ctx.moveTo(sx + 3, ladderTopY); ctx.lineTo(ladderBotX + 3, ladderBotY);
+    ctx.stroke();
+    // Rungs
+    ctx.lineWidth = 1;
+    const rungCount = Math.floor(len / 8);
+    for (let r = 0; r < rungCount; r++) {
+      const t = (r + 1) / (rungCount + 1);
+      const rx = sx + swing * t;
+      const ry = ladderTopY + len * t;
+      ctx.beginPath();
+      ctx.moveTo(rx - 3, ry); ctx.lineTo(rx + 3, ry);
+      ctx.stroke();
+    }
+    // Passenger clinging to the bottom
+    if (sub.ladderPassenger) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath(); ctx.arc(ladderBotX, ladderBotY + 2, 3, 0, TWO_PI); ctx.fill();
+      ctx.fillStyle = '#3b82f6'; // blue visor = Evel
+      ctx.fillRect(ladderBotX - 2, ladderBotY + 1, 4, 1.5);
+      // Legs dangling
+      ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ladderBotX - 1, ladderBotY + 4); ctx.lineTo(ladderBotX - 2, ladderBotY + 9);
+      ctx.moveTo(ladderBotX + 1, ladderBotY + 4); ctx.lineTo(ladderBotX + 2, ladderBotY + 9);
+      ctx.stroke();
+    }
+  }
 
   // Wake ripples when floating
   if (sub.floating && !sub.disembarked) {

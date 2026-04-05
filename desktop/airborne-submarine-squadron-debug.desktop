@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Airborne Submarine Squadron (DEBUG)
+GenericName=Arcade Game (Debug Mode)
+Comment=Debug launcher — no browser cache, on-screen diagnostics overlay
+Exec="LAUNCHER_PATH" --debug
+Icon=/var/mnt/eclipse/repos/airborne-submarine-squadron/desktop/icons/airborne-submarine-squadron.svg
+Terminal=false
+Categories=Game;ArcadeGame;Development;
+Keywords=submarine;debug;diagnostics;
+StartupWMClass=airborne-submarine-squadron-debug
+StartupNotify=true

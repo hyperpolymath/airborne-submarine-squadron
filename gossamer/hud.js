@@ -764,6 +764,46 @@ function drawHUD() {
   ctx.fillStyle='#bdc3c7'; ctx.font='12px Arial';
   ctx.fillText(sub.facing > 0 ? 'HEADING: >>>' : 'HEADING: <<<', W-15, hudStartY + 26);
 
+  // --- SELECTED WEAPON PANEL — compact strip at top-centre ---
+  // Kept thin and high-up so it doesn't cover the midscreen banner, tickers,
+  // caveMessages ("Evel Knievel jumps!" etc.), controls hint, or action icons.
+  {
+    const hudUnlimited = world.settings.supplyFrequency === 'unlimited';
+    const sel = world.selectedWeapon || 1;
+    const WPNS = [
+      { slot: 1, name: 'MG',        ammo: null,                      color: '#fde68a' },
+      { slot: 2, name: 'TORP',      ammo: sub.torpedoAmmo,           color: '#2ecc71' },
+      { slot: 3, name: 'MSL',       ammo: sub.missileAmmo,           color: '#e74c3c' },
+      { slot: 4, name: 'DCHG',      ammo: sub.depthChargeAmmo,       color: '#a78bfa' },
+      { slot: 5, name: 'BB',        ammo: sub.bouncingBombAmmo || 0, color: '#fb923c' },
+      { slot: 9, name: 'RAIL',      ammo: sub.railgunAmmo || 0,      color: '#7df9ff' },
+    ];
+    const current = WPNS.find(w => w.slot === sel) || WPNS[0];
+    const ammoStr = hudUnlimited ? 'INF'
+                  : current.ammo === null ? 'UNL'
+                  : String(current.ammo);
+    // Compact strip — ~460px wide, 22px tall, sitting just below the
+    // midscreen banner zone (~y=24..58) and well clear of the bottom.
+    const bw = 460, bh = 22;
+    const bx = W/2 - bw/2, by = 62;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = current.color; ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+    // All slots in a row — current one bracketed and coloured
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    const slotW = bw / WPNS.length;
+    WPNS.forEach((w, i) => {
+      const isSel = w.slot === sel;
+      const hasAmmo = w.ammo === null || hudUnlimited || w.ammo > 0;
+      const ammoTxt = (w.ammo === null || hudUnlimited) ? '' : `:${w.ammo}`;
+      ctx.fillStyle = isSel ? w.color : (hasAmmo ? '#94a3b8' : '#475569');
+      const label = isSel ? `[${w.slot} ${w.name}${ammoTxt}]` : `${w.slot} ${w.name}${ammoTxt}`;
+      ctx.fillText(label, bx + slotW * (i + 0.5), by + 15);
+    });
+  }
+
   // Weapons + ammo
   ctx.font='12px Arial';
   const hudUnlimited = world.settings.supplyFrequency === 'unlimited';
@@ -798,10 +838,82 @@ function drawHUD() {
   ctx.textAlign = 'right';
   ctx.fillText(`CDR ${'♥'.repeat(Math.max(0, cmdHp))}${'♡'.repeat(Math.max(0, COMMANDER_MAX_HP - cmdHp))} ${commanderStatusLabel(cmdHp)}`, W-15, 198);
 
+  // --- Tiny always-on coord readout (bottom-left corner) ---
+  // Low-contrast, small font so it doesn't clutter — there for diagnosing
+  // "why did my sub teleport / vanish" reports without a separate debug build.
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(125,249,255,0.55)';
+  const _vxStr = (sub.vx || 0).toFixed(1);
+  const _vyStr = (sub.vy || 0).toFixed(1);
+  ctx.fillText(`x:${Math.round(sub.worldX)} y:${Math.round(sub.y)}  cam:${Math.round(world.cameraX)}/${Math.round(world.cameraY)}  v:${_vxStr},${_vyStr}  [v0.5.0]`, 15, H - 72);
+
   // Controls
   ctx.font='11px Arial'; ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.textAlign='center';
   if (sub.disembarked) ctx.fillText('[M] Return to sub  |  J/K: move  |  Arrows: move', W/2, H-10);
   else ctx.fillText('Esc: controls | E: disembark | A: afterburner | AltGr: depth | Ctrl: torpedo | Enter: missile', W/2, H-10);
+}
+
+// ============================================================
+// CAUSE OF DEATH — mildly mocking one-liners keyed by death cause.
+// Keep these short, punchy, and a little unfair. One random line is
+// picked each time the scoring screen renders.
+// ============================================================
+const CAUSE_OF_DEATH_BLURBS = {
+  'mine': [
+    'Got too friendly with a mine.',
+    'Tried to hug a mine. It did not hug back.',
+    'Mine: 1. Sub: pieces.',
+    'Explosive finish. Not recommended.',
+  ],
+  'commander-shot': [
+    'Commander took one to the cockpit. Bad hair day.',
+    'Someone got bullseyed through the visor. Ouch.',
+    'Your commander forgot to duck.',
+  ],
+  'civilian-ship': [
+    'You sank a passenger ship. War crimes tribunal called.',
+    'That was the civilian boat. The one with the LITTLE OLD LADIES on it.',
+    'Nice going, ace. Score: zero. Integrity: also zero.',
+  ],
+  'timeout': [
+    'Stared at the clock so long the clock stared back.',
+    'Time expired. Somewhere, a general is shouting at a radio.',
+    'Did not read the briefing. Did not watch the timer. Result: this.',
+  ],
+  'eject-water': [
+    'Commander belly-flopped into the Atlantic.',
+    'Ejected over water. Swim lessons required.',
+    'Parachute worked. Landing zone did not.',
+  ],
+  'eject-ground': [
+    'Commander walked home. Game\'s no fun alone.',
+    'Wandered off on foot. Submarine sold for scrap.',
+    'Chose legs over engines. Bad trade.',
+  ],
+  'eject-shot': [
+    'Shot out of your own parachute. Statistically improbable. Impressively done.',
+    'Someone targeted the chute. That\'s just rude.',
+    'Commander KIA mid-descent. Unsporting.',
+  ],
+  'hull': [
+    'Hull gave up. Should\'ve duct-taped it.',
+    'Hull breach. Physics took over from here.',
+    'Pressure + holes = sad submarine.',
+  ],
+  'quit': [
+    'You pressed Q. That\'s a you problem.',
+    'Rage-quit logged. For posterity.',
+    'Tactical withdrawal. Very tactical. Much withdraw.',
+  ],
+};
+
+function causeOfDeathBlurb(deathCause) {
+  if (!deathCause) return 'Cause unknown. Spectacular, though.';
+  const key = deathCause.cause;
+  const pool = CAUSE_OF_DEATH_BLURBS[key];
+  if (!pool || pool.length === 0) return `Cause: ${key}. Amusing in its own way.`;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 // ============================================================
@@ -842,8 +954,33 @@ function drawMissionScoringScreen() {
   ctx.fillStyle = '#cbd5e1';
   ctx.fillText(`Kills: ${world.kills}  |  Duration: ${Math.floor(world.tick / 60)}s`, W / 2, py + 94);
 
+  // --- Cause of Death (only on mission failure) ---
+  // Blurb is chosen once per scoring screen render; stable within a frame.
+  // Cache it so re-renders don't flicker through different one-liners.
+  let codHeight = 0;
+  if (failed && world.deathCause) {
+    if (!world._codLine) world._codLine = causeOfDeathBlurb(world.deathCause);
+    const blurb = world._codLine;
+    ctx.font = 'bold 12px Arial';
+    ctx.fillStyle = '#fca5a5';
+    ctx.textAlign = 'center';
+    ctx.fillText('— CAUSE OF DEATH —', W / 2, py + 112);
+    ctx.font = 'italic 13px Arial';
+    ctx.fillStyle = '#fde68a';
+    const words = blurb.split(' ');
+    const lines = [];
+    let line = '';
+    for (const w of words) {
+      if ((line + ' ' + w).trim().length > 52) { lines.push(line.trim()); line = w; }
+      else line += ' ' + w;
+    }
+    if (line.trim()) lines.push(line.trim());
+    lines.forEach((ln, i) => ctx.fillText(ln, W / 2, py + 128 + i * 16));
+    codHeight = 18 + lines.length * 16;
+  }
+
   // --- Commander Status ---
-  let row = py + 126;
+  let row = py + 126 + codHeight;
   ctx.textAlign = 'left';
   ctx.font = 'bold 16px Arial';
   ctx.fillStyle = '#f8fafc';
@@ -939,7 +1076,10 @@ function drawMissionScoringScreen() {
     `Mode: ${world.mode === 'orbit' ? 'Space' : 'Atmosphere'}`,
     `Supply frequency: ${getSupplyFrequency(world.settings).label}`,
   ];
-  if (world.currentDestination) {
+  // Only show a destination line if the player has actually warped somewhere.
+  // The init value is PLANET_DESTINATIONS[0] (Aegis) which would otherwise
+  // always appear as "last destination" even though the player never went.
+  if (world.currentDestination && world.hasWarped) {
     summaryLines.push(`Last destination: ${world.currentDestination.name}`);
   }
   for (const line of summaryLines) {
