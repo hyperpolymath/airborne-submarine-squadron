@@ -38,8 +38,11 @@ jobs:
           fi
 
       - name: Build Hypatia scanner (if needed)
-        working-directory: ${{ env.HOME }}/hypatia
         run: |
+          # env.HOME is NOT populated in GitHub Actions contexts, so using
+          # ${{ env.HOME }} in working-directory collapses to "/hypatia" and
+          # fails. Resolve $HOME inside a bash step instead.
+          cd "$HOME/hypatia"
           if [ ! -f hypatia ]; then
             echo "Building hypatia scanner..."
             mix deps.get
