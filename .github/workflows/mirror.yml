@@ -13,6 +13,12 @@ jobs:
   mirror:
     name: Mirror to GitLab and Bitbucket
     runs-on: ubuntu-latest
+    # Evaluate secret presence once at job level. GitHub Actions rejects the
+    # workflow if `secrets.*` is referenced directly inside step-level `if:`
+    # when the secret isn't set on the repo — hoist to an env var instead.
+    env:
+      HAS_GITLAB: ${{ secrets.GITLAB_TOKEN != '' }}
+      HAS_BITBUCKET: ${{ secrets.BITBUCKET_TOKEN != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -27,7 +33,7 @@ jobs:
             ${{ secrets.BITBUCKET_SSH_KEY }}
 
       - name: Push to GitLab
-        if: ${{ secrets.GITLAB_TOKEN != '' }}
+        if: env.HAS_GITLAB == 'true'
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
         run: |
@@ -35,7 +41,7 @@ jobs:
           git push gitlab --mirror
 
       - name: Push to Bitbucket
-        if: ${{ secrets.BITBUCKET_TOKEN != '' }}
+        if: env.HAS_BITBUCKET == 'true'
         env:
           BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
         run: |
