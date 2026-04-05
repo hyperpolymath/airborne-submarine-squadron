@@ -19,6 +19,8 @@ jobs:
     env:
       HAS_GITLAB: ${{ secrets.GITLAB_TOKEN != '' }}
       HAS_BITBUCKET: ${{ secrets.BITBUCKET_TOKEN != '' }}
+      HAS_GITLAB_SSH: ${{ secrets.GITLAB_SSH_KEY != '' }}
+      HAS_BITBUCKET_SSH: ${{ secrets.BITBUCKET_SSH_KEY != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -26,6 +28,9 @@ jobs:
           fetch-depth: 0
 
       - name: Set up SSH agent
+        # Only run when at least one SSH key secret is configured; webfactory
+        # rejects empty input with an error otherwise.
+        if: env.HAS_GITLAB_SSH == 'true' || env.HAS_BITBUCKET_SSH == 'true'
         uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387
         with:
           ssh-private-key: |
