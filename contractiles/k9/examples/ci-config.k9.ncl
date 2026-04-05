@@ -6,6 +6,8 @@ K9!
 
 {
   pedigree = {
+    name = "ci-config",
+    version = "1.0.0",
     schema_version = "1.0.0",
     component_type = "ci-configuration",
     security = {

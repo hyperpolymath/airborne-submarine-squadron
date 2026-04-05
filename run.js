@@ -324,12 +324,22 @@ async function launchDeno(platform) {
   /** @type {Map<string, { box: any[], last: number }>} */
   const rooms = new Map();
   const ROOM_TTL_MS = 10 * 60 * 1000;
+  const MAX_ROOMS = 256;           // hard cap; oldest-evicted when full
+  const MAX_BOX_MSGS = 64;         // per-room cap on buffered signalling blobs
   function sweepRooms() {
     const now = Date.now();
     for (const [code, r] of rooms) {
       if (now - r.last > ROOM_TTL_MS) rooms.delete(code);
     }
   }
+  // Timer-driven sweep so rooms evict even when no one polls the endpoint.
+  // Previously sweepRooms only ran on inbound requests, which meant a host
+  // that posted an offer and then crashed could leave its room resident
+  // forever if no other client hit /room/*. Guaranteed worst case now:
+  // a room is gone at most ROOM_TTL_MS + 60s after its last access.
+  const sweepTimer = setInterval(sweepRooms, 60 * 1000);
+  // Release the handle so the sweep doesn't keep Deno alive at shutdown.
+  try { Deno.unrefTimer(sweepTimer); } catch (_) {}
   // In debug mode: disable all browser caching so JS/HTML/WASM edits are
   // picked up on every reload. Critical when iterating on live code.
   const DEBUG = Deno.env.get("AIRBORNE_DEBUG") === "1";
@@ -371,12 +381,24 @@ async function launchDeno(platform) {
       if (roomMatch) {
         sweepRooms();
         const code = roomMatch[1].toUpperCase();
+        // Hard cap on room count. If at cap, evict the least-recently-used
+        // room to make room for the new one.
+        if (!rooms.has(code) && rooms.size >= MAX_ROOMS) {
+          let oldest = null;
+          let oldestT = Infinity;
+          for (const [c, rr] of rooms) {
+            if (rr.last < oldestT) { oldestT = rr.last; oldest = c; }
+          }
+          if (oldest) rooms.delete(oldest);
+        }
         if (!rooms.has(code)) rooms.set(code, { box: [], last: Date.now() });
         const r = rooms.get(code);
         r.last = Date.now();
         if (req.method === "POST") {
           try {
             const blob = await req.json();
+            // Per-room message cap so a runaway client can't OOM the server.
+            if (r.box.length >= MAX_BOX_MSGS) r.box.shift();
             r.box.push(blob);
             return new Response(JSON.stringify({ ok: true }), {
               status: 200,

@@ -96,8 +96,14 @@ jobs:
           FLEET_DIR="/tmp/gitbot-fleet-$$"
           git clone https://github.com/hyperpolymath/gitbot-fleet.git "$FLEET_DIR"
 
-          # Run submission script
-          bash "$FLEET_DIR/scripts/submit-finding.sh" hypatia-findings.json
+          # Run submission script — pass absolute path because the script
+          # may cd into its own directory before reading the findings file.
+          # Non-fatal: gitbot-fleet's submit-finding.sh has a jq bug (tries to
+          # add array + object). Until upstream fixes it we don't want a
+          # cosmetic handoff failure to mask the actual scan result.
+          bash "$FLEET_DIR/scripts/submit-finding.sh" "$PWD/hypatia-findings.json" || {
+            echo "::warning::submit-finding.sh failed — see https://github.com/hyperpolymath/gitbot-fleet/issues for upstream jq bug"
+          }
 
           # Cleanup
           rm -rf "$FLEET_DIR"
