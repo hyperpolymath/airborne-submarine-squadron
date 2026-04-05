@@ -1,0 +1,28 @@
+{
+  "applicability": [
+    "individual",
+    "team"
+  ],
+  "capabilities": {
+    "cli": {
+      "description": "Asymmetric co-op stealth game compiled to WebAssembly with a CLI build system.",
+      "panel_compatible": true,
+      "protocol": "cli",
+      "requires_auth": false,
+      "type": "cli"
+    }
+  },
+  "consumes": [
+    "octad-storage"
+  ],
+  "groove_version": "1",
+  "health": null,
+  "invoke_patterns": {
+    "ci": "airborne-submarine-squadron --ci --format json",
+    "local": "airborne-submarine-squadron --interactive",
+    "mcp": "boj cartridge_invoke airborne-submarine-squadron"
+  },
+  "mode": "passive",
+  "service_id": "airborne-submarine-squadron",
+  "service_version": "0.1.0"
+}

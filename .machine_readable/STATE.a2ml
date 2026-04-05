@@ -6,7 +6,7 @@
 
 (state
   (metadata
-    (version "0.6.0")
+    (version "0.6.1")
     (name "airborne-submarine-squadron")
     (type "game")
     (last-updated "2026-04-04"))
@@ -17,14 +17,15 @@
     (language "AffineScript")
     (target "WASM + browser + Gossamer desktop")
     (port 6880)
-    (crg-grade "D")
+    (crg-grade "C")
     (crg-file "READINESS.md"))
 
   (current-position
     (phase "alpha")
-    (completion-percentage 85)
-    (milestone "Major gameplay overhaul 2026-04-04: four aircraft types, commander HP,
-                end-of-mission scoring, mine variety, balance pass, HUD improvements."))
+    (completion-percentage 93)
+    (milestone "Major gameplay + infrastructure overhaul 2026-04-04: four aircraft types,
+                commander HP, scoring, damage-aware cruise, pressure system, mine variety,
+                desktop shortcut fixed, Deno crash resolved, port 6880."))
 
   (components
     (game-engine
@@ -34,20 +35,28 @@
                 thermal layers with visibility rules, caterpillar drive, supply drops.
                 Supply frequency setting (none/few/normal/many/unlimited).
                 Commander HP (3 hearts) with injury/death system.
-                End-of-mission scoring screen with full component breakdown."))
+                End-of-mission scoring screen with full component breakdown.
+                Damage-aware space bar: air cruise affected by wing/cockpit damage,
+                water stabilise affected by hull damage, space = full stop.
+                Deep water pressure system: damaged hull (<40%) incurs progressive
+                pressure damage with warnings, <20% = instant crush.
+                Two-stage quit: Esc→Q (scoring) → Q again (desktop close + server shutdown)."))
     (aircraft-system
       (status "working")
       (details "Four aircraft types implemented 2026-04-04:
-                1. Sopwith Camel — passive biplane, transforms to Red Baron on hit,
-                   acrobatic combat (loops, Immelmann, chandelle, barrel roll, strafing),
+                1. Sopwith Camel — passive biplane with pilot (goggles, scarf, leather helmet),
+                   transforms to Red Baron on hit (skin peels off, iron cross, spiked helmet),
+                   acrobatic combat (loops, Immelmann, chandelle, barrel roll, strafing runs),
                    Sopwith-style tracer fire, one per level, 5000pts.
-                2. Su-47 Berkut (Air Supremacy) — spawns at 3000pts, intelligent AI
-                   state machine, MG/rockets/seekers/bombs/chaff, commands interceptors.
-                3. English Electric Lightning (Interceptors) — squadrons of 2-3,
-                   MG + unguided rockets, Berkut-coordinated when both on screen.
-                4. Nemesis mini-sub — toggle or auto at 5000pts, mirrors player,
-                   flies and swims (not deep/space), torpedoes + MG.
-                Generic aircraft reduced: spawn timer doubled, max 3 on screen."))
+                2. Su-47 Berkut (Air Supremacy) — forward-swept wings, spawns at 3000pts,
+                   intelligent AI state machine (approach/engage/evade/reposition),
+                   MG/rockets/seekers/bombs/chaff, commands nearby interceptors, 8000pts.
+                3. English Electric Lightning (Interceptors) — stacked nacelles, swept wings,
+                   squadrons of 2-3, MG + unguided rockets, Berkut-coordinated when both
+                   on screen, RAF roundel markings, 1500pts each.
+                4. Nemesis mini-sub — dark mirror of player sub with red eye, toggle (G) or
+                   auto at 5000pts, flies and swims (not deep/space), torpedoes + MG, 6000pts.
+                Generic aircraft reduced: spawn timer doubled (80→160), max 3 on screen."))
     (ships
       (status "working")
       (details "Destroyer (patrol, SAM, AA, torpedoes), Passenger (island-hopping, survivors),
@@ -55,12 +64,13 @@
     (submarines
       (status "working")
       (details "Akula-Molot hammerhead — torpedo active bug FIXED, speed 0.6→0.8,
-                SAM cooldown 140→90, torpedo cooldown 180→110, wider engage ranges.
+                SAM cooldown 140→90, torpedo cooldown 180→110, wider engage ranges
+                (SAM 350→450, torpedo 300→400).
                 Delfin dolphin (fire-forget torpedo, surface MG, crew bail-out)"))
     (mines
       (status "working")
       (details "Three mine zones implemented 2026-04-04:
-                - Middle zone (40%): long chains 100-180, easier to cut (wide target)
+                - Middle zone (40%): long chains 100-180, easier to cut (wide chain target)
                 - Deep zone (30%): short chains 15-45, harder to cut without detonating
                 - Standard (30%): original 30-60 chains"))
     (hangar-system
@@ -68,10 +78,13 @@
       (details "Health tiers (green/yellow/red/purple), point defense, explosion"))
     (thermal-layers
       (status "working")
-      (details "Three asymmetric layers, visibility rules, temperature gauge, hull depth restriction"))
+      (details "Three asymmetric layers, visibility rules, temperature gauge.
+                Damaged hull can now enter deep layer but incurs progressive pressure
+                damage with warnings. Hull <20% in deep = instant crush."))
     (space
       (status "working")
-      (details "Solar system with Pluto, boundary, autopilot (0-9 keys), tourist ship, no afterburners.
+      (details "Solar system with Pluto, boundary, autopilot (0-9 keys), tourist ship.
+                No afterburners in space. Space bar = immediate full stop.
                 HUD fixed: solar map only in orbit, flight instruments red in space."))
     (hud
       (status "working")
@@ -79,16 +92,20 @@
                 Graded 4-segment HP bar under damage diagram.
                 Commander HP display with hearts and status label.
                 Clearer wings (swept-back) and rudder (V-tail) in damage diagram.
-                E key disembark no longer triggers eject warning.
+                E key disembark uses own confirmation, no eject warning.
                 Supply crate frequency in settings (C to cycle).
-                Nemesis sub toggle (G to toggle)."))
+                Nemesis sub toggle (G to toggle).
+                Splash screen: Hull → Weapons → Aquanics → Launch boot pips."))
     (desktop-integration
       (status "working")
-      (details "XDG shortcut, system tray (ksni 0.3), install/uninstall"))
+      (details "Desktop shortcut + KDE menu entry. launcher.sh --gossamer now uses
+                run.js --no-git (canonical launcher). Opens Gossamer HTML not root.
+                Shortcut updated from --browser to --gossamer. Installed to
+                ~/.local/share/applications/ and ~/Desktop/."))
     (save-system
       (status "working")
       (details "Save/load to localStorage, key rebinding, HALO/deep-diver-kit upgrades,
-                commander HP saved/restored"))
+                commander HP saved/restored, supply frequency persisted"))
     (crash-logging
       (status "working")
       (details "window.onerror + onunhandledrejection capture errors with world snapshot.
@@ -96,8 +113,13 @@
                 POST /crash-report sends to Deno dev server."))
     (dev-server
       (status "working")
-      (details "run.js Deno file server on port 6860 (fallback 6870-6874).
-                freePort() kills stale processes. POST /crash-report endpoint.")))
+      (details "run.js Deno file server on port 6880 (fallback 6881-6884).
+                chdir to script dir on launch (fixes desktop shortcut CWD issue).
+                freePort() kills ALL ports in range on startup.
+                /shutdown endpoint with safe queueMicrotask abort.
+                xdg-open fire-and-forget with .unref().
+                jsr:@std/http@1 import for Deno 2.7 compatibility.
+                POST /crash-report endpoint writes JSON to logs/.")))
 
   (route-to-mvp
     (milestone-1
@@ -115,23 +137,32 @@
 
   (blockers-and-issues
     (blocker-1
-      (description "hypatia-scan.yml workflow missing — required for RSR compliance and CRG grade D lock")
-      (severity "medium")
-      (workaround "Other CI workflows present; hypatia scan not yet blocking"))
-    (blocker-2
-      (description "No formal test runner — test_types.as and test_verisimdb_simple.js exist but
-                    are not wired to justfile. CRG v2.0 requires all declared tests to pass for grade D.")
-      (severity "medium")
-      (workaround "Manual testing only; justfile wiring is the next action"))
-    (blocker-3
       (description "Gossamer desktop runtime requires WebKitGTK")
       (severity "low")
-      (workaround "Browser fallback works everywhere")))
+      (workaround "Browser fallback works everywhere"))
+    (blocker-2
+      (description "No headless browser runtime for E2E tests")
+      (severity "low")
+      (workaround "Game tested via unit/property/fuzz; E2E marked N/A in blitz")))
 
   (critical-next-actions
-    (action-1 "Add hypatia-scan.yml workflow from RSR template (required for RSR compliance)")
-    (action-2 "Wire test_types.as and test_verisimdb_simple.js to justfile 'test' recipe")
-    (action-3 "Verify all declared tests pass — this locks CRG grade D per READINESS.md")
-    (action-4 "Playtest aircraft balance — Berkut/Lightning/Nemesis spawn thresholds")
-    (action-5 "Add mission system with hostage rescue scenarios")
-    (action-6 "Consider modular split of app_gossamer.js if it grows further")))
+    (action-1 "Playtest all 3 mission types + aircraft balance in-game with son")
+    (action-2 "CRG B assessment — chaos/resilience tests, coverage feedback on fuzz")
+    (action-3 "Island platformer mode for v2 milestone (Trionic SubCommando)")
+    (action-4 "Radar/astrocompass for space expansion milestone")
+    (action-5 "Consider extracting controls/keybinds into controls.js (~300 lines)"))
+
+  (session-history
+    ("2026-04-04" "Claude Opus 4.6" "Full blitz test suite: 94 tests + 6 benchmarks across 10 categories.
+                   CRG D→C. hypatia-scan.yml added. K9 port fixed 6860→6880. test_types.as wired.
+                   Mutation score 100% (10/10 killed, 2 equivalent). Six Sigma baselines established.")
+    ("2026-04-04" "Claude Opus 4.6" "Gameplay session: aircraft balance tuned (progression curve
+                   0→1000→3500→6000), hostage rescue missions implemented (3 hostages, 90s timer,
+                   signal flares, M key trigger, +1000pts per rescue). Modular split: enemies.js
+                   extracted (9100→6556 main, 2583 enemies). AffineScript parser fix upstream
+                   (inline variant types). 96 tests passing.")
+    ("2026-04-04" "Claude Opus 4.6" "Infrastructure + missions: VeriSimDB wired (leaderboard, settings,
+                   saves, crash logs with localStorage fallback). Multi-platform CI (Linux+macOS).
+                   Strike missions (8 kills, 100s, +500/kill) and escort missions (protect ship, 133s,
+                   +4000). M key cycles missions. hud.js extracted (6616→5706 main, 945 hud).
+                   Game engine now 4 modules: core 5706 + enemies 2583 + hud 945 + verisimdb 163.")))

@@ -11,6 +11,12 @@
 # Track the directory via logs/.gitkeep but exclude the JSON dumps
 logs/*.json
 
+# Test coverage output
+cov/
+
+# Diagnostic pages (dev-only)
+gossamer/test_splash.html
+
 # IDE / AI agent configs (per-user, not tracked)
 .claude/
 .q/

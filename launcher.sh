@@ -250,6 +250,17 @@ launch_gossamer() {
     fi
 }
 
+launch_debug() {
+    # Same as launch_gossamer but with --debug: no cache, ?debug=1 in URL,
+    # on-screen diagnostics turned on in the game JS.
+    if command -v deno >/dev/null 2>&1; then
+        exec deno run --allow-all "$SCRIPT_DIR/run.js" --no-git --debug
+    else
+        echo "Error: debug mode requires Deno" >&2
+        exit 1
+    fi
+}
+
 do_install() {
     exec "$SCRIPT_DIR/desktop/install.sh"
 }
@@ -262,6 +273,7 @@ do_uninstall() {
 
 case "${1:---gossamer}" in
     --gossamer|-g|--auto) launch_gossamer ;;
+    --debug|-d)     launch_debug ;;
     --browser|-b)   launch_browser ;;
     --cli|-c)       launch_cli ;;
     --tray|-t)      launch_tray ;;
@@ -275,6 +287,7 @@ case "${1:---gossamer}" in
         echo ""
         echo "Modes:"
         echo "  --gossamer, -g   Launch as resizable Gossamer desktop game (default)"
+        echo "  --debug, -d      Launch in DEBUG mode (no cache, on-screen diagnostics)"
         echo "  --browser, -b    Launch in browser"
         echo "  --cli, -c        Run WASM in terminal via wasmtime"
         echo "  --tray, -t       Start system tray icon"

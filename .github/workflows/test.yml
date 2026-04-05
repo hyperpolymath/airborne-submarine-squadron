@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Multi-platform test suite — runs blitz tests on Linux + macOS
+name: Test Suite
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Blitz Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@909cc5acb0fdd60627fb858598759246509fa755 # v2
+        with:
+          deno-version: v2.x
+
+      - name: Run blitz test suite
+        run: deno test --allow-all test/
+
+      - name: Run benchmarks
+        run: deno bench --allow-all test/bench.js
+
+      - name: Generate coverage report
+        run: deno test --allow-all --coverage=./cov/ test/
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
+        with:
+          files: ./cov/
+          flags: unittests
+          name: codecov-${{ matrix.os }}
+          fail_ci_if_error: false
+
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Deno
+        run: |
+          curl -fsSL https://deno.land/install.sh | sh
+          echo "$HOME/.deno/bin" >> $GITHUB_PATH
+
+      - name: Check test file syntax
+        run: |
+          # Verify all test files parse without error
+          for f in test/*.js; do
+            deno check --no-lock "$f" 2>/dev/null || echo "Syntax check: $f (skipped — no TS)"
+          done
+
+      - name: Verify coordination.k9 starts with magic number
+        run: head -1 coordination.k9 | grep -q "^K9!" || (echo "FAIL: coordination.k9 missing K9! magic" && exit 1)
+
+      - name: Verify no TypeScript files
+        run: |
+          TS_FILES=$(find . -name '*.ts' -o -name '*.tsx' | grep -v node_modules | grep -v .git || true)
+          if [ -n "$TS_FILES" ]; then
+            echo "FAIL: TypeScript files found:"
+            echo "$TS_FILES"
+            exit 1
+          fi

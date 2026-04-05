@@ -53,6 +53,9 @@
     (ffi        "ffi/zig/"                           "Zig FFI layer")
     (ports      "browser:6880 gossamer-fallback:6881-6884"))
 
+  (recommended-reading
+    (guide "docs/AFFINESCRIPT-GUIDE.adoc" "Modern coding guide for AffineScript — READ THIS to understand the language and WASM co-processor architecture"))
+
   (critical-invariants
     (rule "AGPL-3.0-or-later only — do NOT change license or relicense")
     (rule "Standalone git repo — do NOT merge into any monorepo")

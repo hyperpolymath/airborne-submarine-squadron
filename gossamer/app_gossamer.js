@@ -34,8 +34,52 @@ const GROUND_BASE = 520;       // Shallow ground (above-water areas)
 const SEA_FLOOR = 750;         // Deep sea floor (below water)
 const FIRE_COOLDOWN = 15;
 const TORPEDO_SPEED = 4;
+
+// --- Sub machine gun (default weapon, slot 1) ---
+const SUB_MG_COOLDOWN = 6;
+const SUB_MG_SPEED = 6;
+const SUB_MG_DAMAGE = 1.5;
+const SUB_MG_LIFE = 45;
+
+// --- Bouncing bomb (slot 5, Barnes Wallis special) ---
+// Must be dropped from the air at low altitude with a shallow descent angle.
+// Bounces on water (losing speed each bounce), explodes on land contact.
+// Physics-based: release angle, speed, and altitude all matter.
+const BBOMB_COOLDOWN = 120;
+const BBOMB_DAMAGE = 50;        // Massive — reward for the skill shot
+const BBOMB_BLAST_RADIUS = 55;
+const BBOMB_MAX_AMMO = 3;
+const BBOMB_BOUNCE_LOSS = 0.55; // Speed retained per bounce (45% lost)
+const BBOMB_MAX_BOUNCES = 6;
+const BBOMB_LIFE = 300;
+// Release window: sub must be in air, low altitude, moving forward, shallow angle
+const BBOMB_MAX_ALT = 80;       // Max height above water for valid release
+const BBOMB_MIN_SPEED = 2.5;    // Minimum forward speed for release
+const BBOMB_MAX_ANGLE = 0.25;   // Max absolute sub.angle (radians) — nearly level
+
+// --- Red Arrow squadron (wingmen support) ---
+const SQUADRON_COUNT = 2;            // Two wingmen
+const SQUADRON_HP = 3;               // Fragile — smaller subs
+const SQUADRON_SPEED_AIR = 3.2;      // Slightly faster than player to keep up
+const SQUADRON_SPEED_WATER = 1.8;
+const SQUADRON_FIRE_COOLDOWN = 18;
+const SQUADRON_BULLET_SPEED = 5;
+const SQUADRON_BULLET_DAMAGE = 1;
+const SQUADRON_BULLET_LIFE = 40;
+const SQUADRON_FOLLOW_DIST = 60;     // Formation offset from leader
+const SQUADRON_ENGAGE_RANGE = 180;   // Range at which they peel off to attack
+const SQUADRON_RETURN_RANGE = 350;   // Range at which they abandon target and regroup
+// Modes: 'off', 'general', 'aqua', 'aero', 'terra', 'astro'
+const SQUADRON_MODES = ['off', 'general', 'aqua', 'aero', 'terra', 'astro'];
+
+// --- Gauss Railgun (slot 9, experimental, limited ammo) ---
+const RAILGUN_COOLDOWN = 90;
+const RAILGUN_SPEED = 14;
+const RAILGUN_DAMAGE = 35;
+const RAILGUN_LIFE = 25;
+const RAILGUN_MAX_AMMO = 5;
 const MISSILE_SPEED = 5;
-const BUOYANCY = 0.25;
+const BUOYANCY = 0.10;  // Reduced — sub has neutral buoyancy, doesn't constantly float up
 const SURFACE_DAMPING = 0.92;
 const WATER_DRAG = 0.96;
 const CAMERA_SMOOTH = 0.08;
@@ -143,21 +187,47 @@ function thermalSilhouette(observerY, targetY) {
   return false;
 }
 
-// --- Commander gun post ---
+// --- Commander gun post (legacy MG) ---
 const GUN_POST_MG_COOLDOWN = 5;
 const GUN_POST_MG_SPEED = 6;
 const GUN_POST_MG_DAMAGE = 2;
 const GUN_POST_MG_RANGE = 200;
 const GUN_POST_BULLET_LIFE = 60;
 
+// --- Trionic SubCommando weapons ---
+// 1: Pistol — fast, moderate damage, infinite ammo
+const CMDR_PISTOL_COOLDOWN = 12;
+const CMDR_PISTOL_SPEED = 5;
+const CMDR_PISTOL_DAMAGE = 1.5;
+const CMDR_PISTOL_LIFE = 50;
+// 2: Grenade — slow, high damage, arc trajectory, limited supply
+const CMDR_GRENADE_COOLDOWN = 60;
+const CMDR_GRENADE_SPEED = 3.5;
+const CMDR_GRENADE_DAMAGE = 12;
+const CMDR_GRENADE_BLAST_RADIUS = 40;
+const CMDR_GRENADE_LIFE = 80;
+const CMDR_GRENADE_MAX = 5;
+// 9: Particle Projector Cannon — experimental, devastating, long cooldown
+const CMDR_PPC_COOLDOWN = 180;
+const CMDR_PPC_SPEED = 9;
+const CMDR_PPC_DAMAGE = 40;
+const CMDR_PPC_LIFE = 35;
+const CMDR_PPC_AMMO = 3;  // Per life — cannot resupply
+
 // --- Mission timer ---
 const MISSION_TYPES = {
   patrol:  { timed: false, label: 'PATROL' },
-  strike:  { timed: true, duration: 6000, label: 'STRIKE' },
-  hostage: { timed: true, duration: 4000, label: 'HOSTAGE RESCUE', mandatory: true },
-  escort:  { timed: true, duration: 8000, label: 'ESCORT' },
+  strike:  { timed: true, duration: 6000, label: 'STRIKE', killTarget: 8 },
+  hostage: { timed: true, duration: 5400, label: 'HOSTAGE RESCUE', mandatory: true, hostageCount: 3 },
+  escort:  { timed: true, duration: 7200, label: 'ESCORT', mandatory: true },
 };
 const DIVING_BELL_RADIUS = 12;
+const HOSTAGE_RESCUE_RANGE = 60;         // How close sub must be to rescue
+const HOSTAGE_SCORE_BONUS = 1000;        // Points per rescued hostage
+const HOSTAGE_FLARE_INTERVAL = 120;      // Ticks between signal flares
+const STRIKE_KILL_BONUS = 500;           // Points per kill during strike mission
+const STRIKE_COMPLETE_BONUS = 3000;      // Bonus for completing all kills in time
+const ESCORT_COMPLETE_BONUS = 4000;      // Bonus for surviving escort duration
 
 const AFTERBURNER_MAX_CHARGE = 100;
 const AFTERBURNER_DRAIN = 1.4;
@@ -269,11 +339,14 @@ const DEFAULT_SETTINGS = {
 // 'interval' is a multiplier applied to SUPPLY_DROP_INTERVAL — higher = fewer crates.
 // 'unlimited' disables ammo consumption entirely (no crates spawn).
 const SUPPLY_FREQUENCY_LEVELS = [
-  { id: 'none',      label: 'None',      interval: Infinity },
-  { id: 'few',       label: 'Few',       interval: 3.0 },
-  { id: 'normal',    label: 'Normal',    interval: 1.6 },
-  { id: 'many',      label: 'Many',      interval: 1.0 },
-  { id: 'unlimited', label: 'Unlimited', interval: Infinity },
+  { id: 'none',      label: 'None (crates off)',             interval: Infinity },
+  { id: 'few',       label: 'Few crates',                    interval: 3.0 },
+  { id: 'normal',    label: 'Normal crate drops',            interval: 1.6 },
+  { id: 'many',      label: 'Many crates',                   interval: 1.0 },
+  // "Unlimited" means infinite ammo — the resource system is disabled entirely.
+  // No crates spawn because they'd be pointless. Kept above in the cycle so
+  // the label (and the 'god mode' framing) is unambiguous to the player.
+  { id: 'unlimited', label: 'No Limits (infinite ammo, no crates)', interval: Infinity },
 ];
 
 function getSupplyFrequency(settings) {
@@ -303,50 +376,7 @@ const SUB_PARTS = [
   { id: 'rudder',  name: 'Rudder',  maxHp: 60,  weight: 2, color: '#7f8c8d' },
 ];
 
-// ============================================================
-// SOUND ENGINE
-// ============================================================
-const SFX = (function() {
-  let audioCtx = null;
-  function ensureCtx() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    return audioCtx;
-  }
-  function tone(freq, dur, type, vol, det) {
-    const ac = ensureCtx(), o = ac.createOscillator(), g = ac.createGain();
-    o.type = type||'square'; o.frequency.value = freq; if (det) o.detune.value = det;
-    g.gain.setValueAtTime(vol||0.15, ac.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
-    o.connect(g); g.connect(ac.destination); o.start(ac.currentTime); o.stop(ac.currentTime + dur);
-  }
-  function noise(dur, vol) {
-    const ac = ensureCtx(), n = ac.sampleRate * dur, b = ac.createBuffer(1, n, ac.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = Math.random()*2-1;
-    const s = ac.createBufferSource(); s.buffer = b;
-    const g = ac.createGain(); g.gain.setValueAtTime(vol||0.2, ac.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
-    const f = ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value=600;
-    s.connect(f); f.connect(g); g.connect(ac.destination); s.start(ac.currentTime); s.stop(ac.currentTime+dur);
-  }
-  return {
-    torpedoLaunch()  { tone(220,0.08,'sine',0.12); tone(110,0.15,'sine',0.08); },
-    torpedoSplash()  { noise(0.12,0.1); tone(80,0.1,'sine',0.06); },
-    missileLaunch()  { tone(150,0.06,'sawtooth',0.1); tone(400,0.3,'sawtooth',0.12); noise(0.15,0.08); },
-    missileIgnite()  { tone(300,0.05,'sawtooth',0.08); tone(800,0.25,'sawtooth',0.1); },
-    explodeSmall()   { noise(0.2,0.15); tone(120,0.15,'sine',0.1); },
-    explodeBig()     { noise(0.4,0.25); tone(60,0.3,'sine',0.15); tone(40,0.4,'triangle',0.1); },
-    damage()         { noise(0.1,0.12); tone(90,0.08,'square',0.08); },
-    islandCrash()    { noise(0.3,0.3); tone(50,0.25,'sine',0.2); tone(35,0.35,'triangle',0.15); },
-    enemyDestroyed() { noise(0.35,0.2); tone(200,0.1,'square',0.08); tone(100,0.25,'sine',0.12); },
-    gameOver()       { tone(300,0.2,'square',0.1); tone(200,0.3,'square',0.1); tone(100,0.5,'sawtooth',0.15); noise(0.6,0.2); },
-    thrustPulse()    { tone(65,0.08,'sawtooth',0.03, Math.random()*20-10); },
-    waterSplash()    { noise(0.15,0.12); tone(150,0.1,'sine',0.06); },
-    waterBob()       { tone(100,0.05,'sine',0.03); },
-    disembark()      { tone(440,0.1,'sine',0.08); tone(550,0.1,'sine',0.06); tone(660,0.15,'sine',0.08); },
-    embark()         { tone(660,0.1,'sine',0.08); tone(550,0.1,'sine',0.06); tone(440,0.15,'sine',0.08); },
-  };
-})();
+// Sound engine is provided by sfx.js (loaded before this script in index_gossamer.html).
 
 // --- Input ---
 const keys = {};
@@ -526,6 +556,16 @@ function generateTerrain(length) {
     hp: HANGAR_MAX_HP, destroyed: false,
     pointDefenseCooldown: 0, criticalTimer: 0,
   };
+
+  // Nemesis underwater lair — hidden deep in the thermocline, far from the player's hangar.
+  // Placed at ~68% of terrain length so it feels distant and discoverable.
+  const nemesisLair = {
+    x: Math.round(length * 0.68 + (Math.random() - 0.5) * length * 0.06),
+    y: WATER_LINE + 145,   // Deep in thermocline — THERMAL_LAYER_2_MAX is WATER_LINE+195
+    w: 110,                // Width of the cave mouth
+    h: 52,                 // Height of the cavern opening
+    revealed: false,       // Flips true once the player gets close enough to see it
+  };
   // Акула-Молот enemy submarine — one per level, deadly
   const akulaMolot = {
     x: length * 0.5 + (Math.random() - 0.5) * length * 0.3,
@@ -609,7 +649,85 @@ function generateTerrain(length) {
     survivors: [],
   } : null;
 
-  return { ground, islands, caves, radars, startPort, endPort, destroyer, passengerShip, interceptors, akulaMolot, delfins, sunkenSupplies, diverHoles };
+  // Island variety — assign types for different visuals and defences
+  // Types: residential (houses, few defenders), industrial (cranes, moderate),
+  //        military (bunkers, heavy defenders, radar priority)
+  for (const isl of islands) {
+    const roll = Math.random();
+    if (isl.missionIsland) {
+      isl.type = 'military'; // Mission islands are always military
+    } else if (roll < 0.4) {
+      isl.type = 'residential';
+    } else if (roll < 0.7) {
+      isl.type = 'industrial';
+    } else {
+      isl.type = 'military';
+    }
+  }
+
+  // Motorcyclists — sparse: only military islands get bikes (1 each), occasional industrial (30% chance)
+  const motorcyclists = [];
+  for (const isl of islands) {
+    if (isl.h < 15) continue; // Need enough surface to ride on
+    // Only military and some industrial islands have motorcyclists
+    if (isl.type === 'residential') continue;
+    if (isl.type === 'industrial' && Math.random() > 0.3) continue;
+    // One bike per island, no more
+    motorcyclists.push({
+      x: isl.x + (Math.random() - 0.5) * isl.topW * 0.6,
+      y: WATER_LINE - isl.h - 4,
+      vx: (Math.random() < 0.5 ? 1 : -1) * MOTORCYCLE_SPEED,
+      hp: MOTORCYCLE_HP,
+      alive: true,
+      island: isl,
+      isEvel: false,
+      mgCooldown: 20 + Math.random() * 30,
+      bullets: [],
+      jumping: false,
+      jumpVy: 0,
+      jumpTrail: [],
+    });
+  }
+  // Evel Knievel — one per level. Starts on a military island near a mission island.
+  // High initial cooldown so he doesn't jump immediately on startup.
+  if (islands.length >= 2) {
+    // Prefer an island near (but not on) a mission island
+    const missionIslands = islands.filter(i => i.missionIsland);
+    let evelIsland;
+    if (missionIslands.length > 0) {
+      const mi = missionIslands[0];
+      // Find nearest non-mission island to the mission island
+      let bestDist = Infinity;
+      for (const isl of islands) {
+        if (isl === mi || isl.h < 15) continue;
+        const d = Math.abs(isl.x - mi.x);
+        if (d < bestDist && d > 100) { bestDist = d; evelIsland = isl; }
+      }
+    }
+    if (!evelIsland) evelIsland = islands[Math.floor(Math.random() * islands.length)];
+    motorcyclists.push({
+      x: evelIsland.x,
+      y: WATER_LINE - evelIsland.h - 4,
+      vx: EVEL_SPEED,
+      hp: EVEL_HP,
+      alive: true,
+      island: evelIsland,
+      isEvel: true,
+      mgCooldown: 15,
+      bullets: [],
+      jumping: false,
+      jumpVy: 0,
+      jumpTrail: [],        // Matrix trail positions for slow-mo effect
+      jumpCooldown: 600,    // HIGH initial cooldown — no immediate jump on startup
+      targetIsland: null,
+      swimming: false,       // True when in water after missed jump
+      swimTarget: null,      // Island swimming toward
+      captured: false,       // True if player captured him (hostage rescue style)
+      capturedBy: null,      // Reference to captor
+    });
+  }
+
+  return { ground, islands, caves, radars, startPort, endPort, nemesisLair, destroyer, passengerShip, interceptors, akulaMolot, delfins, sunkenSupplies, diverHoles, motorcyclists };
 }
 
 // --- Hangar constants ---
@@ -624,73 +742,14 @@ const HANGAR_POINT_DEFENSE_DAMAGE = 3;
 const HANGAR_RED_DPS = 0.4;          // Damage per tick to sub when inside a red hangar
 const HANGAR_CRITICAL_TIMER = 180;    // Ticks at purple before explosion
 
-// --- Destroyer ship constants ---
-const DESTROYER_HP = 300;
-const DESTROYER_SPEED = 0.4;
-const DESTROYER_PATROL_RANGE = 600;
-const DESTROYER_MISSILE_COOLDOWN = 120;
-const DESTROYER_AA_RANGE = 150;
-const DESTROYER_AA_COOLDOWN = 8;
-const DESTROYER_AA_DAMAGE = 2;
-const DESTROYER_DEPTH_CHARGE_COOLDOWN = 200;
-const DESTROYER_TORPEDO_COOLDOWN = 250;
-const DESTROYER_MISSILE_RANGE = 400;
 
-// --- Interceptor boat constants ---
-const INTERCEPTOR_COUNT = 3;
-const INTERCEPTOR_HP = 40;           // 2 torpedoes (25 each) kills
-const INTERCEPTOR_SPEED = 1.8;
-const INTERCEPTOR_MG_RANGE = 160;
-const INTERCEPTOR_MG_COOLDOWN = 6;
-const INTERCEPTOR_MG_DAMAGE = 1.2;
-const INTERCEPTOR_BAZOOKA_COOLDOWN = 350;
-const INTERCEPTOR_BAZOOKA_SPEED = 4;
-const INTERCEPTOR_BAZOOKA_PAUSE = 40; // Ticks stopped before firing
-const INTERCEPTOR_CAMO_ALPHA = 0.45;
-
-// --- Акула-Молот (Hammerhead) enemy sub constants ---
-const AKULA_HP = 180;
-const AKULA_SPEED = 0.8;
-const AKULA_DIVE_SPEED = 0.4;
-const AKULA_SAM_COOLDOWN = 90;
-const AKULA_TORPEDO_COOLDOWN = 110;
-const AKULA_CLOAK_CYCLE = 200;       // Ticks per cloak on/off cycle
-const AKULA_CLOAK_ON_RATIO = 0.55;   // 55% of cycle is cloaked
-const AKULA_SONAR_BUOY_INTERVAL = 60;
-const AKULA_SONAR_BUOY_RADIUS = 45;  // Radius of torpedo effectiveness reduction
-const AKULA_SONAR_BUOY_LIFESPAN = 400;
-const AKULA_COLOR = '#8b1a1a';
-const AKULA_CLOAK_ALPHA = 0.08;
-const AKULA_SONAR_CHAIN_DEPLOY_TIME = 120;  // Ticks to fully deploy
-const AKULA_SONAR_CHAIN_MAX_LENGTH = 250;   // Full chain detection range
-const AKULA_SONAR_CHAIN_SPEED_PENALTY = 0.45; // Speed multiplier when deployed
-const AKULA_SONAR_CHAIN_TURN_PENALTY = 0.3;  // Dive speed multiplier when deployed
-const AKULA_SONAR_CHAIN_DETECT_ALL_LAYERS = true;
-
-// --- Дельфин (Dolphin) enemy sub constants ---
-const DELFIN_COUNT = 2;
-const DELFIN_HP = 80;
-const DELFIN_SPEED = 0.35;
-const DELFIN_MAX_DEPTH = WATER_LINE + 180;  // Can't go as deep as Akula
-const DELFIN_TORPEDO_COOLDOWN = 200;
-const DELFIN_MG_COOLDOWN = 7;
-const DELFIN_MG_DAMAGE = 1.0;
-const DELFIN_MG_RANGE = 130;
-const DELFIN_ENGAGE_RANGE = 220;
-const DELFIN_BAIL_THRESHOLD = 0.25;  // Below 25% HP, crew may bail
-const DELFIN_BAIL_CHANCE = 0.6;
-const DELFIN_COLOR = '#6b7280';
-const DELFIN_CREW_COUNT = 4;
-
-// --- Passenger ship constants ---
-const PASSENGER_SHIP_HP = 60;
-const PASSENGER_SHIP_SPEED = 0.3;
-const PASSENGER_DWELL_TIME = 300; // Ticks at each island
+// Naval enemy constants are in enemies.js (loaded first)
 
 const SUPPLY_DROP_INTERVAL = 600;
 const SUPPLY_DROP_FALL_SPEED = 0.8;
 const SUPPLY_DROP_COLLECT_RADIUS = 28;
 const SUPPLY_DROP_PUSH_SPEED = 1.8;
+const SUPPLY_DROP_BREAK_SPEED = 3.5;  // Hit a crate faster than this and it disintegrates
 const SUPPLY_DROP_FLOAT_CHANCE = 0.6;
 const SUPPLY_DROP_PARACHUTE_HEIGHT = 25;
 
@@ -713,14 +772,44 @@ function spawnSupplyDrop() {
   };
 }
 
-function collectSupply(sub) {
-  const refillTorpedo = 6;
-  const refillMissile = 3;
-  const refillDepthCharge = 2;
-  sub.torpedoAmmo = Math.min(START_TORPEDOES, sub.torpedoAmmo + refillTorpedo);
-  sub.missileAmmo = Math.min(START_MISSILES, sub.missileAmmo + refillMissile);
-  sub.depthChargeAmmo = Math.min(START_DEPTH_CHARGES, sub.depthChargeAmmo + refillDepthCharge);
-  world.caveMessage = { text: 'SUPPLY COLLECTED', timer: 80 };
+function collectSupply(sub, isSeabed) {
+  if (isSeabed) {
+    // Seabed crates yield special items — rare and valuable
+    const specials = [
+      { type: 'railgun', msg: 'Seabed cache: +3 RAILGUN rounds' },
+      { type: 'bbomb', msg: 'Seabed cache: +2 BOUNCING BOMBS' },
+      { type: 'repair', msg: 'Seabed cache: HULL REPAIR KIT' },
+      { type: 'mega', msg: 'Seabed cache: FULL RESUPPLY' },
+    ];
+    const pick = specials[Math.floor(Math.random() * specials.length)];
+    if (pick.type === 'railgun') {
+      sub.railgunAmmo = Math.min(RAILGUN_MAX_AMMO, (sub.railgunAmmo || 0) + 3);
+    } else if (pick.type === 'bbomb') {
+      sub.bouncingBombAmmo = Math.min(BBOMB_MAX_AMMO, (sub.bouncingBombAmmo || 0) + 2);
+    } else if (pick.type === 'repair') {
+      // Repair all parts by 30%
+      for (const key of Object.keys(sub.parts)) {
+        if (sub.parts[key] && typeof sub.parts[key].hp === 'number') {
+          sub.parts[key].hp = Math.min(sub.parts[key].maxHp || 100, sub.parts[key].hp + 30);
+        }
+      }
+    } else if (pick.type === 'mega') {
+      sub.torpedoAmmo = START_TORPEDOES;
+      sub.missileAmmo = START_MISSILES;
+      sub.depthChargeAmmo = START_DEPTH_CHARGES;
+      sub.railgunAmmo = RAILGUN_MAX_AMMO;
+      sub.bouncingBombAmmo = BBOMB_MAX_AMMO;
+    }
+    midNotice(pick.msg, 100);
+  } else {
+    const refillTorpedo = 6;
+    const refillMissile = 3;
+    const refillDepthCharge = 2;
+    sub.torpedoAmmo = Math.min(START_TORPEDOES, sub.torpedoAmmo + refillTorpedo);
+    sub.missileAmmo = Math.min(START_MISSILES, sub.missileAmmo + refillMissile);
+    sub.depthChargeAmmo = Math.min(START_DEPTH_CHARGES, sub.depthChargeAmmo + refillDepthCharge);
+    ticker('Supply collected', 50);
+  }
   SFX.embark();
 }
 
@@ -770,13 +859,19 @@ function updateAmmoStations(world, dt) {
       drop.x += drop.vx * dt;
       drop.vx *= 0.98;
 
-      // Sub slow contact = collect, fast = push
+      // Sub slow contact = collect, medium = push, fast = disintegrate
       if (!sub.disembarked) {
         const dist = Math.hypot(sub.worldX - drop.x, sub.y - drop.y);
         if (dist < SUPPLY_DROP_COLLECT_RADIUS) {
           const speed = Math.hypot(sub.vx, sub.vy);
-          if (speed < SUPPLY_DROP_PUSH_SPEED) {
-            collectSupply(sub);
+          if (speed >= SUPPLY_DROP_BREAK_SPEED) {
+            // Too fast — crate smashes apart
+            drop.state = 'collected'; // Remove it
+            addParticles(drop.x, drop.y, 8, '#92400e');
+            addParticles(drop.x, drop.y, 4, '#d4a053');
+            ticker('Crate destroyed!', 40);
+          } else if (speed < SUPPLY_DROP_PUSH_SPEED) {
+            collectSupply(sub, false);
             drop.state = 'collected';
           } else {
             // Push it away
@@ -788,26 +883,79 @@ function updateAmmoStations(world, dt) {
     } else if (drop.state === 'sinking') {
       drop.y += drop.vy * dt;
       drop.vy *= 0.995;
+      // Sub can push or break sinking crates but NOT collect — diver only underwater
+      if (!sub.disembarked && sub.y > WATER_LINE) {
+        const dist = Math.hypot(sub.worldX - drop.x, sub.y - drop.y);
+        if (dist < SUPPLY_DROP_COLLECT_RADIUS) {
+          const speed = Math.hypot(sub.vx, sub.vy);
+          if (speed >= SUPPLY_DROP_BREAK_SPEED) {
+            // Smashed it
+            drop.state = 'collected';
+            addParticles(drop.x, drop.y, 8, '#92400e');
+            addParticles(drop.x, drop.y, 4, '#85c1e9');
+            ticker('Crate destroyed!', 40);
+          } else if (speed > 0.3) {
+            // Push the crate — any contact knocks it around
+            const dx = drop.x - sub.worldX;
+            const dy = drop.y - sub.y;
+            const pushForce = speed * 0.4;
+            if (!drop.vx) drop.vx = 0;
+            drop.vx += (dx > 0 ? 1 : -1) * pushForce;
+            drop.vy += (dy > 0 ? 0.5 : -0.3) * pushForce;
+            addParticles(drop.x, drop.y, 2, '#85c1e9');
+          }
+        }
+      }
+      // Apply horizontal drift from pushes
+      if (drop.vx) {
+        drop.x += drop.vx * dt;
+        drop.vx *= 0.96; // Water drag
+      }
       const groundY = getGroundY(drop.x);
       if (drop.y >= groundY - 6) {
         drop.state = 'sunk';
         drop.y = groundY - 6;
+        drop.vx = 0;
       }
     } else if (drop.state === 'sunk') {
-      // Diver can pick it up with F
+      // Sub can push/break seabed crates but NOT collect — diver only
+      if (!sub.disembarked && sub.y > WATER_LINE) {
+        const dist = Math.hypot(sub.worldX - drop.x, sub.y - drop.y);
+        if (dist < SUPPLY_DROP_COLLECT_RADIUS) {
+          const speed = Math.hypot(sub.vx, sub.vy);
+          if (speed >= SUPPLY_DROP_BREAK_SPEED) {
+            drop.state = 'collected';
+            addParticles(drop.x, drop.y, 10, '#b8860b');
+            addParticles(drop.x, drop.y, 5, '#fcd34d');
+            ticker('Seabed crate destroyed!', 50);
+          } else if (speed > 0.3) {
+            // Push along the seabed
+            const dx = drop.x - sub.worldX;
+            if (!drop.vx) drop.vx = 0;
+            drop.vx += (dx > 0 ? 1 : -1) * speed * 0.3;
+            addParticles(drop.x, drop.y, 1, '#85c1e9');
+          }
+        }
+      }
+      // Diver picks it up with F — seabed crates yield special items
       if (sub.disembarked && sub.diverMode) {
         const dist = Math.hypot(sub.pilotX - drop.x, sub.pilotY - drop.y);
         if (dist < 30 && (keyJustPressed['f'] || keyJustPressed['F'])) {
-          collectSupply(sub);
+          collectSupply(sub, true);
           drop.state = 'collected';
         }
+      }
+      // Seabed drift from pushes
+      if (drop.vx) {
+        drop.x += drop.vx * dt;
+        drop.vx *= 0.92; // Heavier drag on seabed
       }
     } else if (drop.state === 'landed') {
       // Pilot on foot can pick up with F
       if (sub.disembarked && !sub.diverMode) {
         const dist = Math.hypot(sub.pilotX - drop.x, sub.pilotY - drop.y);
         if (dist < 30 && (keyJustPressed['f'] || keyJustPressed['F'])) {
-          collectSupply(sub);
+          collectSupply(sub, false);
           drop.state = 'collected';
         }
       }
@@ -848,21 +996,34 @@ function drawAmmoStations(world) {
       ctx.stroke();
     }
 
-    // Crate body
-    const glow = drop.state === 'floating' ? 0.7 + 0.3 * Math.sin(world.tick * 0.08 + drop.pulse) : 0.8;
+    // Crate body — seabed crates glow gold (special items)
+    const isSeabed = drop.state === 'sunk';
+    const glow = drop.state === 'floating' ? 0.7 + 0.3 * Math.sin(world.tick * 0.08 + drop.pulse)
+      : isSeabed ? 0.6 + 0.4 * Math.sin(world.tick * 0.06 + drop.pulse) : 0.8;
     ctx.globalAlpha = glow;
-    ctx.fillStyle = '#92400e';
+    if (isSeabed) {
+      // Gold glow halo for seabed special crates
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.15)';
+      ctx.beginPath(); ctx.arc(sx, sy, 14, 0, TWO_PI); ctx.fill();
+    }
+    ctx.fillStyle = isSeabed ? '#b8860b' : '#92400e';
     ctx.fillRect(sx - 8, sy - 6, 16, 12);
-    ctx.strokeStyle = '#78350f';
+    ctx.strokeStyle = isSeabed ? '#daa520' : '#78350f';
     ctx.lineWidth = 1;
     ctx.strokeRect(sx - 8, sy - 6, 16, 12);
     // Cross strapping
-    ctx.strokeStyle = '#d4a053';
+    ctx.strokeStyle = isSeabed ? '#fcd34d' : '#d4a053';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(sx - 8, sy - 6); ctx.lineTo(sx + 8, sy + 6);
     ctx.moveTo(sx + 8, sy - 6); ctx.lineTo(sx - 8, sy + 6);
     ctx.stroke();
+    // Star on seabed crates
+    if (isSeabed) {
+      ctx.fillStyle = '#fcd34d';
+      ctx.font = '8px Arial'; ctx.textAlign = 'center';
+      ctx.fillText('\u2605', sx, sy + 3);
+    }
     // Pickup hint when in range
     if ((drop.state === 'landed' || drop.state === 'sunk') && world.sub.disembarked) {
       const dist = Math.hypot(world.sub.pilotX - drop.x, world.sub.pilotY - drop.y);
@@ -878,47 +1039,178 @@ function drawAmmoStations(world) {
   }
 }
 
+// ── Evel Knievel Cameratron — mini-frame popup showing close-up of his jump ──
+// When Evel jumps, a small inset frame appears in the corner like a TV cameratron
+// showing a zoomed view of him mid-leap. Purely cosmetic, adds drama.
+function drawEvelCameratron() {
+  const cam = world._evelCameratron;
+  if (!cam || !cam.active) return;
+  cam.timer += 1;
+  if (cam.timer > cam.maxTimer) { cam.active = false; return; }
+  const evel = cam.evel;
+  if (!evel || (!evel.alive && !evel.swimming)) { cam.active = false; return; }
+
+  const fadeIn = Math.min(1, cam.timer / 15);
+  const fadeOut = cam.timer > cam.maxTimer - 30 ? (cam.maxTimer - cam.timer) / 30 : 1;
+  const alpha = fadeIn * fadeOut;
+  if (alpha <= 0) return;
+
+  // Frame position — top-right corner
+  const fw = 120, fh = 80;
+  const fx = W - fw - 12, fy = 12;
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.95;
+
+  // Frame background
+  ctx.fillStyle = '#111';
+  ctx.fillRect(fx - 2, fy - 2, fw + 4, fh + 4);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(fx, fy, fw, fh);
+
+  // Clip to frame
+  ctx.beginPath();
+  ctx.rect(fx, fy, fw, fh);
+  ctx.clip();
+
+  // Zoomed view centred on Evel (3x zoom)
+  const zoom = 3;
+  const centerX = fx + fw / 2;
+  const centerY = fy + fh / 2;
+
+  ctx.translate(centerX, centerY);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-evel.x * 0 - toScreen(evel.x) + toScreen(evel.x), 0);
+
+  // Simple representation of Evel in the frame
+  const evelDir = evel.vx >= 0 ? 1 : -1;
+  // Sky gradient
+  ctx.fillStyle = '#1a1a3a';
+  ctx.fillRect(-fw, -fh, fw * 2, fh * 2);
+  // Water line
+  ctx.fillStyle = '#1a3a5c';
+  const waterInFrame = (WATER_LINE - evel.y) || 20;
+  ctx.fillRect(-fw, waterInFrame, fw * 2, fh);
+
+  // Evel himself (zoomed)
+  ctx.save();
+  ctx.scale(evelDir, 1);
+  // Bike
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(-8, 2, 16, 4);
+  ctx.fillStyle = '#94a3b8';
+  ctx.beginPath(); ctx.arc(-6, 6, 3, 0, TWO_PI); ctx.fill();
+  ctx.beginPath(); ctx.arc(6, 6, 3, 0, TWO_PI); ctx.fill();
+  // Exhaust
+  if (evel.jumping) {
+    ctx.fillStyle = '#f97316';
+    ctx.beginPath(); ctx.moveTo(-10, 3); ctx.lineTo(-16, 4); ctx.lineTo(-10, 5); ctx.fill();
+  }
+  // Rider
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(-2, -6, 4, 8);
+  ctx.beginPath(); ctx.arc(0, -8, 3.5, 0, TWO_PI); ctx.fill();
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(1, -9, 3, 2);
+  // Cape
+  ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-2, -5);
+  ctx.quadraticCurveTo(-8 - Math.sin(world.tick * 0.1) * 3, -8, -6 - Math.sin(world.tick * 0.15) * 4, -3);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore(); // Undo zoom transform
+
+  // Frame border + label
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(fx - 2, fy - 2, fw + 4, fh + 4);
+  // "CAMERATRON" label
+  ctx.fillStyle = '#ef4444';
+  ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center';
+  ctx.fillText('CAMERATRON', fx + fw / 2, fy + fh + 10);
+  // Blinking REC dot
+  if (Math.floor(cam.timer / 15) % 2 === 0) {
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(fx + 8, fy + 8, 3, 0, TWO_PI); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '7px Arial'; ctx.textAlign = 'left';
+    ctx.fillText('REC', fx + 14, fy + 11);
+  }
+
+  ctx.restore();
+}
+
 function generateMines(terrain) {
   const mines = [];
-  const sample = terrain.islands.length;
-  for (let i = 0; i < MINE_COUNT; i++) {
-    const isl = terrain.islands[Math.floor(Math.random() * sample)];
-    const baseX = isl ? isl.x : Math.random() * TERRAIN_LENGTH;
-    const spread = isl ? isl.baseW * 0.5 : 120;
-    const x = baseX + (Math.random() - 0.5) * spread;
-    const seaFloorY = groundYFromTerrain(terrain, x);
-    // Mine zone determines chain length and difficulty:
-    // - Middle zone (thermocline): longer chains, easier to detach (wide chain target)
-    // - Deep zone: shorter chains anchored near floor, harder to cut without detonating
-    const zoneRoll = Math.random();
-    let chainLen, anchorY;
-    if (zoneRoll < 0.4) {
-      // Middle zone mine — long chain from floor up into thermocline
-      chainLen = 100 + Math.random() * 80; // 100-180, tall chains
-      anchorY = seaFloorY - 4;
-    } else if (zoneRoll < 0.7) {
-      // Deep zone mine — short chain near floor, harder to cut
-      chainLen = 15 + Math.random() * 30; // 15-45, short chains
-      anchorY = seaFloorY - 4;
-    } else {
-      // Standard shallow mine
-      chainLen = 30 + Math.random() * 60;
-      anchorY = seaFloorY - 4;
+  // Enforce reasonable spacing: no two mine floats should be nearer than this.
+  // Uses 2D distance so horizontally-close mines at different heights are still
+  // allowed (they form a vertical curtain instead of a flat cluster).
+  const MIN_SPACING_XY = 70;
+  const MAX_PLACEMENT_ATTEMPTS = 40;
+
+  // Helper — true if a candidate (x, y) is far enough from every placed mine.
+  function farEnough(candX, candY) {
+    for (const m of mines) {
+      const dx = m.x - candX;
+      const dy = m.y - candY;
+      if (dx * dx + dy * dy < MIN_SPACING_XY * MIN_SPACING_XY) return false;
     }
-    const floatY = Math.max(WATER_LINE + 12, anchorY - chainLen);
-    mines.push({
-      x, y: floatY,
-      anchorY,
-      chainLength: chainLen,
-      swayPhase: Math.random() * Math.PI * 2,
-      swaySpeed: 0.015 + Math.random() * 0.015,
-      swayAmplitude: 3 + Math.random() * 5,
-      active: true,
-      pulse: Math.random() * Math.PI * 2,
-      chainCut: false,
-      freed: false,
-      floatVy: 0,
-    });
+    return true;
+  }
+
+  const islandCount = terrain.islands.length;
+  for (let i = 0; i < MINE_COUNT; i++) {
+    let placed = false;
+    for (let attempt = 0; attempt < MAX_PLACEMENT_ATTEMPTS && !placed; attempt++) {
+      // Mix of island-anchored and open-water mines. Open-water mines spread
+      // the field along the whole corridor instead of clumping near islands.
+      let x;
+      const openWater = Math.random() < 0.35 || islandCount === 0;
+      if (openWater) {
+        x = 400 + Math.random() * Math.max(800, TERRAIN_LENGTH - 800);
+      } else {
+        const isl = terrain.islands[Math.floor(Math.random() * islandCount)];
+        const spread = Math.max(140, isl.baseW * 1.6);
+        x = isl.x + (Math.random() - 0.5) * spread;
+      }
+      const seaFloorY = groundYFromTerrain(terrain, x);
+      // Mine zone determines chain length and difficulty:
+      // - Middle zone (thermocline): longer chains, easier to detach
+      // - Deep zone: shorter chains anchored near floor, harder to cut
+      // - Shallow: typical WW2 harbour mine
+      const zoneRoll = Math.random();
+      let chainLen;
+      if (zoneRoll < 0.35) {
+        chainLen = 100 + Math.random() * 80;  // long chains, up into thermocline
+      } else if (zoneRoll < 0.65) {
+        chainLen = 15 + Math.random() * 30;   // short, deep
+      } else {
+        chainLen = 45 + Math.random() * 55;   // standard shallow
+      }
+      const anchorY = seaFloorY - 4;
+      const floatY = Math.max(WATER_LINE + 12, anchorY - chainLen);
+      if (!farEnough(x, floatY)) continue;
+      mines.push({
+        x, y: floatY,
+        anchorY,
+        chainLength: chainLen,
+        swayPhase: Math.random() * Math.PI * 2,
+        swaySpeed: 0.015 + Math.random() * 0.015,
+        swayAmplitude: 3 + Math.random() * 5,
+        active: true,
+        pulse: Math.random() * Math.PI * 2,
+        chainCut: false,
+        freed: false,
+        floatVy: 0,
+        chainFuse: 0,  // Ticks until domino-chain detonation fires
+      });
+      placed = true;
+    }
+    // If we couldn't place this one after many attempts, the field is dense
+    // enough — drop it rather than cram another overlap in.
   }
   return mines;
 }
@@ -938,18 +1230,29 @@ function updateMines(world, dt) {
     mine.pulse += dt * 0.04;
     mine.swayPhase += mine.swaySpeed * dt;
 
+    // Chain-detonation fuse (set by triggerMine on a neighbour) — tick down
+    // and cook off when it reaches zero. The flashing pulse speeds up as the
+    // fuse burns so the player can see the cascade coming.
+    if (mine.chainFuse > 0) {
+      mine.chainFuse -= dt;
+      mine.pulse += dt * 0.25; // rapid blink
+      if (mine.chainFuse <= 0) {
+        triggerMine(world, mine);
+        continue;
+      }
+    }
+
     // --- Freed mine: floating upward ---
     if (mine.freed) {
       mine.floatVy = Math.max(-1.2, mine.floatVy - 0.02 * dt); // Accelerate upward
       mine.y += mine.floatVy * dt;
       mine.x += Math.sin(mine.swayPhase) * 0.1 * dt; // Slight lateral drift
 
-      // Hit sub — lethal
+      // Hit sub — lethal, obliterates sub + commander
       const subDist = Math.hypot(sub.worldX - mine.x, sub.y - mine.y);
       if (subDist < MINE_RADIUS + 12) {
         triggerMine(world, mine);
-        sub.parts.hull = 0; // Instant kill
-        world.caveMessage = { text: 'MINE IMPACT — HULL DESTROYED', timer: 200 };
+        obliterateSubByMine(world);
         continue;
       }
 
@@ -1038,8 +1341,7 @@ function updateMines(world, dt) {
     const dist = Math.hypot(sub.worldX - mine.x, sub.y - mine.y);
     if (dist < MINE_RADIUS + 12 && thermallyVisible(sub.y, mine.y)) {
       triggerMine(world, mine);
-      sub.parts.hull = 0; // Mines are lethal
-      world.caveMessage = { text: 'MINE IMPACT — HULL DESTROYED', timer: 200 };
+      obliterateSubByMine(world);
       continue;
     }
     // Torpedoes hitting the mine body directly
@@ -1055,6 +1357,42 @@ function updateMines(world, dt) {
   }
 }
 
+// Record the cause of death once. Don't overwrite — the FIRST thing that
+// killed you is what gets reported on the scoring screen. (If the sub explodes
+// from mine damage, we don't want a subsequent "hull destroyed" check to
+// re-brand it as a boring hull breach.)
+function setDeathCause(world, cause, detail) {
+  if (world.deathCause) return;
+  world.deathCause = { cause, detail: detail || null };
+}
+
+// A direct mine hit is catastrophic: the sub is utterly destroyed and the
+// commander is killed. Used by both "chained mine" and "freed mine" collision
+// paths so the end-of-mission screen consistently shows the full carnage.
+function obliterateSubByMine(world) {
+  setDeathCause(world, 'mine');
+  const sub = world.sub;
+  // Every part to zero — not just the hull — so the scoring screen shows
+  // every bar empty.
+  for (const def of SUB_PARTS) sub.parts[def.id] = 0;
+  sub.commanderHp = 0;
+  world.gameOver = true;
+  world.caveMessage = { text: 'MINE — SUB AND COMMANDER LOST', timer: 240 };
+  addExplosion(sub.worldX, sub.y, 'big');
+  addExplosion(sub.worldX - 8, sub.y + 4, 'big');
+  addExplosion(sub.worldX + 8, sub.y - 4, 'big');
+  addParticles(sub.worldX, sub.y, 40, '#ef4444');
+  SFX.gameOver();
+}
+
+// Domino chain radius — any other active mine within this distance of a
+// detonating mine gets a short fuse and cooks off, which cascades if several
+// mines were placed as a cluster. Each link in the chain adds a tiny delay
+// so the blasts arrive in a rolling wave, not simultaneously.
+const MINE_CHAIN_RADIUS = 80;
+const MINE_CHAIN_FUSE_BASE = 6;   // ticks before neighbour lights
+const MINE_CHAIN_FUSE_JITTER = 6; // random extra ticks per neighbour
+
 function triggerMine(world, mine) {
   if (!mine.active) return;
   mine.active = false;
@@ -1062,6 +1400,18 @@ function triggerMine(world, mine) {
   addParticles(mine.x, mine.y, 16, '#f44336');
   damageRandomPart(world.sub.parts, MINE_DAMAGE);
   world.score += 120;
+
+  // Domino: every nearby active mine lights its fuse. The fuse is processed
+  // in updateMines so the explosion visually cascades across the cluster.
+  for (const other of world.mines) {
+    if (other === mine || !other.active) continue;
+    if (other.chainFuse > 0) continue; // Already ticking
+    const dx = other.x - mine.x;
+    const dy = other.y - mine.y;
+    if (dx * dx + dy * dy <= MINE_CHAIN_RADIUS * MINE_CHAIN_RADIUS) {
+      other.chainFuse = MINE_CHAIN_FUSE_BASE + Math.random() * MINE_CHAIN_FUSE_JITTER;
+    }
+  }
 }
 
 function drawMines(world) {
@@ -1143,1117 +1493,9 @@ function drawMines(world) {
   }
 }
 
-// ============================================================
-// SOPWITH CAMEL — One per level. Passive until attacked, then
-// turns into the Red Baron (skin peels off) with full acrobatics.
-// Fires Sopwith-style bullet streams as a nod to the original game.
-// ============================================================
-const SOPWITH_SPEED = 1.8;
-const SOPWITH_ACROBAT_SPEED = 2.8;
-const SOPWITH_FIRE_COOLDOWN = 6;
-const SOPWITH_BULLET_SPEED = 4;
-const SOPWITH_HP = 5;
-const SOPWITH_SCORE = 5000;
+// ── Air enemy systems extracted to enemies.js ──
+// Sopwith Camel, Su-47 Berkut, Lightning, Nemesis + chaff drawing
 
-function createSopwith(terrain) {
-  // Spawn in the middle third of the terrain, cruising high
-  const startX = TERRAIN_LENGTH * 0.3 + Math.random() * TERRAIN_LENGTH * 0.4;
-  return {
-    x: startX,
-    y: 50 + Math.random() * 40,
-    vx: (Math.random() < 0.5 ? 1 : -1) * SOPWITH_SPEED,
-    vy: 0,
-    hp: SOPWITH_HP,
-    angered: false,        // Turns true on first hit — becomes Red Baron
-    acrobatPhase: 0,       // Phase of current acrobatic manoeuvre
-    acrobatTimer: 0,       // Ticks into current manoeuvre
-    manoeuvre: 'cruise',   // cruise, loop, immelmann, chandelle, barrelRoll, strafingRun
-    fireCooldown: 0,
-    bullets: [],           // Sopwith-style bullet objects
-    alive: true,
-    scarfPhase: 0,         // Scarf flutter animation
-  };
-}
-
-function updateSopwith(dt) {
-  const sw = world.sopwith;
-  if (!sw || !sw.alive) return;
-  const sub = world.sub;
-  sw.scarfPhase += dt * 0.12;
-
-  // Update bullets
-  for (let i = sw.bullets.length - 1; i >= 0; i--) {
-    const b = sw.bullets[i];
-    b.x += b.vx * dt; b.y += b.vy * dt;
-    b.life -= dt;
-    // Hit player sub?
-    if (Math.abs(b.x - sub.worldX) < 16 && Math.abs(b.y - sub.y) < 12) {
-      damageRandomPart(sub.parts, 4);
-      addParticles(sub.worldX, sub.y, 3, '#fbbf24');
-      SFX.damage();
-      sw.bullets.splice(i, 1);
-      continue;
-    }
-    if (b.life <= 0 || b.y > WATER_LINE || b.y < 5) sw.bullets.splice(i, 1);
-  }
-
-  // Check if player torpedoes/missiles hit the Sopwith
-  sw.fireCooldown = Math.max(0, sw.fireCooldown - dt);
-  for (let i = world.torpedoes.length - 1; i >= 0; i--) {
-    const t = world.torpedoes[i];
-    if (!t.fromSub) continue;
-    if (Math.abs(t.worldX - sw.x) < 20 && Math.abs(t.y - sw.y) < 14) {
-      sw.hp--;
-      if (!sw.angered) {
-        sw.angered = true;
-        sw.manoeuvre = 'immelmann';
-        sw.acrobatTimer = 0;
-        world.caveMessage = { text: 'THE RED BARON AWAKENS!', timer: 120 };
-      }
-      addExplosion(sw.x, sw.y, 'small');
-      SFX.explodeSmall();
-      world.torpedoes.splice(i, 1);
-      break;
-    }
-  }
-  for (let i = world.missiles.length - 1; i >= 0; i--) {
-    const m = world.missiles[i];
-    if (m.fromEnemy) continue;
-    if (Math.abs(m.worldX - sw.x) < 20 && Math.abs(m.y - sw.y) < 14) {
-      sw.hp -= 2;
-      if (!sw.angered) {
-        sw.angered = true;
-        sw.manoeuvre = 'immelmann';
-        sw.acrobatTimer = 0;
-        world.caveMessage = { text: 'THE RED BARON AWAKENS!', timer: 120 };
-      }
-      addExplosion(sw.x, sw.y, 'small');
-      SFX.explodeSmall();
-      world.missiles.splice(i, 1);
-      break;
-    }
-  }
-
-  // Death
-  if (sw.hp <= 0) {
-    sw.alive = false;
-    addExplosion(sw.x, sw.y, 'big');
-    addParticles(sw.x, sw.y, 20, '#e74c3c');
-    world.score += SOPWITH_SCORE;
-    world.kills++;
-    world.caveMessage = { text: 'RED BARON SHOT DOWN!', timer: 150 };
-    SFX.enemyDestroyed();
-    return;
-  }
-
-  const distToSub = Math.hypot(sub.worldX - sw.x, sub.y - sw.y);
-  const speed = sw.angered ? SOPWITH_ACROBAT_SPEED : SOPWITH_SPEED;
-  const dir = sw.vx >= 0 ? 1 : -1;
-
-  if (!sw.angered) {
-    // PASSIVE MODE — gentle cruise, harmless biplane puttering along
-    sw.x += sw.vx * dt;
-    sw.vy = Math.sin(world.tick * 0.02 + sw.scarfPhase) * 0.3;
-    sw.y += sw.vy * dt;
-    sw.y = clamp(sw.y, 40, WATER_LINE - 40);
-    // Reverse at terrain edges
-    if (sw.x < 100 || sw.x > TERRAIN_LENGTH - 100) sw.vx = -sw.vx;
-  } else {
-    // RED BARON MODE — aggressive acrobatics, Sopwith-style combat
-    sw.acrobatTimer += dt;
-    const toSubX = sub.worldX - sw.x;
-    const toSubY = sub.y - sw.y;
-    const angleToSub = Math.atan2(toSubY, toSubX);
-
-    switch (sw.manoeuvre) {
-      case 'strafingRun': {
-        // Dive toward sub, firing bullets
-        sw.vx += Math.cos(angleToSub) * 0.15 * dt;
-        sw.vy += Math.sin(angleToSub) * 0.12 * dt;
-        const spd = Math.hypot(sw.vx, sw.vy);
-        if (spd > speed * 1.3) { sw.vx *= speed * 1.3 / spd; sw.vy *= speed * 1.3 / spd; }
-        // Fire bullet stream — Sopwith style (pairs of small bullets)
-        if (sw.fireCooldown <= 0 && distToSub < 300) {
-          const bDir = Math.atan2(sub.y - sw.y, sub.worldX - sw.x);
-          const spread = (Math.random() - 0.5) * 0.15;
-          sw.bullets.push({
-            x: sw.x, y: sw.y,
-            vx: Math.cos(bDir + spread) * SOPWITH_BULLET_SPEED,
-            vy: Math.sin(bDir + spread) * SOPWITH_BULLET_SPEED,
-            life: 80,
-          });
-          sw.fireCooldown = SOPWITH_FIRE_COOLDOWN;
-        }
-        // Pull up after getting close or after 120 ticks
-        if (distToSub < 60 || sw.acrobatTimer > 120) {
-          sw.manoeuvre = 'loop';
-          sw.acrobatTimer = 0;
-        }
-        break;
-      }
-      case 'loop': {
-        // Full loop — Sopwith signature move
-        const loopDuration = 80;
-        const loopAngle = (sw.acrobatTimer / loopDuration) * TWO_PI;
-        sw.vx = dir * speed * Math.cos(loopAngle);
-        sw.vy = -speed * Math.sin(loopAngle);
-        if (sw.acrobatTimer > loopDuration) {
-          sw.manoeuvre = 'chandelle';
-          sw.acrobatTimer = 0;
-        }
-        break;
-      }
-      case 'immelmann': {
-        // Half loop + roll — immediate direction reversal
-        const immDuration = 50;
-        const immAngle = (sw.acrobatTimer / immDuration) * Math.PI;
-        sw.vx = dir * speed * Math.cos(immAngle);
-        sw.vy = -speed * Math.abs(Math.sin(immAngle));
-        if (sw.acrobatTimer > immDuration) {
-          sw.vx = -sw.vx; // Reverse heading
-          sw.manoeuvre = 'strafingRun';
-          sw.acrobatTimer = 0;
-        }
-        break;
-      }
-      case 'chandelle': {
-        // Climbing turn toward sub
-        sw.vx += Math.cos(angleToSub) * 0.08 * dt;
-        sw.vy -= 0.06 * dt; // Climb
-        const spd = Math.hypot(sw.vx, sw.vy);
-        if (spd > speed) { sw.vx *= speed / spd; sw.vy *= speed / spd; }
-        if (sw.acrobatTimer > 60 || sw.y < 30) {
-          sw.manoeuvre = 'strafingRun';
-          sw.acrobatTimer = 0;
-        }
-        break;
-      }
-      case 'barrelRoll': {
-        // Spiral evasion — harder to hit
-        const rollDuration = 40;
-        const rollAngle = (sw.acrobatTimer / rollDuration) * TWO_PI * 2;
-        sw.vx = dir * speed;
-        sw.vy = Math.sin(rollAngle) * speed * 0.8;
-        if (sw.acrobatTimer > rollDuration) {
-          sw.manoeuvre = 'strafingRun';
-          sw.acrobatTimer = 0;
-        }
-        break;
-      }
-      default: { // cruise/fallthrough
-        sw.vx += Math.cos(angleToSub) * 0.05 * dt;
-        sw.vy += Math.sin(angleToSub) * 0.03 * dt;
-        if (sw.acrobatTimer > 40) {
-          // Pick a random acrobatic manoeuvre
-          const moves = ['strafingRun', 'loop', 'immelmann', 'chandelle', 'barrelRoll'];
-          sw.manoeuvre = moves[Math.floor(Math.random() * moves.length)];
-          sw.acrobatTimer = 0;
-        }
-      }
-    }
-
-    sw.x += sw.vx * dt;
-    sw.y += sw.vy * dt;
-    sw.y = clamp(sw.y, 25, WATER_LINE - 15);
-    // Reverse at edges
-    if (sw.x < 50) { sw.x = 50; sw.vx = Math.abs(sw.vx); }
-    if (sw.x > TERRAIN_LENGTH - 50) { sw.x = TERRAIN_LENGTH - 50; sw.vx = -Math.abs(sw.vx); }
-  }
-}
-
-function drawSopwith() {
-  const sw = world.sopwith;
-  if (!sw || !sw.alive) return;
-  const sx = toScreen(sw.x);
-  if (sx < -50 || sx > W + 50) return;
-  const dir = sw.vx >= 0 ? 1 : -1;
-
-  ctx.save();
-  ctx.translate(sx, sw.y);
-  ctx.scale(dir, 1);
-
-  if (!sw.angered) {
-    // SOPWITH CAMEL — cream/olive biplane with cute pilot
-    // Lower wing
-    ctx.fillStyle = '#d4a053';
-    ctx.fillRect(-12, 6, 24, 3);
-    // Fuselage
-    ctx.fillStyle = '#c9b896';
-    ctx.fillRect(-14, -2, 28, 5);
-    // Upper wing
-    ctx.fillStyle = '#d4a053';
-    ctx.fillRect(-13, -10, 26, 3);
-    // Wing struts
-    ctx.strokeStyle = '#8b7332'; ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(-6, -7); ctx.lineTo(-6, 6);
-    ctx.moveTo(6, -7); ctx.lineTo(6, 6);
-    ctx.stroke();
-    // Cross-wires between struts
-    ctx.strokeStyle = 'rgba(139,115,50,0.4)'; ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(-6, -7); ctx.lineTo(6, 6);
-    ctx.moveTo(6, -7); ctx.lineTo(-6, 6);
-    ctx.stroke();
-    // Tail
-    ctx.fillStyle = '#b5a070';
-    ctx.beginPath(); ctx.moveTo(-14, -2); ctx.lineTo(-20, -8); ctx.lineTo(-18, 0); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(-14, 3); ctx.lineTo(-20, 8); ctx.lineTo(-18, 1); ctx.fill();
-    // Propeller (spinning)
-    const pa = Date.now() / 30;
-    ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(14, Math.sin(pa) * 6); ctx.lineTo(14, -Math.sin(pa) * 6); ctx.stroke();
-    // Engine cowling
-    ctx.fillStyle = '#7a6b4e';
-    ctx.fillRect(10, -3, 4, 6);
-    // Pilot — cute with goggles and scarf
-    ctx.fillStyle = '#f5deb3'; // Skin
-    ctx.beginPath(); ctx.arc(0, -4, 4, 0, TWO_PI); ctx.fill();
-    // Goggles
-    ctx.fillStyle = '#4a90d9';
-    ctx.fillRect(-3, -6, 3, 2);
-    ctx.fillRect(1, -6, 3, 2);
-    ctx.strokeStyle = '#333'; ctx.lineWidth = 0.5;
-    ctx.strokeRect(-3, -6, 3, 2);
-    ctx.strokeRect(1, -6, 3, 2);
-    // Scarf (fluttering behind)
-    ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-2, -3);
-    const scarfWave = Math.sin(sw.scarfPhase) * 3;
-    ctx.quadraticCurveTo(-8, -3 + scarfWave, -14, -2 + scarfWave * 1.5);
-    ctx.stroke();
-    // Leather helmet
-    ctx.fillStyle = '#8b4513';
-    ctx.beginPath(); ctx.arc(0, -5, 3.5, Math.PI, 0); ctx.fill();
-  } else {
-    // RED BARON — skin peeled off, exposed red skeleton frame + iron cross
-    // Stripped fuselage frame
-    ctx.fillStyle = '#cc1100';
-    ctx.fillRect(-14, -2, 28, 5);
-    // Exposed ribs (fabric torn off)
-    ctx.strokeStyle = '#990000'; ctx.lineWidth = 1;
-    for (let r = -10; r <= 10; r += 4) {
-      ctx.beginPath(); ctx.moveTo(r, -2); ctx.lineTo(r, 3); ctx.stroke();
-    }
-    // Red wings (upper)
-    ctx.fillStyle = '#dd2200';
-    ctx.fillRect(-13, -10, 26, 3);
-    // Red wings (lower)
-    ctx.fillRect(-12, 6, 24, 3);
-    // Wing struts — dark iron
-    ctx.strokeStyle = '#440000'; ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(-6, -7); ctx.lineTo(-6, 6);
-    ctx.moveTo(6, -7); ctx.lineTo(6, 6);
-    ctx.stroke();
-    // Iron cross on upper wing
-    ctx.fillStyle = '#111';
-    ctx.fillRect(-2, -10, 4, 3); // Vertical bar
-    ctx.fillRect(-5, -9, 10, 1);  // Horizontal bar
-    // Tail — bare frame
-    ctx.fillStyle = '#aa0000';
-    ctx.beginPath(); ctx.moveTo(-14, -2); ctx.lineTo(-20, -8); ctx.lineTo(-18, 0); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(-14, 3); ctx.lineTo(-20, 8); ctx.lineTo(-18, 1); ctx.fill();
-    // Propeller (fast spin)
-    const pa = Date.now() / 15;
-    ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(14, Math.sin(pa) * 7); ctx.lineTo(14, -Math.sin(pa) * 7); ctx.stroke();
-    // Engine — darker, meaner
-    ctx.fillStyle = '#440000';
-    ctx.fillRect(10, -3, 5, 6);
-    // Baron pilot — skull-like, menacing
-    ctx.fillStyle = '#ddd'; // Pale
-    ctx.beginPath(); ctx.arc(0, -4, 3.5, 0, TWO_PI); ctx.fill();
-    // Goggles (red tint)
-    ctx.fillStyle = '#cc0000';
-    ctx.fillRect(-3, -6, 3, 2);
-    ctx.fillRect(1, -6, 3, 2);
-    // Scarf (black now)
-    ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-2, -3);
-    const scarfWave = Math.sin(sw.scarfPhase) * 4;
-    ctx.quadraticCurveTo(-8, -3 + scarfWave, -14, -2 + scarfWave * 1.5);
-    ctx.stroke();
-    // Spiked helmet
-    ctx.fillStyle = '#333';
-    ctx.beginPath(); ctx.arc(0, -5.5, 3.5, Math.PI, 0); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(-1.5, -6); ctx.lineTo(1.5, -6); ctx.closePath(); ctx.fill();
-
-    // Muzzle flash when firing
-    if (sw.fireCooldown > SOPWITH_FIRE_COOLDOWN - 2) {
-      ctx.fillStyle = 'rgba(255,200,50,0.8)';
-      ctx.beginPath(); ctx.arc(14, 0, 4 + Math.random() * 2, 0, TWO_PI); ctx.fill();
-    }
-  }
-
-  ctx.restore();
-
-  // Draw bullets — small paired dots, Sopwith-style
-  ctx.fillStyle = '#fbbf24';
-  for (const b of sw.bullets) {
-    const bsx = toScreen(b.x);
-    if (bsx < -10 || bsx > W + 10) continue;
-    ctx.beginPath();
-    ctx.arc(bsx, b.y, 2, 0, TWO_PI);
-    ctx.fill();
-    // Tracer trail
-    ctx.globalAlpha = 0.4;
-    ctx.beginPath();
-    ctx.moveTo(bsx, b.y);
-    ctx.lineTo(bsx - b.vx * 3, b.y - b.vy * 3);
-    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-}
-
-// ============================================================
-// AIR SUPREMACY FIGHTER — Su-47 Berkut (forward-swept wings)
-// Fast, intelligent, rockets/seekers/bombs/MG, deploys chaff.
-// Spawns once score exceeds threshold. Controls nearby interceptors.
-// ============================================================
-const BERKUT_SPEED = 3.5;
-const BERKUT_HP = 8;
-const BERKUT_SCORE = 8000;
-const BERKUT_SPAWN_SCORE = 3000;
-const BERKUT_MG_COOLDOWN = 5;
-const BERKUT_ROCKET_COOLDOWN = 60;
-const BERKUT_SEEKER_COOLDOWN = 120;
-const BERKUT_BOMB_COOLDOWN = 90;
-const BERKUT_CHAFF_COOLDOWN = 200;
-
-function spawnBerkut() {
-  const side = Math.random() < 0.5 ? 1 : -1;
-  return {
-    x: world.sub.worldX + side * W,
-    y: 40 + Math.random() * 60,
-    vx: -side * BERKUT_SPEED,
-    vy: 0,
-    hp: BERKUT_HP,
-    alive: true,
-    mgCooldown: 30,
-    rocketCooldown: 40,
-    seekerCooldown: 80,
-    bombCooldown: 50,
-    chaffCooldown: 100,
-    bullets: [],
-    state: 'approach', // approach, engage, evade, reposition
-    stateTimer: 0,
-    evasionDir: 1,
-  };
-}
-
-function updateAirSupremacy(dt) {
-  // Spawn check
-  if (!world.airSupremacy && world.score >= BERKUT_SPAWN_SCORE) {
-    world.airSupremacy = spawnBerkut();
-    world.caveMessage = { text: 'WARNING: Su-47 BERKUT INBOUND', timer: 120 };
-  }
-  const bk = world.airSupremacy;
-  if (!bk || !bk.alive) return;
-  const sub = world.sub;
-  const dist = Math.hypot(sub.worldX - bk.x, sub.y - bk.y);
-  const dir = bk.vx >= 0 ? 1 : -1;
-  const angleToSub = Math.atan2(sub.y - bk.y, sub.worldX - bk.x);
-
-  // Cooldowns
-  bk.mgCooldown = Math.max(0, bk.mgCooldown - dt);
-  bk.rocketCooldown = Math.max(0, bk.rocketCooldown - dt);
-  bk.seekerCooldown = Math.max(0, bk.seekerCooldown - dt);
-  bk.bombCooldown = Math.max(0, bk.bombCooldown - dt);
-  bk.chaffCooldown = Math.max(0, bk.chaffCooldown - dt);
-  bk.stateTimer += dt;
-
-  // Update bullets
-  for (let i = bk.bullets.length - 1; i >= 0; i--) {
-    const b = bk.bullets[i];
-    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-    if (Math.abs(b.x - sub.worldX) < 16 && Math.abs(b.y - sub.y) < 12) {
-      damageRandomPart(sub.parts, 3);
-      addParticles(sub.worldX, sub.y, 2, '#ef4444');
-      SFX.damage();
-      bk.bullets.splice(i, 1); continue;
-    }
-    if (b.life <= 0 || b.y > WATER_LINE + 10 || b.y < 5) bk.bullets.splice(i, 1);
-  }
-
-  // Take damage
-  for (let i = world.torpedoes.length - 1; i >= 0; i--) {
-    const t = world.torpedoes[i];
-    if (!t.fromSub) continue;
-    if (Math.abs(t.worldX - bk.x) < 22 && Math.abs(t.y - bk.y) < 16) {
-      bk.hp--;
-      addExplosion(bk.x, bk.y, 'small'); SFX.explodeSmall();
-      world.torpedoes.splice(i, 1);
-      // Evasive response — deploy chaff and break
-      if (bk.chaffCooldown <= 0) {
-        world.chaffs.push({ x: bk.x, y: bk.y, age: 0 });
-        bk.chaffCooldown = BERKUT_CHAFF_COOLDOWN;
-      }
-      bk.state = 'evade'; bk.stateTimer = 0;
-      break;
-    }
-  }
-  for (let i = world.missiles.length - 1; i >= 0; i--) {
-    const m = world.missiles[i];
-    if (m.fromEnemy) continue;
-    if (Math.abs(m.worldX - bk.x) < 22 && Math.abs(m.y - bk.y) < 16) {
-      bk.hp -= 2;
-      addExplosion(bk.x, bk.y, 'small'); SFX.explodeSmall();
-      world.missiles.splice(i, 1);
-      if (bk.chaffCooldown <= 0) {
-        world.chaffs.push({ x: bk.x, y: bk.y, age: 0 });
-        bk.chaffCooldown = BERKUT_CHAFF_COOLDOWN;
-      }
-      bk.state = 'evade'; bk.stateTimer = 0;
-      break;
-    }
-  }
-
-  // Death
-  if (bk.hp <= 0) {
-    bk.alive = false;
-    addExplosion(bk.x, bk.y, 'big');
-    addParticles(bk.x, bk.y, 25, '#334155');
-    world.score += BERKUT_SCORE;
-    world.kills++;
-    world.caveMessage = { text: 'Su-47 BERKUT DESTROYED!', timer: 150 };
-    SFX.enemyDestroyed();
-    return;
-  }
-
-  // AI state machine
-  switch (bk.state) {
-    case 'approach': {
-      bk.vx += Math.cos(angleToSub) * 0.12 * dt;
-      bk.vy += Math.sin(angleToSub) * 0.08 * dt;
-      const spd = Math.hypot(bk.vx, bk.vy);
-      if (spd > BERKUT_SPEED) { bk.vx *= BERKUT_SPEED / spd; bk.vy *= BERKUT_SPEED / spd; }
-      if (dist < 250) { bk.state = 'engage'; bk.stateTimer = 0; }
-      break;
-    }
-    case 'engage': {
-      // Circle and attack — maintain distance while firing
-      const orbAngle = angleToSub + Math.PI / 2;
-      bk.vx += (Math.cos(orbAngle) * 0.1 + Math.cos(angleToSub) * 0.04) * dt;
-      bk.vy += (Math.sin(orbAngle) * 0.1 + Math.sin(angleToSub) * 0.03) * dt;
-      const spd = Math.hypot(bk.vx, bk.vy);
-      if (spd > BERKUT_SPEED) { bk.vx *= BERKUT_SPEED / spd; bk.vy *= BERKUT_SPEED / spd; }
-
-      // MG — close range
-      if (dist < 150 && bk.mgCooldown <= 0 && sub.y < WATER_LINE) {
-        const spread = (Math.random() - 0.5) * 0.12;
-        bk.bullets.push({
-          x: bk.x, y: bk.y,
-          vx: Math.cos(angleToSub + spread) * 5,
-          vy: Math.sin(angleToSub + spread) * 5,
-          life: 60,
-        });
-        bk.mgCooldown = BERKUT_MG_COOLDOWN;
-      }
-      // Unguided rockets — medium range
-      if (dist < 350 && dist > 80 && bk.rocketCooldown <= 0 && sub.y < WATER_LINE) {
-        world.missiles.push({
-          worldX: bk.x, y: bk.y,
-          vx: Math.cos(angleToSub) * 4.5, vy: Math.sin(angleToSub) * 4.5,
-          phase: 'ignite', dropTimer: 0, life: 100, trail: [],
-          fromEnemy: true, rocket: true,
-        });
-        bk.rocketCooldown = BERKUT_ROCKET_COOLDOWN;
-        SFX.missileLaunch();
-      }
-      // Seeking missile — long range
-      if (dist > 150 && bk.seekerCooldown <= 0 && sub.y < WATER_LINE) {
-        world.missiles.push({
-          worldX: bk.x, y: bk.y,
-          vx: Math.cos(angleToSub) * 2, vy: Math.sin(angleToSub) * 2,
-          phase: 'ignite', dropTimer: 0, life: 200, trail: [],
-          fromEnemy: true, sam: true,
-        });
-        bk.seekerCooldown = BERKUT_SEEKER_COOLDOWN;
-        SFX.missileLaunch();
-      }
-      // Bombs — when flying over sub on water surface
-      if (Math.abs(bk.x - sub.worldX) < 40 && bk.y < sub.y && sub.floating && bk.bombCooldown <= 0) {
-        world.missiles.push({
-          worldX: bk.x, y: bk.y,
-          vx: bk.vx * 0.3, vy: 2,
-          phase: 'ignite', dropTimer: 0, life: 120, trail: [],
-          fromEnemy: true, targetPart: 'hull',
-        });
-        bk.bombCooldown = BERKUT_BOMB_COOLDOWN;
-      }
-      if (bk.stateTimer > 200 || dist > 500) { bk.state = 'reposition'; bk.stateTimer = 0; }
-      break;
-    }
-    case 'evade': {
-      // Break hard, deploy chaff
-      bk.evasionDir = -bk.evasionDir;
-      bk.vx += bk.evasionDir * 0.3 * dt;
-      bk.vy -= 0.15 * dt;
-      const spd = Math.hypot(bk.vx, bk.vy);
-      if (spd > BERKUT_SPEED * 1.3) { bk.vx *= BERKUT_SPEED * 1.3 / spd; bk.vy *= BERKUT_SPEED * 1.3 / spd; }
-      if (bk.stateTimer > 40) { bk.state = 'approach'; bk.stateTimer = 0; }
-      break;
-    }
-    case 'reposition': {
-      // Swing wide then come back
-      const awayAngle = angleToSub + Math.PI;
-      bk.vx += Math.cos(awayAngle) * 0.08 * dt;
-      bk.vy -= 0.04 * dt;
-      const spd = Math.hypot(bk.vx, bk.vy);
-      if (spd > BERKUT_SPEED) { bk.vx *= BERKUT_SPEED / spd; bk.vy *= BERKUT_SPEED / spd; }
-      if (bk.stateTimer > 80 || dist > 600) { bk.state = 'approach'; bk.stateTimer = 0; }
-      break;
-    }
-  }
-
-  bk.x += bk.vx * dt;
-  bk.y += bk.vy * dt;
-  bk.y = clamp(bk.y, 25, WATER_LINE - 15);
-  if (bk.x < 50) { bk.x = 50; bk.vx = Math.abs(bk.vx); }
-  if (bk.x > TERRAIN_LENGTH - 50) { bk.x = TERRAIN_LENGTH - 50; bk.vx = -Math.abs(bk.vx); }
-
-  // Command nearby interceptors — if Berkut is alive, interceptors get smarter
-  for (const li of world.airInterceptors) {
-    if (!li.alive) continue;
-    if (Math.abs(li.x - bk.x) < W) {
-      li.commanded = true; // Flag: use Berkut's targeting intelligence
-    }
-  }
-}
-
-function drawAirSupremacy() {
-  const bk = world.airSupremacy;
-  if (!bk || !bk.alive) return;
-  const sx = toScreen(bk.x);
-  if (sx < -60 || sx > W + 60) return;
-  const dir = bk.vx >= 0 ? 1 : -1;
-
-  ctx.save();
-  ctx.translate(sx, bk.y);
-  ctx.scale(dir, 1);
-
-  // Su-47 Berkut — forward-swept wings, dark charcoal/navy
-  // Fuselage
-  ctx.fillStyle = '#1e293b';
-  ctx.beginPath();
-  ctx.moveTo(22, 0); ctx.lineTo(16, -3); ctx.lineTo(-18, -2.5);
-  ctx.lineTo(-22, 0); ctx.lineTo(-18, 2.5); ctx.lineTo(16, 3);
-  ctx.closePath(); ctx.fill();
-  // Forward-swept wings (distinctive Berkut feature)
-  ctx.fillStyle = '#334155';
-  ctx.beginPath();
-  ctx.moveTo(4, -3); ctx.lineTo(14, -16); ctx.lineTo(8, -16); ctx.lineTo(-4, -3);
-  ctx.closePath(); ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(4, 3); ctx.lineTo(14, 16); ctx.lineTo(8, 16); ctx.lineTo(-4, 3);
-  ctx.closePath(); ctx.fill();
-  // Canards (small front wings)
-  ctx.fillStyle = '#475569';
-  ctx.beginPath();
-  ctx.moveTo(14, -3); ctx.lineTo(18, -8); ctx.lineTo(16, -8); ctx.lineTo(12, -3);
-  ctx.closePath(); ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(14, 3); ctx.lineTo(18, 8); ctx.lineTo(16, 8); ctx.lineTo(12, 3);
-  ctx.closePath(); ctx.fill();
-  // Twin vertical stabilisers (canted outward)
-  ctx.fillStyle = '#1e293b';
-  ctx.beginPath(); ctx.moveTo(-16, -2); ctx.lineTo(-20, -9); ctx.lineTo(-18, -2); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(-16, 2); ctx.lineTo(-20, 9); ctx.lineTo(-18, 2); ctx.fill();
-  // Cockpit
-  ctx.fillStyle = '#60a5fa';
-  ctx.beginPath(); ctx.ellipse(12, -1, 5, 2, 0, 0, Math.PI * 2); ctx.fill();
-  // Engine exhausts
-  ctx.fillStyle = 'rgba(255,140,0,0.5)';
-  ctx.beginPath(); ctx.moveTo(-22, -1.5); ctx.lineTo(-28 - Math.random() * 4, 0); ctx.lineTo(-22, 1.5); ctx.fill();
-  // Star marking
-  ctx.fillStyle = '#ef4444';
-  ctx.beginPath(); ctx.arc(-8, 0, 2.5, 0, TWO_PI); ctx.fill();
-
-  ctx.restore();
-
-  // Bullets
-  ctx.fillStyle = '#ef4444';
-  for (const b of bk.bullets) {
-    const bsx = toScreen(b.x);
-    if (bsx < -10 || bsx > W + 10) continue;
-    ctx.beginPath(); ctx.arc(bsx, b.y, 1.5, 0, TWO_PI); ctx.fill();
-    ctx.globalAlpha = 0.3;
-    ctx.beginPath(); ctx.moveTo(bsx, b.y);
-    ctx.lineTo(bsx - b.vx * 2, b.y - b.vy * 2);
-    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-}
-
-// ============================================================
-// AIR INTERCEPTORS — English Electric Lightning look.
-// Spawn in squadrons of 2-3. MG + unguided rockets.
-// When Berkut is on-screen, they follow its AI for coordinated attacks.
-// ============================================================
-const LIGHTNING_SPEED = 2.8;
-const LIGHTNING_HP = 3;
-const LIGHTNING_SCORE = 1500;
-const LIGHTNING_MG_COOLDOWN = 8;
-const LIGHTNING_ROCKET_COOLDOWN = 80;
-const LIGHTNING_SQUAD_SPAWN_INTERVAL = 500;
-
-function spawnLightningSquad() {
-  const count = 2 + Math.floor(Math.random() * 2); // 2 or 3
-  const side = Math.random() < 0.5 ? 1 : -1;
-  const baseX = world.sub.worldX + side * (W * 0.7);
-  const baseY = 50 + Math.random() * 50;
-  const squad = [];
-  for (let i = 0; i < count; i++) {
-    squad.push({
-      x: baseX + i * 30 * side,
-      y: baseY + (i - 1) * 15, // V-formation offset
-      vx: -side * LIGHTNING_SPEED,
-      vy: (Math.random() - 0.5) * 0.3,
-      hp: LIGHTNING_HP,
-      alive: true,
-      mgCooldown: 20 + Math.random() * 20,
-      rocketCooldown: 40 + Math.random() * 40,
-      bullets: [],
-      commanded: false, // Set true when Berkut is nearby
-      state: 'attack',  // attack, retreat
-      stateTimer: 0,
-    });
-  }
-  return squad;
-}
-
-function updateAirInterceptors(dt) {
-  const sub = world.sub;
-
-  // Spawn new squadrons periodically (max 1 active squad of 3)
-  const aliveCount = world.airInterceptors.filter(l => l.alive).length;
-  world.airInterceptorTimer += dt;
-  if (aliveCount === 0 && world.airInterceptorTimer > LIGHTNING_SQUAD_SPAWN_INTERVAL && world.score > 500) {
-    world.airInterceptors = spawnLightningSquad();
-    world.airInterceptorTimer = 0;
-    world.caveMessage = { text: 'LIGHTNING SQUADRON INCOMING', timer: 80 };
-  }
-
-  for (const li of world.airInterceptors) {
-    if (!li.alive) continue;
-    li.stateTimer += dt;
-    li.mgCooldown = Math.max(0, li.mgCooldown - dt);
-    li.rocketCooldown = Math.max(0, li.rocketCooldown - dt);
-
-    const dist = Math.hypot(sub.worldX - li.x, sub.y - li.y);
-    const angleToSub = Math.atan2(sub.y - li.y, sub.worldX - li.x);
-
-    // Update bullets
-    for (let i = li.bullets.length - 1; i >= 0; i--) {
-      const b = li.bullets[i];
-      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-      if (Math.abs(b.x - sub.worldX) < 16 && Math.abs(b.y - sub.y) < 12) {
-        damageRandomPart(sub.parts, 3);
-        addParticles(sub.worldX, sub.y, 2, '#94a3b8');
-        SFX.damage();
-        li.bullets.splice(i, 1); continue;
-      }
-      if (b.life <= 0 || b.y > WATER_LINE || b.y < 5) li.bullets.splice(i, 1);
-    }
-
-    // Take damage
-    for (let i = world.torpedoes.length - 1; i >= 0; i--) {
-      const t = world.torpedoes[i];
-      if (!t.fromSub) continue;
-      if (Math.abs(t.worldX - li.x) < 18 && Math.abs(t.y - li.y) < 14) {
-        li.hp -= 2;
-        addExplosion(li.x, li.y, 'small'); SFX.explodeSmall();
-        world.torpedoes.splice(i, 1); break;
-      }
-    }
-    for (let i = world.missiles.length - 1; i >= 0; i--) {
-      const m = world.missiles[i];
-      if (m.fromEnemy) continue;
-      if (Math.abs(m.worldX - li.x) < 18 && Math.abs(m.y - li.y) < 14) {
-        li.hp -= 3;
-        addExplosion(li.x, li.y, 'small'); SFX.explodeSmall();
-        world.missiles.splice(i, 1); break;
-      }
-    }
-
-    if (li.hp <= 0) {
-      li.alive = false;
-      addExplosion(li.x, li.y, 'big');
-      addParticles(li.x, li.y, 14, '#64748b');
-      world.score += LIGHTNING_SCORE;
-      world.kills++;
-      SFX.enemyDestroyed();
-      continue;
-    }
-
-    // AI — commanded by Berkut or independent
-    if (li.commanded && world.airSupremacy?.alive) {
-      // Coordinated: focus fire from flanking positions
-      const bk = world.airSupremacy;
-      const flankAngle = Math.atan2(sub.y - bk.y, sub.worldX - bk.x) + Math.PI / 3;
-      li.vx += Math.cos(flankAngle) * 0.08 * dt;
-      li.vy += Math.sin(flankAngle) * 0.06 * dt;
-    } else {
-      // Independent: direct approach
-      li.vx += Math.cos(angleToSub) * 0.1 * dt;
-      li.vy += Math.sin(angleToSub) * 0.06 * dt;
-    }
-    const spd = Math.hypot(li.vx, li.vy);
-    if (spd > LIGHTNING_SPEED) { li.vx *= LIGHTNING_SPEED / spd; li.vy *= LIGHTNING_SPEED / spd; }
-
-    // MG fire — close range
-    if (dist < 180 && li.mgCooldown <= 0 && sub.y < WATER_LINE) {
-      const spread = (Math.random() - 0.5) * 0.15;
-      li.bullets.push({
-        x: li.x, y: li.y,
-        vx: Math.cos(angleToSub + spread) * 4.5,
-        vy: Math.sin(angleToSub + spread) * 4.5,
-        life: 50,
-      });
-      li.mgCooldown = LIGHTNING_MG_COOLDOWN;
-    }
-    // Unguided rockets — medium range
-    if (dist < 300 && dist > 60 && li.rocketCooldown <= 0 && sub.y < WATER_LINE) {
-      world.missiles.push({
-        worldX: li.x, y: li.y,
-        vx: Math.cos(angleToSub) * 4, vy: Math.sin(angleToSub) * 4,
-        phase: 'ignite', dropTimer: 0, life: 80, trail: [],
-        fromEnemy: true, rocket: true,
-      });
-      li.rocketCooldown = LIGHTNING_ROCKET_COOLDOWN;
-    }
-
-    li.x += li.vx * dt;
-    li.y += li.vy * dt;
-    li.y = clamp(li.y, 25, WATER_LINE - 15);
-    // Retreat if too far away
-    if (Math.abs(li.x - sub.worldX) > W * 2.5) li.alive = false;
-    li.commanded = false; // Reset each tick, Berkut re-sets if nearby
-  }
-}
-
-function drawAirInterceptors() {
-  for (const li of world.airInterceptors) {
-    if (!li.alive) continue;
-    const sx = toScreen(li.x);
-    if (sx < -50 || sx > W + 50) continue;
-    const dir = li.vx >= 0 ? 1 : -1;
-
-    ctx.save();
-    ctx.translate(sx, li.y);
-    ctx.scale(dir, 1);
-
-    // English Electric Lightning — stacked engine nacelles, highly swept wings
-    // Fuselage (distinctive round cross-section)
-    ctx.fillStyle = '#94a3b8';
-    ctx.beginPath();
-    ctx.moveTo(20, 0); ctx.lineTo(14, -3); ctx.lineTo(-16, -2.5);
-    ctx.lineTo(-18, 0); ctx.lineTo(-16, 2.5); ctx.lineTo(14, 3);
-    ctx.closePath(); ctx.fill();
-    // Belly bulge (lower engine intake)
-    ctx.fillStyle = '#7c8ba0';
-    ctx.beginPath();
-    ctx.ellipse(0, 3, 10, 2.5, 0, 0, Math.PI); ctx.fill();
-    // Highly swept wings (60-degree sweep)
-    ctx.fillStyle = '#8293a8';
-    ctx.beginPath();
-    ctx.moveTo(2, -3); ctx.lineTo(-6, -14); ctx.lineTo(-10, -12); ctx.lineTo(-2, -3);
-    ctx.closePath(); ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(2, 3); ctx.lineTo(-6, 14); ctx.lineTo(-10, 12); ctx.lineTo(-2, 3);
-    ctx.closePath(); ctx.fill();
-    // Tail fin (tall, thin)
-    ctx.fillStyle = '#64748b';
-    ctx.beginPath(); ctx.moveTo(-14, -2); ctx.lineTo(-18, -12); ctx.lineTo(-16, -2); ctx.fill();
-    // Cockpit
-    ctx.fillStyle = '#38bdf8';
-    ctx.beginPath(); ctx.ellipse(12, -1, 4, 1.8, 0, 0, Math.PI * 2); ctx.fill();
-    // Nose cone (shock cone intake)
-    ctx.fillStyle = '#e2e8f0';
-    ctx.beginPath(); ctx.arc(20, 0, 2, 0, TWO_PI); ctx.fill();
-    // Exhaust
-    ctx.fillStyle = 'rgba(255,160,0,0.4)';
-    ctx.beginPath(); ctx.moveTo(-18, -1); ctx.lineTo(-24 - Math.random() * 3, 0); ctx.lineTo(-18, 1); ctx.fill();
-    // Roundel
-    ctx.fillStyle = '#1d4ed8';
-    ctx.beginPath(); ctx.arc(-4, -3, 2, 0, TWO_PI); ctx.fill();
-    ctx.fillStyle = '#dc2626';
-    ctx.beginPath(); ctx.arc(-4, -3, 1, 0, TWO_PI); ctx.fill();
-
-    ctx.restore();
-
-    // Bullets
-    ctx.fillStyle = '#cbd5e1';
-    for (const b of li.bullets) {
-      const bsx = toScreen(b.x);
-      if (bsx < -10 || bsx > W + 10) continue;
-      ctx.beginPath(); ctx.arc(bsx, b.y, 1.5, 0, TWO_PI); ctx.fill();
-    }
-  }
-}
-
-// ============================================================
-// NEMESIS MINI-SUB — A smaller airborne submarine that mirrors
-// the player. Flies and swims but cannot go deep layer or space.
-// Toggle ON in settings or auto-spawns on higher scores.
-// ============================================================
-const NEMESIS_SPEED_AIR = 2.2;
-const NEMESIS_SPEED_WATER = 1.4;
-const NEMESIS_HP = 6;
-const NEMESIS_SCORE = 6000;
-const NEMESIS_SPAWN_SCORE = 5000;
-const NEMESIS_TORPEDO_COOLDOWN = 100;
-const NEMESIS_MG_COOLDOWN = 10;
-
-function spawnNemesis() {
-  const side = Math.random() < 0.5 ? 1 : -1;
-  return {
-    x: world.sub.worldX + side * W * 0.8,
-    y: WATER_LINE - 20,
-    vx: -side * NEMESIS_SPEED_AIR,
-    vy: 0,
-    hp: NEMESIS_HP,
-    alive: true,
-    torpedoCooldown: 50,
-    mgCooldown: 20,
-    bullets: [],
-    inWater: false,
-    state: 'hunt',    // hunt, dive, surface, flee
-    stateTimer: 0,
-  };
-}
-
-function updateNemesis(dt) {
-  // Spawn check
-  const shouldSpawn = world.settings.nemesisSub || world.score >= NEMESIS_SPAWN_SCORE;
-  if (!world.nemesis && shouldSpawn) {
-    world.nemesis = spawnNemesis();
-    world.caveMessage = { text: 'WARNING: NEMESIS SUB DETECTED', timer: 120 };
-  }
-  const nm = world.nemesis;
-  if (!nm || !nm.alive) return;
-  const sub = world.sub;
-  nm.stateTimer += dt;
-  nm.torpedoCooldown = Math.max(0, nm.torpedoCooldown - dt);
-  nm.mgCooldown = Math.max(0, nm.mgCooldown - dt);
-  nm.inWater = nm.y > WATER_LINE;
-  const dist = Math.hypot(sub.worldX - nm.x, sub.y - nm.y);
-  const angleToSub = Math.atan2(sub.y - nm.y, sub.worldX - nm.x);
-  const speed = nm.inWater ? NEMESIS_SPEED_WATER : NEMESIS_SPEED_AIR;
-
-  // Update bullets
-  for (let i = nm.bullets.length - 1; i >= 0; i--) {
-    const b = nm.bullets[i];
-    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-    if (Math.abs(b.x - sub.worldX) < 16 && Math.abs(b.y - sub.y) < 12) {
-      damageRandomPart(sub.parts, 3);
-      SFX.damage();
-      nm.bullets.splice(i, 1); continue;
-    }
-    if (b.life <= 0) nm.bullets.splice(i, 1);
-  }
-
-  // Take damage
-  for (let i = world.torpedoes.length - 1; i >= 0; i--) {
-    const t = world.torpedoes[i];
-    if (!t.fromSub) continue;
-    if (Math.abs(t.worldX - nm.x) < 20 && Math.abs(t.y - nm.y) < 14) {
-      nm.hp -= 2;
-      addExplosion(nm.x, nm.y, 'small'); SFX.explodeSmall();
-      world.torpedoes.splice(i, 1); break;
-    }
-  }
-  for (let i = world.missiles.length - 1; i >= 0; i--) {
-    const m = world.missiles[i];
-    if (m.fromEnemy) continue;
-    if (Math.abs(m.worldX - nm.x) < 20 && Math.abs(m.y - nm.y) < 14) {
-      nm.hp -= 2;
-      addExplosion(nm.x, nm.y, 'small'); SFX.explodeSmall();
-      world.missiles.splice(i, 1); break;
-    }
-  }
-
-  // Death
-  if (nm.hp <= 0) {
-    nm.alive = false;
-    addExplosion(nm.x, nm.y, 'big');
-    addParticles(nm.x, nm.y, 20, '#475569');
-    world.score += NEMESIS_SCORE;
-    world.kills++;
-    world.caveMessage = { text: 'NEMESIS SUB DESTROYED!', timer: 150 };
-    SFX.enemyDestroyed();
-    return;
-  }
-
-  // AI — mirror the player, follow into water but not deep or space
-  const subInWater = sub.y > WATER_LINE;
-  const subInDeep = sub.y > THERMAL_LAYER_2_MAX;
-
-  if (subInDeep || world.mode === 'orbit') {
-    // Can't follow — circle at medium depth waiting
-    nm.vy += (WATER_LINE + 40 - nm.y) * 0.005 * dt;
-    nm.vx += Math.cos(world.tick * 0.01) * 0.05 * dt;
-  } else if (subInWater && !subInDeep) {
-    // Follow sub underwater — dive to match
-    nm.vx += Math.cos(angleToSub) * 0.08 * dt;
-    nm.vy += Math.sin(angleToSub) * 0.06 * dt;
-    // Fire torpedo underwater
-    if (nm.torpedoCooldown <= 0 && dist < 300 && nm.inWater) {
-      const tDir = sub.worldX > nm.x ? 1 : -1;
-      world.torpedoes.push({
-        worldX: nm.x + tDir * 15, y: nm.y,
-        vx: tDir * TORPEDO_SPEED * 0.6, vy: (sub.y - nm.y) * 0.004,
-        phase: 'skim', life: 200, trail: [],
-        rogue: false, fromSub: false, active: true,
-      });
-      nm.torpedoCooldown = NEMESIS_TORPEDO_COOLDOWN;
-      SFX.torpedoLaunch();
-    }
-  } else {
-    // Both in air — dogfight
-    nm.vx += Math.cos(angleToSub) * 0.1 * dt;
-    nm.vy += Math.sin(angleToSub) * 0.08 * dt;
-    // MG fire in air
-    if (dist < 200 && nm.mgCooldown <= 0 && sub.y < WATER_LINE) {
-      const spread = (Math.random() - 0.5) * 0.15;
-      nm.bullets.push({
-        x: nm.x, y: nm.y,
-        vx: Math.cos(angleToSub + spread) * 4,
-        vy: Math.sin(angleToSub + spread) * 4,
-        life: 60,
-      });
-      nm.mgCooldown = NEMESIS_MG_COOLDOWN;
-    }
-  }
-
-  const spd = Math.hypot(nm.vx, nm.vy);
-  if (spd > speed) { nm.vx *= speed / spd; nm.vy *= speed / spd; }
-  nm.x += nm.vx * dt;
-  nm.y += nm.vy * dt;
-  // Can't go deep
-  nm.y = clamp(nm.y, 25, THERMAL_LAYER_2_MAX - 20);
-  if (nm.x < 50) { nm.x = 50; nm.vx = Math.abs(nm.vx); }
-  if (nm.x > TERRAIN_LENGTH - 50) { nm.x = TERRAIN_LENGTH - 50; nm.vx = -Math.abs(nm.vx); }
-}
-
-function drawNemesis() {
-  const nm = world.nemesis;
-  if (!nm || !nm.alive) return;
-  // Thermal visibility check when underwater
-  if (nm.inWater && !thermallyVisible(world.sub.y, nm.y)) return;
-  const sx = toScreen(nm.x);
-  if (sx < -50 || sx > W + 50) return;
-  const dir = nm.vx >= 0 ? 1 : -1;
-
-  ctx.save();
-  ctx.translate(sx, nm.y);
-  ctx.scale(dir, 1);
-
-  // Smaller, darker version of the player's sub
-  // Hull
-  ctx.fillStyle = '#1e1e2e';
-  ctx.beginPath(); ctx.ellipse(0, 0, 16, 6, 0, 0, TWO_PI); ctx.fill();
-  ctx.strokeStyle = '#333';
-  ctx.lineWidth = 1; ctx.stroke();
-  // Tower
-  ctx.fillStyle = '#2a2a3a';
-  ctx.fillRect(-2, -9, 4, 4);
-  // Nose
-  ctx.fillStyle = '#444';
-  ctx.beginPath(); ctx.arc(16, 0, 3, -Math.PI / 2, Math.PI / 2); ctx.fill();
-  // Wings (small)
-  ctx.fillStyle = '#3a3a4a';
-  ctx.beginPath();
-  ctx.moveTo(-2, -5); ctx.lineTo(-8, -11); ctx.lineTo(-4, -11); ctx.lineTo(2, -5);
-  ctx.closePath(); ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(-2, 5); ctx.lineTo(-8, 11); ctx.lineTo(-4, 11); ctx.lineTo(2, 5);
-  ctx.closePath(); ctx.fill();
-  // Engine
-  ctx.fillStyle = '#555';
-  ctx.fillRect(-18, -3, 5, 6);
-  // Propeller
-  if (!nm.inWater) {
-    const pa = Date.now() / 40;
-    ctx.strokeStyle = '#888'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(-18, Math.sin(pa) * 4); ctx.lineTo(-18, -Math.sin(pa) * 4); ctx.stroke();
-  } else {
-    // Underwater — bubble trail
-    ctx.fillStyle = 'rgba(133,193,233,0.3)';
-    for (let b = 0; b < 3; b++) {
-      ctx.beginPath();
-      ctx.arc(-20 - b * 5 + Math.random() * 3, (Math.random() - 0.5) * 4, 2 + Math.random(), 0, TWO_PI);
-      ctx.fill();
-    }
-  }
-  // Red eye (menacing)
-  ctx.fillStyle = '#ef4444';
-  ctx.beginPath(); ctx.arc(12, -2, 1.5, 0, TWO_PI); ctx.fill();
-  // Warning stripes on hull
-  ctx.strokeStyle = 'rgba(239,68,68,0.3)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(-8, -5); ctx.lineTo(-8, 5); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(-4, 6); ctx.stroke();
-
-  ctx.restore();
-
-  // Bullets
-  ctx.fillStyle = '#f87171';
-  for (const b of nm.bullets) {
-    const bsx = toScreen(b.x);
-    if (bsx < -10 || bsx > W + 10) continue;
-    ctx.beginPath(); ctx.arc(bsx, b.y, 1.5, 0, TWO_PI); ctx.fill();
-  }
-}
-
-function updateChaffs(world, dt) {
-  world.chaffCooldown = Math.max(0, world.chaffCooldown - dt);
-  for (let i = world.chaffs.length - 1; i >= 0; i--) {
-    const chaff = world.chaffs[i];
-    chaff.age += dt;
-    // Slow downward drift as chaff settles
-    chaff.y += 0.12 * dt;
-    if (chaff.age > CHAFF_LIFESPAN) {
-      world.chaffs.splice(i, 1);
-    }
-  }
-}
-
-function drawChaffs(world) {
-  const CHAFF_COLORS = ['#f0b429', '#fcd34d', '#fef3c7', '#f59e0b', '#e2e8f0', '#d4d4d8'];
-  for (const chaff of world.chaffs) {
-    const sx = toScreen(chaff.x);
-    const progress = chaff.age / CHAFF_LIFESPAN;
-    const baseAlpha = 0.3 + 0.7 * (1 - progress);
-    // Spread increases over time (tight bundle → dispersed)
-    const spread = 4 + progress * CHAFF_RADIUS * 1.2;
-    const drift = progress * 18; // Downward drift
-    const numFlakes = 24;
-    for (let i = 0; i < numFlakes; i++) {
-      // Each flake has a deterministic seed based on index
-      const seed = i * 137.5;
-      const angle = (seed % 360) * Math.PI / 180;
-      const dist = ((seed * 0.73) % 1) * spread;
-      const fx = sx + Math.cos(angle + world.tick * 0.02 * ((i % 3) - 1)) * dist;
-      const fy = chaff.y + Math.sin(angle) * dist * 0.6 + drift
-        + Math.sin(world.tick * 0.08 + seed) * 3; // Flutter
-      // Shimmer: alpha pulses per flake
-      const shimmer = 0.5 + 0.5 * Math.sin(world.tick * 0.15 + seed * 2.7);
-      ctx.globalAlpha = Math.max(0, baseAlpha * shimmer);
-      ctx.fillStyle = CHAFF_COLORS[i % CHAFF_COLORS.length];
-      // Tiny rectangles rotated randomly (confetti strips)
-      ctx.save();
-      ctx.translate(fx, fy);
-      ctx.rotate(world.tick * 0.03 + seed);
-      ctx.fillRect(-2, -0.6, 4, 1.2);
-      ctx.restore();
-    }
-    ctx.globalAlpha = 1;
-  }
-}
 
 // --- Island hit test (above water trapezoid + underwater rock) ---
 function islandHitTest(worldX, screenY) {
@@ -2322,6 +1564,7 @@ function damageRandomPart(parts, amount) {
           if (world.sub.commanderHp <= 0) {
             world.caveMessage = { text: 'COMMANDER KIA — MISSION OVER', timer: 200 };
             world.gameOver = true;
+            setDeathCause(world, 'commander-shot');
             SFX.gameOver();
           }
         }
@@ -2433,15 +1676,27 @@ function saveLeaderboard(entries) {
   } catch {
     // Ignore storage failures; the in-memory leaderboard still works.
   }
+  // Mirror to VeriSimDB (fire-and-forget)
+  if (typeof verisimdbSaveLeaderboard === 'function') verisimdbSaveLeaderboard(entries.slice(0, 5));
 }
 
 function loadSettings() {
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
+    // Pre-game splash-menu settings (if set) override the in-game saved ones
+    // for this session. This lets the splash "SETTINGS" button dictate what
+    // the player actually starts with, without trampling their persisted
+    // in-game tweaks on disk.
+    let pregame = {};
+    try {
+      const rawPre = window.localStorage.getItem('ass_pregame_settings');
+      if (rawPre) pregame = JSON.parse(rawPre) || {};
+    } catch (_) {}
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      ...pregame,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -2454,6 +1709,7 @@ function saveSettings(settings) {
   } catch {
     // Ignore storage failures and keep running.
   }
+  if (typeof verisimdbSaveSettings === 'function') verisimdbSaveSettings(settings);
 }
 
 function currentSubSkin(settings) {
@@ -2493,19 +1749,23 @@ function adjustCustomHue(settings, delta) {
 // ============================================================
 // KEY BINDINGS — configurable, saved to localStorage
 // ============================================================
-const KEYBIND_STORAGE_KEY = 'ass_keybindings';
+const KEYBIND_STORAGE_KEY = 'ass_keybindings_v2';
 const DEFAULT_KEYBINDS = {
-  torpedo:      'Control',
-  missile:      'Enter',
-  depthCharge:  'AltGraph',
+  fire:         ' ',           // Spacebar fires the currently selected weapon
+  stabilise:    'Shift',       // Left Shift stabilises in all environments
+  weaponSlot1:  '1',           // Torpedo (sub) / Pistol (commander)
+  weaponSlot2:  '2',           // Missile (sub) / Grenade (commander)
+  weaponSlot3:  '3',           // Depth charge (sub)
+  weaponSlot9:  '9',           // PPC — commander only, experimental
   afterburner:  'a',
-  periscope:    'p',
+  periscope:    'p',           // Manual toggle (auto-retracts in flight, extends in water)
   disembark:    'e',
   embark:       'm',
   emergencyEject: 'Tab',
   chaff:        'c',
   orbitMenu:    'f',
-  cruise:       ' ',
+  swivelLeft:   'z',           // Commander on land — aim left
+  swivelRight:  'x',           // Commander on land — aim right
   pause:        'Escape',
   pickup:       'f',
 };
@@ -2788,6 +2048,7 @@ function startPlanetWarp(target = null) {
   }
 
   world.currentDestination = destination;
+  world.hasWarped = true;
   world.terrain = generateTerrain(TERRAIN_LENGTH);
   const baseX = Math.random() * (TERRAIN_LENGTH - 200) + 100;
   world.sub.worldX = baseX;
@@ -2902,9 +2163,29 @@ function startMission(typeKey) {
     timer: def.duration || 0,
     active: true,
     failed: false,
+    completed: false,
+    killTarget: def.killTarget || 0,
+    killCount: 0,
+    escortShipAlive: true,
   };
-  if (def.timed) {
-    world.caveMessage = { text: `MISSION: ${def.label} — ${Math.round(def.duration / 60)}s`, timer: 120 };
+  const secs = Math.round((def.duration || 0) / 60);
+  if (typeKey === 'hostage' && def.hostageCount) {
+    world.hostages = spawnHostages(def.hostageCount);
+    const count = world.hostages.length;
+    world.caveMessage = { text: `MISSION: RESCUE ${count} HOSTAGES — ${secs}s`, timer: 150 };
+  } else if (typeKey === 'strike') {
+    world.mission.killCount = 0;
+    world.mission._lastKnownKills = world.kills;
+    world.caveMessage = { text: `MISSION: DESTROY ${def.killTarget} TARGETS — ${secs}s`, timer: 150 };
+  } else if (typeKey === 'escort') {
+    // Ensure passenger ship is alive for escort
+    if (world.terrain.passengerShip) {
+      world.terrain.passengerShip.hp = Math.max(world.terrain.passengerShip.hp, 30);
+      world.terrain.passengerShip.destroyed = false;
+    }
+    world.caveMessage = { text: `MISSION: ESCORT PASSENGER SHIP — ${secs}s`, timer: 150 };
+  } else if (def.timed) {
+    world.caveMessage = { text: `MISSION: ${def.label} — ${secs}s`, timer: 120 };
   }
 }
 
@@ -2912,6 +2193,54 @@ function updateMissionTimer(dt) {
   const m = world.mission;
   if (!m || !m.active || !m.timed) return;
   m.timer -= dt;
+
+  // Helper: record mission result to VeriSimDB
+  function finishMission(outcome) {
+    if (typeof verisimdbRecordMission === 'function') {
+      verisimdbRecordMission({
+        type: m.type, label: m.label, outcome,
+        score: world.score, kills: world.kills,
+        duration: (m.timer > 0) ? ((MISSION_TYPES[m.type]?.duration || 0) - m.timer) : (MISSION_TYPES[m.type]?.duration || 0),
+      });
+    }
+  }
+
+  // Strike mission: check kill objective
+  if (m.type === 'strike' && m.killTarget > 0 && m.killCount >= m.killTarget) {
+    m.active = false;
+    m.completed = true;
+    world.score += STRIKE_COMPLETE_BONUS;
+    world.caveMessage = { text: `STRIKE COMPLETE! +${STRIKE_COMPLETE_BONUS}pts`, timer: 150 };
+    finishMission('completed');
+    return;
+  }
+
+  // Escort mission: check if passenger ship was destroyed
+  if (m.type === 'escort') {
+    const ship = world.terrain.passengerShip;
+    if (ship && ship.destroyed) {
+      m.active = false;
+      m.failed = true;
+      world.caveMessage = { text: 'MISSION FAILED: PASSENGER SHIP DESTROYED', timer: 200 };
+      world.gameOver = true;
+      setDeathCause(world, 'civilian-ship');
+      SFX.gameOver();
+      finishMission('failed_ship_destroyed');
+      return;
+    }
+    // Escort succeeds when timer runs out (survived the full duration)
+    if (m.timer <= 0) {
+      m.timer = 0;
+      m.active = false;
+      m.completed = true;
+      world.score += ESCORT_COMPLETE_BONUS;
+      world.caveMessage = { text: `ESCORT COMPLETE! Ship safe. +${ESCORT_COMPLETE_BONUS}pts`, timer: 150 };
+      finishMission('completed');
+      return;
+    }
+  }
+
+  // General timeout
   if (m.timer <= 0) {
     m.timer = 0;
     m.failed = true;
@@ -2919,9 +2248,30 @@ function updateMissionTimer(dt) {
     if (m.mandatory) {
       world.caveMessage = { text: `MISSION FAILED: ${m.label} — TIME EXPIRED`, timer: 200 };
       world.gameOver = true;
+      setDeathCause(world, 'timeout', m.label);
       SFX.gameOver();
+      finishMission('failed_timeout_mandatory');
     } else {
       world.caveMessage = { text: `TIME EXPIRED: ${m.label} — bonus lost`, timer: 150 };
+      finishMission('failed_timeout');
+    }
+  }
+}
+
+// Track strike kills by watching world.kills — called every frame
+function updateStrikeKills() {
+  const m = world.mission;
+  if (!m || !m.active || m.type !== 'strike') return;
+  // Detect new kills since last check
+  const prevKills = m._lastKnownKills || 0;
+  const newKills = world.kills - prevKills;
+  m._lastKnownKills = world.kills;
+  if (newKills > 0) {
+    m.killCount += newKills;
+    world.score += STRIKE_KILL_BONUS * newKills;
+    const remaining = m.killTarget - m.killCount;
+    if (remaining > 0) {
+      world.caveMessage = { text: `TARGET DOWN — ${remaining} remaining`, timer: 60 };
     }
   }
 }
@@ -2948,7 +2298,141 @@ function drawMissionTimer() {
 
   ctx.fillStyle = '#94a3b8';
   ctx.font = '9px Arial';
-  ctx.fillText(m.label, W / 2, 38);
+  // Show mission-specific progress
+  if (m.type === 'hostage' && world.hostages && world.hostages.length > 0) {
+    const rescued = world.hostages.filter(h => h.rescued).length;
+    const total = world.hostages.length;
+    ctx.fillText(`${m.label} — ${rescued}/${total}`, W / 2, 38);
+  } else if (m.type === 'strike' && m.killTarget > 0) {
+    ctx.fillText(`${m.label} — ${m.killCount}/${m.killTarget} kills`, W / 2, 38);
+  } else if (m.type === 'escort') {
+    const ship = world.terrain.passengerShip;
+    const shipHp = ship ? Math.round((ship.hp / (ship.maxHp || 60)) * 100) : 0;
+    ctx.fillText(`${m.label} — Ship: ${shipHp}%`, W / 2, 38);
+  } else {
+    ctx.fillText(m.label, W / 2, 38);
+  }
+}
+
+// ============================================================
+// HOSTAGE RESCUE SYSTEM
+// Places hostages on random islands when a hostage mission starts.
+// Sub must approach each island to rescue. All must be rescued
+// before the timer expires or the mission fails (game over).
+// ============================================================
+
+function spawnHostages(count) {
+  const islands = world.terrain.islands;
+  if (islands.length === 0) return [];
+  // Pick distinct islands — shuffle and take first N
+  const shuffled = [...islands].sort(() => Math.random() - 0.5);
+  const chosen = shuffled.slice(0, Math.min(count, shuffled.length));
+  return chosen.map(isl => ({
+    x: isl.x,
+    y: WATER_LINE - isl.h - 6,   // Standing on top of island
+    island: isl,
+    rescued: false,
+    rescueAnim: 0,                // Fade-out animation timer after rescue
+    flareTimer: Math.random() * HOSTAGE_FLARE_INTERVAL, // Staggered flares
+  }));
+}
+
+function updateHostages(dt) {
+  if (!world.hostages || world.hostages.length === 0) return;
+  const sub = world.sub;
+  for (const h of world.hostages) {
+    if (h.rescued) {
+      h.rescueAnim = Math.max(0, h.rescueAnim - dt);
+      continue;
+    }
+    // Signal flare timer
+    h.flareTimer += dt;
+    // Rescue proximity check. Two valid modes:
+    //   (a) Sub floating at waterline alongside the island (original style)
+    //   (b) Sub hovering above the hostage with the rescue ladder down — the
+    //       hostage climbs up. Without the VTOL upgrade this is very hard to
+    //       line up, because the sub won't hold station.
+    const dx = Math.abs(sub.worldX - h.x);
+    const dy = Math.abs(sub.y - h.y);
+    const ladderReach = sub.ladderDeployed ? sub.ladderLength + 6 : 0;
+    const ladderTipY = sub.y + ladderReach;
+    const ladderAt = sub.ladderDeployed
+      && Math.abs(sub.worldX - h.x) < 14
+      && Math.abs(ladderTipY - h.y) < 14
+      && Math.hypot(sub.vx, sub.vy) < (sub.vtolUpgrade ? 1.2 : 0.25); // stable enough?
+    if ((dx < HOSTAGE_RESCUE_RANGE && dy < HOSTAGE_RESCUE_RANGE + 30 && sub.floating) || ladderAt) {
+      h.rescued = true;
+      h.rescueAnim = 60;
+      world.score += HOSTAGE_SCORE_BONUS;
+      world.caveMessage = { text: 'HOSTAGE RESCUED! +1000pts', timer: 80 };
+      SFX.pickup?.() ?? SFX.damage();
+      // Check if all rescued
+      const remaining = world.hostages.filter(hh => !hh.rescued).length;
+      if (remaining === 0) {
+        world.caveMessage = { text: 'ALL HOSTAGES RESCUED — MISSION COMPLETE!', timer: 150 };
+        world.mission.active = false;
+        world.mission.completed = true;
+        world.score += HOSTAGE_SCORE_BONUS * 2; // Completion bonus
+        if (typeof verisimdbRecordMission === 'function') {
+          verisimdbRecordMission({ type: 'hostage', outcome: 'completed', score: world.score, kills: world.kills });
+        }
+      } else {
+        world.caveMessage = { text: `HOSTAGE RESCUED — ${remaining} REMAINING`, timer: 80 };
+      }
+    }
+  }
+}
+
+function drawHostages() {
+  if (!world.hostages || world.hostages.length === 0) return;
+  for (const h of world.hostages) {
+    const sx = toScreen(h.x);
+    if (sx < -40 || sx > W + 40) continue;
+    if (h.rescued) {
+      // Fade-out "+RESCUED" text
+      if (h.rescueAnim > 0) {
+        const alpha = h.rescueAnim / 60;
+        ctx.fillStyle = `rgba(46, 204, 113, ${alpha})`;
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('RESCUED', sx, h.y - 15 - (60 - h.rescueAnim) * 0.3);
+      }
+      continue;
+    }
+    // Draw hostage figure (small person waving)
+    const bobY = Math.sin(world.tick * 0.06 + h.x) * 1.5;
+    const hy = h.y + bobY;
+    // Body
+    ctx.fillStyle = '#f39c12';
+    ctx.fillRect(sx - 2, hy - 8, 4, 8);
+    // Head
+    ctx.fillStyle = '#ffeaa7';
+    ctx.beginPath();
+    ctx.arc(sx, hy - 11, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Waving arm
+    const armAngle = Math.sin(world.tick * 0.12 + h.x) * 0.6;
+    ctx.strokeStyle = '#f39c12';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx + 2, hy - 6);
+    ctx.lineTo(sx + 2 + Math.cos(armAngle - 1) * 6, hy - 6 + Math.sin(armAngle - 1) * 6);
+    ctx.stroke();
+    // Signal flare (periodic red glow above head)
+    if (h.flareTimer % HOSTAGE_FLARE_INTERVAL < 30) {
+      const flareAlpha = 1 - (h.flareTimer % HOSTAGE_FLARE_INTERVAL) / 30;
+      const flareY = hy - 18 - (h.flareTimer % HOSTAGE_FLARE_INTERVAL) * 0.5;
+      ctx.fillStyle = `rgba(255, 60, 60, ${flareAlpha * 0.8})`;
+      ctx.beginPath();
+      ctx.arc(sx, flareY, 3 + flareAlpha * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // "HELP" label
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 8px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('HELP', sx, hy - 18);
+  }
 }
 
 // ============================================================
@@ -3211,1386 +2695,10 @@ function isSubProtected() {
   return false;
 }
 
-// ============================================================
-// DESTROYER
-// ============================================================
-function updateDestroyer(dt) {
-  const d = world.terrain.destroyer;
-  if (!d || d.destroyed) return;
-  const sub = world.sub;
 
-  // Patrol movement
-  d.x += DESTROYER_SPEED * d.patrolDir * dt;
-  if (d.x > d.patrolCenter + DESTROYER_PATROL_RANGE / 2) d.patrolDir = -1;
-  if (d.x < d.patrolCenter - DESTROYER_PATROL_RANGE / 2) d.patrolDir = 1;
+// ── Naval enemy systems extracted to enemies.js ──
+// Destroyer, Interceptor boats, Akula-Molot, Delfin, Passenger ship
 
-  // Wake trail
-  if (world.tick % 4 === 0) {
-    d.wakeTrail.push({ x: d.x, age: 0 });
-    if (d.wakeTrail.length > 20) d.wakeTrail.shift();
-  }
-  d.wakeTrail.forEach((w) => { w.age += dt; });
-
-  // Alert level based on distance to sub
-  const distToSub = Math.hypot(sub.worldX - d.x, sub.y - d.y);
-  if (distToSub < DESTROYER_AA_RANGE) d.alertLevel = 2;
-  else if (distToSub < DESTROYER_MISSILE_RANGE) d.alertLevel = 1;
-  else d.alertLevel = 0;
-
-  // Cooldowns
-  d.missileCooldown = Math.max(0, d.missileCooldown - dt);
-  d.aaCooldown = Math.max(0, d.aaCooldown - dt);
-  d.depthChargeCooldown = Math.max(0, d.depthChargeCooldown - dt);
-  d.torpedoCooldown = Math.max(0, d.torpedoCooldown - dt);
-
-  // Guided missiles (chaff-defeatable, like SAM)
-  if (d.alertLevel >= 1 && d.missileCooldown <= 0 && sub.y < WATER_LINE) {
-    const angle = Math.atan2(sub.y - d.y, sub.worldX - d.x);
-    world.missiles.push({
-      worldX: d.x, y: d.y - 15,
-      vx: Math.cos(angle) * 2, vy: -2.5,
-      phase: 'ignite', dropTimer: 0, life: 220, trail: [],
-      fromEnemy: true, sam: true,
-    });
-    d.missileCooldown = DESTROYER_MISSILE_COOLDOWN;
-    SFX.missileLaunch();
-  }
-
-  // Close-range AA fire
-  if (d.alertLevel >= 2 && d.aaCooldown <= 0 && sub.y < WATER_LINE) {
-    damageRandomPart(sub.parts, DESTROYER_AA_DAMAGE);
-    addParticles(sub.worldX, sub.y, 2, '#fbbf24');
-    d.aaCooldown = DESTROYER_AA_COOLDOWN;
-  }
-
-  // Depth charges (when sub is below water near destroyer)
-  if (sub.y > WATER_LINE + 10 && Math.abs(sub.worldX - d.x) < 120 && d.depthChargeCooldown <= 0) {
-    world.depthCharges.push({
-      worldX: d.x + (Math.random() - 0.5) * 30,
-      y: WATER_LINE + 5,
-      vx: 0, vy: 1.0,
-      life: DEPTH_CHARGE_LIFE, trail: [],
-    });
-    d.depthChargeCooldown = DESTROYER_DEPTH_CHARGE_COOLDOWN;
-  }
-
-  // Torpedo (when sub is in water and close)
-  if (sub.y > WATER_LINE - 5 && distToSub < 250 && d.torpedoCooldown <= 0) {
-    const dir = sub.worldX > d.x ? 1 : -1;
-    world.torpedoes.push({
-      worldX: d.x + dir * 30, y: WATER_LINE + 3,
-      vx: dir * 1.5, vy: 0.3,
-      phase: 'active', life: 200, trail: [],
-      rogue: false, fromSub: false, active: true,
-    });
-    d.torpedoCooldown = DESTROYER_TORPEDO_COOLDOWN;
-    SFX.torpedoLaunch();
-  }
-
-  // Take damage from player torpedoes
-  world.torpedoes = world.torpedoes.filter((t) => {
-    if (!t.fromSub) return true;
-    if (Math.abs(t.worldX - d.x) < 35 && Math.abs(t.y - d.y) < 20) {
-      d.hp -= 25;
-      addExplosion(t.worldX, t.y, 'big');
-      SFX.explodeBig();
-      t.life = 0;
-      if (d.hp <= 0) {
-        d.destroyed = true;
-        addExplosion(d.x, d.y, 'big');
-        addExplosion(d.x - 20, d.y - 5, 'big');
-        addExplosion(d.x + 15, d.y + 3, 'big');
-        addParticles(d.x, d.y, 30, '#e74c3c');
-        world.score += 2000;
-        world.kills++;
-        world.caveMessage = { text: 'DESTROYER SUNK! +2000', timer: 150 };
-        SFX.enemyDestroyed();
-      }
-      return false;
-    }
-    return true;
-  });
-
-  // Take damage from depth charges
-  for (const charge of world.depthCharges) {
-    const cdist = Math.hypot(charge.worldX - d.x, charge.y - d.y);
-    if (cdist < DEPTH_CHARGE_BLAST_RADIUS * 0.5) {
-      d.hp -= 15;
-    }
-  }
-}
-
-function drawDestroyer() {
-  const d = world.terrain.destroyer;
-  if (!d || d.destroyed) return;
-  const dx = toScreen(d.x);
-  if (dx < -80 || dx > W + 80) return;
-  const dy = d.y;
-
-  ctx.save();
-
-  // Wake trail
-  ctx.strokeStyle = 'rgba(200,220,240,0.15)';
-  ctx.lineWidth = 1;
-  for (const w of d.wakeTrail) {
-    const wx = toScreen(w.x);
-    const spread = w.age * 2;
-    ctx.globalAlpha = Math.max(0, 0.3 - w.age * 0.015);
-    ctx.beginPath();
-    ctx.moveTo(wx - spread, dy + 6);
-    ctx.quadraticCurveTo(wx, dy + 6 + spread * 0.3, wx + spread, dy + 6);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-
-  // Hull — long dark grey warship
-  ctx.fillStyle = '#4a4a4a';
-  ctx.beginPath();
-  ctx.moveTo(dx - 45, dy);
-  ctx.lineTo(dx - 35, dy - 8);
-  ctx.lineTo(dx + 35, dy - 8);
-  ctx.lineTo(dx + 50, dy - 2);
-  ctx.lineTo(dx + 50, dy + 4);
-  ctx.lineTo(dx - 45, dy + 4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#333';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // Superstructure
-  ctx.fillStyle = '#555';
-  ctx.fillRect(dx - 15, dy - 16, 25, 8);
-  ctx.fillStyle = '#666';
-  ctx.fillRect(dx - 10, dy - 22, 15, 6);
-
-  // Radar dish (rotating)
-  ctx.save();
-  ctx.translate(dx, dy - 22);
-  ctx.rotate(world.tick * 0.04);
-  ctx.fillStyle = '#888';
-  ctx.fillRect(-8, -1.5, 16, 3);
-  ctx.restore();
-
-  // Gun turret (forward)
-  const gunDir = d.patrolDir;
-  ctx.fillStyle = '#555';
-  ctx.beginPath(); ctx.arc(dx + 25 * gunDir, dy - 10, 5, 0, TWO_PI); ctx.fill();
-  ctx.fillStyle = '#444';
-  ctx.fillRect(dx + 25 * gunDir, dy - 11, 12 * gunDir, 2);
-
-  // Smoke stack
-  ctx.fillStyle = '#3a3a3a';
-  ctx.fillRect(dx + 3, dy - 28, 6, 6);
-  // Smoke
-  if (world.tick % 6 < 4) {
-    ctx.fillStyle = 'rgba(80,80,80,0.3)';
-    const smokeY = dy - 30 - (world.tick % 20) * 0.5;
-    ctx.beginPath(); ctx.arc(dx + 6, smokeY, 3 + Math.random() * 2, 0, TWO_PI); ctx.fill();
-  }
-
-  // Alert indicator
-  if (d.alertLevel === 2) {
-    ctx.strokeStyle = 'rgba(231, 76, 60, 0.4)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.arc(dx, dy, DESTROYER_AA_RANGE, 0, TWO_PI); ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // Health bar
-  const hpPct = d.hp / d.maxHp;
-  if (hpPct < 1) {
-    const barW = 40;
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(dx - barW/2, dy - 35, barW, 4);
-    ctx.fillStyle = hpPct > 0.5 ? '#2ecc71' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
-    ctx.fillRect(dx - barW/2, dy - 35, barW * hpPct, 4);
-  }
-
-  // Label
-  ctx.fillStyle = '#e74c3c'; ctx.font = '9px Arial'; ctx.textAlign = 'center';
-  ctx.fillText('DESTROYER', dx, dy - 38);
-
-  ctx.restore();
-}
-
-// ============================================================
-// INTERCEPTOR BOATS
-// ============================================================
-const INTERCEPTOR_TARGET_PARTS = ['wings', 'rudder', 'engine', 'tail'];
-
-function damageSpecificPart(parts, partId, amount) {
-  if (parts[partId] !== undefined && parts[partId] > 0) {
-    parts[partId] = Math.max(0, parts[partId] - amount);
-  } else {
-    damageRandomPart(parts, amount);
-  }
-}
-
-function updateInterceptors(dt) {
-  const boats = world.terrain.interceptors;
-  if (!boats) return;
-  const sub = world.sub;
-
-  for (const boat of boats) {
-    if (boat.destroyed) continue;
-    boat.stateTimer -= dt;
-    boat.mgCooldown = Math.max(0, boat.mgCooldown - dt);
-    boat.bazookaCooldown = Math.max(0, boat.bazookaCooldown - dt);
-
-    const distToSub = Math.hypot(sub.worldX - boat.x, sub.y - boat.y);
-
-    switch (boat.state) {
-      case 'hiding':
-        // Wait behind island until sub is in range
-        if (distToSub < 350 && boat.stateTimer <= 0) {
-          boat.state = 'rushing';
-          boat.dir = sub.worldX > boat.x ? 1 : -1;
-          boat.targetPart = INTERCEPTOR_TARGET_PARTS[Math.floor(Math.random() * INTERCEPTOR_TARGET_PARTS.length)];
-        }
-        break;
-
-      case 'rushing':
-        // Sprint toward the sub
-        boat.x += boat.dir * INTERCEPTOR_SPEED * dt;
-        // MG fire while closing
-        if (distToSub < INTERCEPTOR_MG_RANGE && boat.mgCooldown <= 0 && sub.y < WATER_LINE + 20) {
-          damageSpecificPart(sub.parts, boat.targetPart, INTERCEPTOR_MG_DAMAGE);
-          boat.mgCooldown = INTERCEPTOR_MG_COOLDOWN;
-          addParticles(sub.worldX + (Math.random() - 0.5) * 20, sub.y + (Math.random() - 0.5) * 10, 1, '#fbbf24');
-        }
-        // Decide to stop for bazooka
-        if (boat.bazookaCooldown <= 0 && distToSub < 250 && distToSub > 80) {
-          boat.state = 'stopping';
-          boat.aimTimer = INTERCEPTOR_BAZOOKA_PAUSE;
-        }
-        // If overshot, retreat
-        if (distToSub > 400 || boat.stateTimer < -300) {
-          boat.state = 'retreating';
-          boat.stateTimer = 120;
-        }
-        break;
-
-      case 'stopping':
-        // Brief stop before bazooka
-        boat.aimTimer -= dt;
-        if (boat.aimTimer <= 0) {
-          boat.state = 'firing';
-        }
-        break;
-
-      case 'firing': {
-        // Fire bazooka — parabolic arc toward sub
-        const dx = sub.worldX - boat.x;
-        const dy = sub.y - boat.y;
-        const dist = Math.max(50, Math.hypot(dx, dy));
-        const vx = (dx / dist) * INTERCEPTOR_BAZOOKA_SPEED;
-        const vy = -2.5; // Lob upward
-        world.torpedoes.push({
-          worldX: boat.x, y: boat.y - 8,
-          vx, vy,
-          phase: 'active', life: 140, trail: [],
-          rogue: false, fromSub: false, active: true,
-          bazooka: true,
-        });
-        SFX.missileLaunch();
-        boat.bazookaCooldown = INTERCEPTOR_BAZOOKA_COOLDOWN;
-        boat.state = 'rushing';
-        boat.dir = sub.worldX > boat.x ? 1 : -1;
-        break;
-      }
-
-      case 'retreating':
-        // Head back toward home island
-        const homeDir = boat.homeIsland.x > boat.x ? 1 : -1;
-        boat.x += homeDir * INTERCEPTOR_SPEED * 0.8 * dt;
-        if (Math.abs(boat.x - boat.homeIsland.x) < 40) {
-          boat.state = 'hiding';
-          boat.stateTimer = 200 + Math.random() * 300;
-          boat.targetPart = null;
-        }
-        break;
-    }
-
-    // Take damage from player torpedoes
-    world.torpedoes = world.torpedoes.filter((t) => {
-      if (!t.fromSub) return true;
-      if (Math.abs(t.worldX - boat.x) < 20 && Math.abs(t.y - boat.y) < 12) {
-        boat.hp -= 25;
-        addExplosion(t.worldX, t.y, 'small');
-        SFX.explodeBig();
-        if (boat.hp <= 0) {
-          boat.destroyed = true;
-          addExplosion(boat.x, boat.y, 'big');
-          addParticles(boat.x, boat.y, 15, '#556b2f');
-          world.score += 400;
-          world.kills++;
-          SFX.enemyDestroyed();
-        }
-        return false;
-      }
-      return true;
-    });
-
-    // Depth charges also very effective
-    for (const charge of world.depthCharges) {
-      if (boat.destroyed) break;
-      const cdist = Math.hypot(charge.worldX - boat.x, charge.y - boat.y);
-      if (cdist < DEPTH_CHARGE_BLAST_RADIUS * 0.4) {
-        boat.hp -= 30;
-        if (boat.hp <= 0) {
-          boat.destroyed = true;
-          addExplosion(boat.x, boat.y, 'big');
-          addParticles(boat.x, boat.y, 15, '#556b2f');
-          world.score += 400;
-          world.kills++;
-          SFX.enemyDestroyed();
-        }
-      }
-    }
-  }
-}
-
-function drawInterceptors() {
-  const boats = world.terrain.interceptors;
-  if (!boats) return;
-
-  for (const boat of boats) {
-    if (boat.destroyed) continue;
-    const bx = toScreen(boat.x);
-    if (bx < -60 || bx > W + 60) continue;
-    const by = boat.y;
-
-    ctx.save();
-
-    // Camo transparency — harder to see
-    const isHiding = boat.state === 'hiding';
-    ctx.globalAlpha = isHiding ? INTERCEPTOR_CAMO_ALPHA * 0.5 : INTERCEPTOR_CAMO_ALPHA + 0.35;
-
-    // Wake spray when moving fast
-    if (boat.state === 'rushing' || boat.state === 'retreating') {
-      ctx.fillStyle = 'rgba(200,220,240,0.25)';
-      const wakeDir = -boat.dir;
-      for (let s = 0; s < 3; s++) {
-        ctx.beginPath();
-        ctx.arc(bx + wakeDir * (12 + s * 6), by + 2 + Math.random() * 3, 2, 0, TWO_PI);
-        ctx.fill();
-      }
-    }
-
-    // Hull — small, low, camo-coloured
-    const camo1 = '#556b2f'; // Olive drab
-    const camo2 = '#4a5a28';
-    const camo3 = '#6b7f3a';
-
-    ctx.fillStyle = camo1;
-    ctx.beginPath();
-    ctx.moveTo(bx - 18, by);
-    ctx.lineTo(bx - 14, by - 5);
-    ctx.lineTo(bx + 14, by - 5);
-    ctx.lineTo(bx + 20, by - 1);
-    ctx.lineTo(bx + 20, by + 2);
-    ctx.lineTo(bx - 18, by + 2);
-    ctx.closePath();
-    ctx.fill();
-
-    // Camo stripe
-    ctx.fillStyle = camo2;
-    ctx.fillRect(bx - 10, by - 4, 12, 3);
-    ctx.fillStyle = camo3;
-    ctx.fillRect(bx + 2, by - 3, 10, 2);
-
-    // MG turret
-    ctx.fillStyle = '#444';
-    ctx.beginPath(); ctx.arc(bx + 5, by - 7, 3, 0, TWO_PI); ctx.fill();
-    // Gun barrel toward sub
-    const gunAngle = Math.atan2(world.sub.y - by, world.sub.worldX - boat.x);
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(bx + 5, by - 7);
-    ctx.lineTo(bx + 5 + Math.cos(gunAngle) * 10, by - 7 + Math.sin(gunAngle) * 10);
-    ctx.stroke();
-
-    // MG muzzle flash when firing
-    if (boat.mgCooldown > INTERCEPTOR_MG_COOLDOWN * 0.7 && boat.state === 'rushing') {
-      ctx.fillStyle = '#fbbf24';
-      ctx.globalAlpha = 0.8;
-      ctx.beginPath();
-      ctx.arc(bx + 5 + Math.cos(gunAngle) * 12, by - 7 + Math.sin(gunAngle) * 12, 2.5, 0, TWO_PI);
-      ctx.fill();
-      ctx.globalAlpha = isHiding ? INTERCEPTOR_CAMO_ALPHA * 0.5 : INTERCEPTOR_CAMO_ALPHA + 0.35;
-    }
-
-    // Bazooka visible when stopping/aiming
-    if (boat.state === 'stopping') {
-      ctx.fillStyle = '#5a4a3a';
-      ctx.fillRect(bx - 8, by - 10, 16, 3);
-      // Aim indicator flash
-      if (world.tick % 8 < 4) {
-        ctx.fillStyle = 'rgba(255, 100, 50, 0.5)';
-        ctx.beginPath(); ctx.arc(bx, by - 12, 4, 0, TWO_PI); ctx.fill();
-      }
-    }
-
-    // Health bar (only when damaged or engaged)
-    const hpPct = boat.hp / boat.maxHp;
-    if (hpPct < 1 || boat.state !== 'hiding') {
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(bx - 12, by - 16, 24, 3);
-      ctx.fillStyle = hpPct > 0.5 ? '#2ecc71' : '#e74c3c';
-      ctx.fillRect(bx - 12, by - 16, 24 * hpPct, 3);
-    }
-
-    ctx.restore();
-  }
-}
-
-// ============================================================
-// АКУЛА-МОЛОТ (HAMMERHEAD) ENEMY SUBMARINE
-// ============================================================
-function isNearSonarBuoy(worldX, y, buoys) {
-  for (const b of buoys) {
-    if (Math.hypot(b.x - worldX, b.y - y) < AKULA_SONAR_BUOY_RADIUS) return true;
-  }
-  return false;
-}
-
-function updateAkulaMolot(dt) {
-  const ak = world.terrain.akulaMolot;
-  if (!ak || ak.destroyed) return;
-  const sub = world.sub;
-
-  // Sonar detection chain — deploy/reel decision
-  const roughDistToSub = Math.hypot(sub.worldX - ak.x, sub.y - ak.y);
-  const canSeeSubNormally = thermallyVisible(ak.y, sub.y) && !world.subInCave;
-  ak.sonarChainCooldown = Math.max(0, ak.sonarChainCooldown - dt);
-
-  if (!canSeeSubNormally && !ak.sonarChainDeployed && ak.sonarChainCooldown <= 0 && roughDistToSub < 500) {
-    // Can't see sub — deploy sonar chain to detect across layers
-    ak.sonarChainDeployed = true;
-    ak.sonarChainLength = 0;
-  } else if (canSeeSubNormally && ak.sonarChainDeployed && roughDistToSub < 200) {
-    // Can see sub and it's close — reel in for speed to engage
-    ak.sonarChainDeployed = false;
-    ak.sonarChainLength = 0;
-    ak.sonarChainCooldown = 150; // Don't immediately redeploy
-  }
-
-  // Grow/shrink chain
-  if (ak.sonarChainDeployed) {
-    ak.sonarChainLength = Math.min(AKULA_SONAR_CHAIN_MAX_LENGTH, ak.sonarChainLength + dt * 2);
-  } else {
-    ak.sonarChainLength = Math.max(0, ak.sonarChainLength - dt * 4);
-  }
-
-  // Speed/manoeuvrability penalty when chain is out
-  const chainPenalty = ak.sonarChainLength > 10;
-  const speedMult = chainPenalty ? AKULA_SONAR_CHAIN_SPEED_PENALTY : 1;
-  const diveMult = chainPenalty ? AKULA_SONAR_CHAIN_TURN_PENALTY : 1;
-
-  // Sonar chain detection — can the Akula see the sub across ALL layers?
-  // Caterpillar drive defeats sonar chain — only direct same-layer sight works
-  const sonarChainDetects = !sub.caterpillarDrive
-    && ak.sonarChainLength > 50
-    && Math.abs(sub.worldX - ak.x) < ak.sonarChainLength
-    && !world.subInCave;
-  const akulaCanDetect = (canSeeSubNormally && !sub.caterpillarDrive) || sonarChainDetects;
-
-  // Patrol horizontally
-  ak.x += ak.dir * AKULA_SPEED * speedMult * dt;
-  if (ak.x > ak.patrolMax) ak.dir = -1;
-  if (ak.x < ak.patrolMin) ak.dir = 1;
-
-  // Depth behaviour — vary depth, can dive to floor
-  const distToSub = Math.hypot(sub.worldX - ak.x, sub.y - ak.y);
-  if (distToSub < 200 && sub.y > WATER_LINE) {
-    // Sub is near and underwater — dive deep to evade
-    ak.targetDepth = Math.min(SEA_FLOOR - 20, ak.y + 60);
-    ak.diving = true;
-  } else if (distToSub > 500) {
-    // Cruise at medium depth
-    ak.targetDepth = WATER_LINE + 60 + Math.sin(world.tick * 0.005) * 40;
-    ak.diving = false;
-  } else {
-    // Engagement depth — stay below water but reachable
-    ak.targetDepth = WATER_LINE + 40 + Math.sin(world.tick * 0.008) * 30;
-    ak.diving = false;
-  }
-  // Smoothly move to target depth (penalised when chain deployed)
-  const depthDiff = ak.targetDepth - ak.y;
-  ak.y += Math.sign(depthDiff) * Math.min(Math.abs(depthDiff), AKULA_DIVE_SPEED * diveMult * dt);
-  ak.y = Math.max(WATER_LINE + 15, Math.min(SEA_FLOOR - 15, ak.y));
-
-  // Cloaking — intermittent cycle
-  ak.cloakTimer += dt;
-  const cyclePos = (ak.cloakTimer % AKULA_CLOAK_CYCLE) / AKULA_CLOAK_CYCLE;
-  ak.cloaked = cyclePos < AKULA_CLOAK_ON_RATIO;
-
-  // Sonar buoy trail
-  ak.sonarBuoyCooldown = Math.max(0, ak.sonarBuoyCooldown - dt);
-  if (ak.sonarBuoyCooldown <= 0) {
-    ak.sonarBuoys.push({
-      x: ak.x - ak.dir * 15,
-      y: ak.y,
-      life: AKULA_SONAR_BUOY_LIFESPAN,
-      pulse: 0,
-    });
-    ak.sonarBuoyCooldown = AKULA_SONAR_BUOY_INTERVAL;
-  }
-  // Update buoys
-  for (let i = ak.sonarBuoys.length - 1; i >= 0; i--) {
-    const b = ak.sonarBuoys[i];
-    b.life -= dt;
-    b.pulse += dt * 0.06;
-    if (b.life <= 0) ak.sonarBuoys.splice(i, 1);
-  }
-
-  // Cooldowns
-  ak.samCooldown = Math.max(0, ak.samCooldown - dt);
-  ak.torpedoCooldown = Math.max(0, ak.torpedoCooldown - dt);
-
-  // SAM — fires from underwater, targets sub when in air (needs detection)
-  if (ak.samCooldown <= 0 && sub.y < WATER_LINE - 10 && distToSub < 450 && akulaCanDetect) {
-    const angle = Math.atan2(sub.y - ak.y, sub.worldX - ak.x);
-    world.missiles.push({
-      worldX: ak.x, y: ak.y - 5,
-      vx: Math.cos(angle) * 1.5, vy: -3.5,
-      phase: 'ignite', dropTimer: 0, life: 200, trail: [],
-      fromEnemy: true, sam: true,
-    });
-    ak.samCooldown = AKULA_SAM_COOLDOWN;
-    // Bubble burst on launch
-    addParticles(ak.x, ak.y - 5, 8, '#85c1e9');
-    SFX.missileLaunch();
-  }
-
-  // Torpedo — fires at sub when both underwater
-  if (ak.torpedoCooldown <= 0 && sub.y > WATER_LINE && distToSub < 400 && akulaCanDetect) {
-    const dir = sub.worldX > ak.x ? 1 : -1;
-    world.torpedoes.push({
-      worldX: ak.x + dir * 20, y: ak.y,
-      vx: dir * TORPEDO_SPEED * 0.7, vy: (sub.y - ak.y) * 0.005,
-      phase: 'skim', life: 250, trail: [],
-      rogue: false, fromSub: false, active: true,
-    });
-    ak.torpedoCooldown = AKULA_TORPEDO_COOLDOWN;
-    SFX.torpedoLaunch();
-  }
-
-  // Take damage from player torpedoes — sonar buoys reduce effectiveness
-  world.torpedoes = world.torpedoes.filter((t) => {
-    if (!t.fromSub) return true;
-    if (Math.abs(t.worldX - ak.x) < 25 && Math.abs(t.y - ak.y) < 18) {
-      // Check if sonar buoys protect
-      const nearBuoy = isNearSonarBuoy(t.worldX, t.y, ak.sonarBuoys);
-      if (nearBuoy && Math.random() < 0.6) {
-        // Torpedo deflected by sonar interference
-        t.vx += (Math.random() - 0.5) * 3;
-        t.vy += (Math.random() - 0.5) * 2;
-        addParticles(t.worldX, t.y, 4, '#60a5fa');
-        world.caveMessage = { text: 'TORPEDO DEFLECTED BY SONAR FIELD', timer: 60 };
-        return true; // Torpedo survives but is knocked off course
-      }
-      ak.hp -= 20;
-      addExplosion(t.worldX, t.y, 'big');
-      SFX.explodeBig();
-      if (ak.hp <= 0) {
-        ak.destroyed = true;
-        addExplosion(ak.x, ak.y, 'big');
-        addExplosion(ak.x + 15, ak.y + 5, 'big');
-        addExplosion(ak.x - 10, ak.y - 8, 'big');
-        addParticles(ak.x, ak.y, 25, AKULA_COLOR);
-        world.score += 3000;
-        world.kills++;
-        world.caveMessage = { text: 'АКУЛА-МОЛОТ DESTROYED! +3000', timer: 180 };
-        SFX.enemyDestroyed();
-      }
-      return false;
-    }
-    return true;
-  });
-
-  // Depth charges also effective
-  for (const charge of world.depthCharges) {
-    if (ak.destroyed) break;
-    const cdist = Math.hypot(charge.worldX - ak.x, charge.y - ak.y);
-    if (cdist < DEPTH_CHARGE_BLAST_RADIUS * 0.6) {
-      ak.hp -= 18;
-      if (ak.hp <= 0) {
-        ak.destroyed = true;
-        addExplosion(ak.x, ak.y, 'big');
-        addParticles(ak.x, ak.y, 25, AKULA_COLOR);
-        world.score += 3000;
-        world.kills++;
-        world.caveMessage = { text: 'АКУЛА-МОЛОТ DESTROYED! +3000', timer: 180 };
-        SFX.enemyDestroyed();
-      }
-    }
-  }
-}
-
-function drawAkulaMolot() {
-  const ak = world.terrain.akulaMolot;
-  if (!ak || ak.destroyed) return;
-  // Thermal visibility — 2 layers apart = invisible
-  if (!thermallyVisible(world.sub.y, ak.y)) return;
-  const sx = toScreen(ak.x);
-  if (sx < -80 || sx > W + 80) return;
-  const sy = ak.y;
-
-  ctx.save();
-
-  // Sonar buoys first (behind the sub)
-  for (const b of ak.sonarBuoys) {
-    const bsx = toScreen(b.x);
-    const bsy = b.y;
-    const buoyAlpha = Math.max(0, 0.25 * (b.life / AKULA_SONAR_BUOY_LIFESPAN));
-    // Pulsing ring
-    ctx.globalAlpha = buoyAlpha;
-    ctx.strokeStyle = '#60a5fa';
-    ctx.lineWidth = 1;
-    const pulseR = AKULA_SONAR_BUOY_RADIUS * (0.3 + 0.7 * (Math.sin(b.pulse) * 0.5 + 0.5));
-    ctx.beginPath(); ctx.arc(bsx, bsy, pulseR, 0, TWO_PI); ctx.stroke();
-    // Centre dot
-    ctx.fillStyle = '#3b82f6';
-    ctx.beginPath(); ctx.arc(bsx, bsy, 2, 0, TWO_PI); ctx.fill();
-  }
-
-  // Cloaked alpha
-  const baseAlpha = ak.cloaked ? AKULA_CLOAK_ALPHA : 0.85;
-  // Shimmer when transitioning
-  const cyclePos = (ak.cloakTimer % AKULA_CLOAK_CYCLE) / AKULA_CLOAK_CYCLE;
-  const transitionZone = 0.05;
-  let alpha = baseAlpha;
-  if (Math.abs(cyclePos - AKULA_CLOAK_ON_RATIO) < transitionZone) {
-    alpha = 0.1 + Math.random() * 0.4; // Shimmer during transition
-  }
-  ctx.globalAlpha = alpha;
-
-  const dir = ak.dir;
-  const swim = Math.sin(world.tick * 0.04) * 2; // Gentle body undulation
-
-  // --- Hammerhead shark body ---
-  ctx.save();
-  ctx.translate(sx, sy);
-  ctx.scale(dir, 1);
-
-  // Main body — sleek tapered torpedo shape
-  ctx.fillStyle = AKULA_COLOR;
-  ctx.beginPath();
-  ctx.moveTo(20, 0);                  // Nose centre
-  ctx.quadraticCurveTo(12, -9, -8, -8);  // Upper body curve
-  ctx.quadraticCurveTo(-28, -6, -36, -2 + swim * 0.3); // Taper to tail
-  ctx.lineTo(-36, 2 + swim * 0.3);   // Tail bottom
-  ctx.quadraticCurveTo(-28, 6, -8, 8);   // Lower body curve
-  ctx.quadraticCurveTo(12, 9, 20, 0);    // Back to nose
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#5a0e0e';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // Darker belly (countershading)
-  ctx.fillStyle = '#6b1010';
-  ctx.beginPath();
-  ctx.moveTo(18, 2);
-  ctx.quadraticCurveTo(10, 8, -8, 7);
-  ctx.quadraticCurveTo(-26, 5, -34, 2 + swim * 0.3);
-  ctx.lineTo(-34, 0);
-  ctx.quadraticCurveTo(-20, 3, 18, 2);
-  ctx.closePath();
-  ctx.fill();
-
-  // --- Hammerhead — wide flat T-shaped cephalofoil ---
-  ctx.fillStyle = '#a02020';
-  ctx.beginPath();
-  ctx.moveTo(18, -2);                    // Attach to head
-  ctx.lineTo(24, -12);                   // Upper left wing
-  ctx.quadraticCurveTo(28, -13, 30, -11); // Rounded tip
-  ctx.lineTo(26, -4);
-  ctx.lineTo(20, -1);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(18, 2);                     // Attach to head
-  ctx.lineTo(24, 12);                    // Lower right wing
-  ctx.quadraticCurveTo(28, 13, 30, 11);  // Rounded tip
-  ctx.lineTo(26, 4);
-  ctx.lineTo(20, 1);
-  ctx.closePath();
-  ctx.fill();
-
-  // Eyes on hammerhead tips
-  ctx.fillStyle = '#ff4444';
-  ctx.beginPath(); ctx.arc(28, -10, 2, 0, TWO_PI); ctx.fill();
-  ctx.fillStyle = '#220000';
-  ctx.beginPath(); ctx.arc(28.5, -10, 1, 0, TWO_PI); ctx.fill();
-  ctx.fillStyle = '#ff4444';
-  ctx.beginPath(); ctx.arc(28, 10, 2, 0, TWO_PI); ctx.fill();
-  ctx.fillStyle = '#220000';
-  ctx.beginPath(); ctx.arc(28.5, 10, 1, 0, TWO_PI); ctx.fill();
-
-  // Dorsal fin
-  ctx.fillStyle = '#7a1515';
-  ctx.beginPath();
-  ctx.moveTo(-2, -8);
-  ctx.lineTo(2, -18);
-  ctx.quadraticCurveTo(5, -19, 8, -16);
-  ctx.lineTo(8, -8);
-  ctx.closePath();
-  ctx.fill();
-
-  // Tail fin (caudal) — crescent shaped, oscillating
-  ctx.fillStyle = '#6b1010';
-  ctx.beginPath();
-  ctx.moveTo(-34, -2 + swim * 0.3);
-  ctx.lineTo(-42, -10 + swim);
-  ctx.quadraticCurveTo(-44, -12 + swim, -40, -8 + swim * 0.5);
-  ctx.lineTo(-36, 0 + swim * 0.3);
-  ctx.lineTo(-40, 8 - swim * 0.5);
-  ctx.quadraticCurveTo(-44, 12 - swim, -42, 10 - swim);
-  ctx.lineTo(-34, 2 + swim * 0.3);
-  ctx.closePath();
-  ctx.fill();
-
-  // Pectoral fins (small, mid-body)
-  ctx.fillStyle = '#8b1a1a';
-  ctx.beginPath();
-  ctx.moveTo(-5, 7);
-  ctx.lineTo(-12, 14);
-  ctx.lineTo(-8, 7);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(-5, -7);
-  ctx.lineTo(-12, -14);
-  ctx.lineTo(-8, -7);
-  ctx.closePath();
-  ctx.fill();
-
-  // Gill slits
-  ctx.strokeStyle = '#5a0e0e';
-  ctx.lineWidth = 0.5;
-  for (let g = 0; g < 4; g++) {
-    ctx.beginPath();
-    ctx.moveTo(10 - g * 3, -5);
-    ctx.lineTo(10 - g * 3, -2);
-    ctx.stroke();
-  }
-
-  // Torpedo tubes (in mouth area)
-  ctx.fillStyle = '#333';
-  ctx.beginPath(); ctx.arc(20, -1.5, 1.5, 0, TWO_PI); ctx.fill();
-  ctx.beginPath(); ctx.arc(20, 1.5, 1.5, 0, TWO_PI); ctx.fill();
-
-  // SAM hatches on back (subtle)
-  ctx.fillStyle = '#4a0808';
-  ctx.fillRect(-14, -9, 4, 2);
-  ctx.fillRect(-6, -9, 4, 2);
-
-  ctx.restore();
-
-  // Propeller bubble wake (behind the shark)
-  if (!ak.sonarChainDeployed || ak.sonarChainLength < 50) {
-    ctx.fillStyle = 'rgba(133, 193, 233, 0.15)';
-    for (let w = 0; w < 5; w++) {
-      const age = (world.tick * 0.12 + w * 1.3) % 3;
-      ctx.beginPath();
-      ctx.arc(sx - dir * (38 + age * 7), sy + Math.sin(world.tick * 0.08 + w) * 3 + swim * 0.2, 1.5 + (1 - age / 3), 0, TWO_PI);
-      ctx.fill();
-    }
-  }
-
-  // Sonar detection chain (when deployed)
-  if (ak.sonarChainLength > 10) {
-    const chainLen = ak.sonarChainLength;
-    const chainDir = -dir;
-    ctx.strokeStyle = 'rgba(96, 165, 250, 0.35)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 6]);
-    ctx.beginPath();
-    ctx.moveTo(sx - dir * 28, sy + 3);
-    // Chain trails behind, undulating through the water
-    for (let c = 0; c < chainLen; c += 15) {
-      const cx = sx + chainDir * (30 + c);
-      const cy = sy + Math.sin(world.tick * 0.02 + c * 0.08) * 8 + (c / chainLen) * 20;
-      ctx.lineTo(cx, cy);
-    }
-    ctx.stroke();
-    ctx.setLineDash([]);
-    // Detection nodes along the chain
-    ctx.fillStyle = 'rgba(96, 165, 250, 0.5)';
-    for (let n = 0; n < chainLen; n += 50) {
-      const nx = sx + chainDir * (30 + n);
-      const ny = sy + Math.sin(world.tick * 0.02 + n * 0.08) * 8 + (n / chainLen) * 20;
-      const nodePulse = 0.3 + 0.3 * Math.sin(world.tick * 0.08 + n * 0.1);
-      ctx.globalAlpha = nodePulse;
-      ctx.beginPath(); ctx.arc(nx, ny, 3, 0, TWO_PI); ctx.fill();
-    }
-  }
-
-  ctx.globalAlpha = 1;
-
-  // Health bar (only when visible enough)
-  if (!ak.cloaked || alpha > 0.3) {
-    const hpPct = ak.hp / ak.maxHp;
-    if (hpPct < 1) {
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(sx - 20, sy - 28, 40, 4);
-      ctx.fillStyle = hpPct > 0.5 ? '#2ecc71' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
-      ctx.fillRect(sx - 20, sy - 28, 40 * hpPct, 4);
-    }
-    ctx.fillStyle = AKULA_COLOR;
-    ctx.font = '8px Arial'; ctx.textAlign = 'center';
-    ctx.fillText('АКУЛА-МОЛОТ', sx, sy - 30);
-  }
-
-  // Cloak shimmer effect
-  if (ak.cloaked && alpha > AKULA_CLOAK_ALPHA) {
-    ctx.strokeStyle = 'rgba(139, 26, 26, 0.12)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([2, 4]);
-    ctx.beginPath(); ctx.ellipse(sx, sy, 40, 16, 0, 0, TWO_PI); ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  ctx.restore();
-}
-
-// ============================================================
-// ДЕЛЬФИН (DOLPHIN) ENEMY SUBMARINE
-// ============================================================
-function spawnBailCrew(delfin) {
-  delfin.bailed = true;
-  delfin.crew = [];
-  for (let i = 0; i < DELFIN_CREW_COUNT; i++) {
-    delfin.crew.push({
-      x: delfin.x + (Math.random() - 0.5) * 20,
-      y: delfin.y - 5 - i * 4,
-      vy: -0.5 - Math.random() * 0.3,
-      vx: (Math.random() - 0.5) * 0.6,
-      bobPhase: Math.random() * Math.PI * 2,
-      armWave: Math.random() * Math.PI * 2,
-      surfaced: false,
-    });
-  }
-}
-
-function updateDelfins(dt) {
-  const subs = world.terrain.delfins;
-  if (!subs) return;
-  const sub = world.sub;
-
-  for (const d of subs) {
-    if (d.destroyed) {
-      // Update bailed crew
-      for (const c of d.crew) {
-        if (!c.surfaced) {
-          c.y += c.vy * dt;
-          c.x += c.vx * dt;
-          if (c.y <= WATER_LINE + 2) {
-            c.y = WATER_LINE + 2;
-            c.surfaced = true;
-          }
-        } else {
-          // Bob on surface, wave arms
-          c.bobPhase += dt * 0.08;
-          c.armWave += dt * 0.15;
-          c.y = WATER_LINE + 2 + Math.sin(c.bobPhase) * 2;
-          c.x += Math.sin(c.bobPhase * 0.3) * 0.02 * dt;
-        }
-      }
-      continue;
-    }
-
-    const distToSub = Math.hypot(sub.worldX - d.x, sub.y - d.y);
-
-    // Bail-out check at low HP
-    if (!d.bailChecked && d.hp <= d.maxHp * DELFIN_BAIL_THRESHOLD) {
-      d.bailChecked = true;
-      if (Math.random() < DELFIN_BAIL_CHANCE) {
-        spawnBailCrew(d);
-        d.destroyed = true;
-        addParticles(d.x, d.y, 10, '#9ca3af');
-        world.caveMessage = { text: 'ДЕЛЬФИН CREW ABANDONING SHIP!', timer: 120 };
-        world.score += 200;
-        world.kills++;
-        continue;
-      }
-    }
-
-    // Patrol
-    d.x += d.dir * DELFIN_SPEED * dt;
-    if (d.x > d.patrolCenter + d.patrolRange / 2) d.dir = -1;
-    if (d.x < d.patrolCenter - d.patrolRange / 2) d.dir = 1;
-
-    // Depth — stays shallow-ish, surfaces to use MG
-    if (distToSub < DELFIN_ENGAGE_RANGE && sub.y < WATER_LINE) {
-      // Surface to engage with MG
-      d.surfaced = true;
-      d.y += (WATER_LINE - 4 - d.y) * 0.03 * dt;
-    } else {
-      d.surfaced = false;
-      const cruiseDepth = WATER_LINE + 50 + Math.sin(world.tick * 0.006 + d.patrolCenter) * 25;
-      d.y += (Math.min(DELFIN_MAX_DEPTH, cruiseDepth) - d.y) * 0.02 * dt;
-    }
-    d.y = Math.max(WATER_LINE - 4, Math.min(DELFIN_MAX_DEPTH, d.y));
-
-    // Cooldowns
-    d.torpedoCooldown = Math.max(0, d.torpedoCooldown - dt);
-    d.mgCooldown = Math.max(0, d.mgCooldown - dt);
-
-    // Fire-and-forget torpedo (straight line, no homing)
-    if (d.torpedoCooldown <= 0 && distToSub < DELFIN_ENGAGE_RANGE && sub.y > WATER_LINE - 20) {
-      const tdir = sub.worldX > d.x ? 1 : -1;
-      const angle = Math.atan2(sub.y - d.y, sub.worldX - d.x);
-      world.torpedoes.push({
-        worldX: d.x + tdir * 15, y: d.y,
-        vx: Math.cos(angle) * TORPEDO_SPEED * 0.6,
-        vy: Math.sin(angle) * TORPEDO_SPEED * 0.4,
-        phase: 'active', life: 160, trail: [],
-        rogue: false, fromSub: false, active: true,
-        bazooka: false,
-      });
-      d.torpedoCooldown = DELFIN_TORPEDO_COOLDOWN;
-      SFX.torpedoLaunch();
-    }
-
-    // Surface MG (only when surfaced)
-    if (d.surfaced && distToSub < DELFIN_MG_RANGE && d.mgCooldown <= 0 && sub.y < WATER_LINE + 10) {
-      damageRandomPart(sub.parts, DELFIN_MG_DAMAGE);
-      d.mgCooldown = DELFIN_MG_COOLDOWN;
-      addParticles(sub.worldX + (Math.random() - 0.5) * 15, sub.y + (Math.random() - 0.5) * 8, 1, '#fbbf24');
-    }
-
-    // Take damage from player torpedoes
-    world.torpedoes = world.torpedoes.filter((t) => {
-      if (!t.fromSub) return true;
-      if (Math.abs(t.worldX - d.x) < 20 && Math.abs(t.y - d.y) < 14) {
-        d.hp -= 22;
-        addExplosion(t.worldX, t.y, 'big');
-        SFX.explodeBig();
-        if (d.hp <= 0 && !d.bailed) {
-          d.destroyed = true;
-          addExplosion(d.x, d.y, 'big');
-          addParticles(d.x, d.y, 18, DELFIN_COLOR);
-          world.score += 600;
-          world.kills++;
-          SFX.enemyDestroyed();
-        }
-        return false;
-      }
-      return true;
-    });
-
-    // Depth charges
-    for (const charge of world.depthCharges) {
-      if (d.destroyed) break;
-      const cdist = Math.hypot(charge.worldX - d.x, charge.y - d.y);
-      if (cdist < DEPTH_CHARGE_BLAST_RADIUS * 0.5) {
-        d.hp -= 15;
-        if (d.hp <= 0 && !d.bailed) {
-          d.destroyed = true;
-          addExplosion(d.x, d.y, 'big');
-          addParticles(d.x, d.y, 18, DELFIN_COLOR);
-          world.score += 600;
-          world.kills++;
-          SFX.enemyDestroyed();
-        }
-      }
-    }
-  }
-}
-
-function drawDelfins() {
-  const subs = world.terrain.delfins;
-  if (!subs) return;
-
-  for (const d of subs) {
-    const sx = toScreen(d.x);
-    if (sx < -60 || sx > W + 60) continue;
-
-    // Draw bailed crew (even after sub is gone)
-    if (d.destroyed && d.bailed) {
-      for (const c of d.crew) {
-        const cx = toScreen(c.x);
-        const cy = c.y;
-        ctx.save();
-        ctx.globalAlpha = 0.9;
-
-        // Life jacket (bright orange, oversized, silly)
-        ctx.fillStyle = '#ff6b00';
-        ctx.beginPath();
-        ctx.ellipse(cx, cy - 2, 6, 8, 0, 0, TWO_PI);
-        ctx.fill();
-
-        // Head
-        ctx.fillStyle = '#f5d0a9';
-        ctx.beginPath(); ctx.arc(cx, cy - 10, 3.5, 0, TWO_PI); ctx.fill();
-
-        // Waving arms (flailing)
-        ctx.strokeStyle = '#f5d0a9';
-        ctx.lineWidth = 1.5;
-        const armAngle = Math.sin(c.armWave) * 0.8;
-        ctx.beginPath();
-        ctx.moveTo(cx - 5, cy - 4);
-        ctx.lineTo(cx - 10, cy - 8 + Math.sin(c.armWave) * 5);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx + 5, cy - 4);
-        ctx.lineTo(cx + 10, cy - 8 + Math.sin(c.armWave + 1.5) * 5);
-        ctx.stroke();
-
-        // Legs (dangling in water)
-        if (c.surfaced) {
-          ctx.strokeStyle = '#555';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(cx - 2, cy + 5);
-          ctx.lineTo(cx - 3, cy + 12 + Math.sin(c.bobPhase + 0.5) * 2);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(cx + 2, cy + 5);
-          ctx.lineTo(cx + 3, cy + 12 + Math.sin(c.bobPhase + 1.5) * 2);
-          ctx.stroke();
-        }
-
-        // Scared expression (tiny)
-        ctx.fillStyle = '#333';
-        ctx.fillRect(cx - 2, cy - 11, 1, 1);
-        ctx.fillRect(cx + 1, cy - 11, 1, 1);
-        // Open mouth
-        ctx.fillStyle = '#333';
-        ctx.beginPath(); ctx.arc(cx, cy - 8.5, 1, 0, TWO_PI); ctx.fill();
-
-        ctx.restore();
-      }
-      continue;
-    }
-
-    if (d.destroyed) continue;
-    // Thermal visibility
-    if (!thermallyVisible(world.sub.y, d.y)) continue;
-    const sy = d.y;
-
-    ctx.save();
-
-    // Hull — grey, compact submarine
-    ctx.fillStyle = DELFIN_COLOR;
-    ctx.beginPath();
-    ctx.ellipse(sx, sy, 20, 7, 0, 0, TWO_PI);
-    ctx.fill();
-    ctx.strokeStyle = '#4b5563';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Rounded nose
-    const dir = d.dir;
-    ctx.fillStyle = '#7f8c9d';
-    ctx.beginPath();
-    ctx.arc(sx + dir * 18, sy, 5, -Math.PI / 2, Math.PI / 2);
-    ctx.fill();
-
-    // Small conning tower
-    ctx.fillStyle = '#555e6b';
-    ctx.fillRect(sx - 3, sy - 11, 6, 5);
-
-    // MG turret (visible when surfaced)
-    if (d.surfaced) {
-      ctx.fillStyle = '#444';
-      ctx.beginPath(); ctx.arc(sx, sy - 13, 2.5, 0, TWO_PI); ctx.fill();
-      const gunDir = world.sub.worldX > d.x ? 1 : -1;
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(sx, sy - 13);
-      ctx.lineTo(sx + gunDir * 10, sy - 14);
-      ctx.stroke();
-      // Muzzle flash
-      if (d.mgCooldown > DELFIN_MG_COOLDOWN * 0.6) {
-        ctx.fillStyle = '#fbbf24';
-        ctx.beginPath(); ctx.arc(sx + gunDir * 12, sy - 14, 2, 0, TWO_PI); ctx.fill();
-      }
-    }
-
-    // Torpedo tube
-    ctx.fillStyle = '#333';
-    ctx.beginPath(); ctx.arc(sx + dir * 18, sy, 1.5, 0, TWO_PI); ctx.fill();
-
-    // Propeller
-    ctx.strokeStyle = '#9ca3af';
-    ctx.lineWidth = 1.5;
-    const pa = world.tick * 0.08;
-    ctx.beginPath();
-    ctx.moveTo(sx - dir * 20, sy + Math.sin(pa) * 4);
-    ctx.lineTo(sx - dir * 20, sy - Math.sin(pa) * 4);
-    ctx.stroke();
-
-    // Health bar
-    const hpPct = d.hp / d.maxHp;
-    if (hpPct < 1) {
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(sx - 16, sy - 20, 32, 3);
-      ctx.fillStyle = hpPct > 0.5 ? '#2ecc71' : hpPct > 0.25 ? '#f39c12' : '#e74c3c';
-      ctx.fillRect(sx - 16, sy - 20, 32 * hpPct, 3);
-    }
-
-    ctx.fillStyle = DELFIN_COLOR;
-    ctx.font = '7px Arial'; ctx.textAlign = 'center';
-    ctx.fillText('ДЕЛЬФИН', sx, sy - 22);
-
-    ctx.restore();
-  }
-}
-
-// ============================================================
-// PASSENGER SHIP
-// ============================================================
-function updatePassengerShip(dt) {
-  const ship = world.terrain.passengerShip;
-  if (!ship || ship.destroyed) return;
-
-  if (ship.moving) {
-    // Move toward next island
-    const targetX = ship.routeIslands[ship.currentStop];
-    const dx = targetX - ship.x;
-    if (Math.abs(dx) < 3) {
-      ship.x = targetX;
-      ship.moving = false;
-      ship.dwellTimer = PASSENGER_DWELL_TIME;
-    } else {
-      ship.dir = dx > 0 ? 1 : -1;
-      ship.x += ship.dir * PASSENGER_SHIP_SPEED * dt;
-    }
-  } else {
-    // Dwell at island
-    ship.dwellTimer -= dt;
-    if (ship.dwellTimer <= 0) {
-      ship.currentStop = (ship.currentStop + 1) % ship.routeIslands.length;
-      ship.moving = true;
-    }
-  }
-
-  // Take damage from player weapons
-  world.torpedoes = world.torpedoes.filter((t) => {
-    if (!t.fromSub) return true;
-    if (Math.abs(t.worldX - ship.x) < 30 && Math.abs(t.y - ship.y) < 15) {
-      ship.hp -= 20;
-      addExplosion(t.worldX, t.y, 'big');
-      SFX.explodeBig();
-      if (ship.hp <= 0) {
-        ship.destroyed = true;
-        addExplosion(ship.x, ship.y, 'big');
-        addExplosion(ship.x + 15, ship.y - 5, 'big');
-        addParticles(ship.x, ship.y, 20, '#ecf0f1');
-        world.score = 0;
-        // Spawn survivors in the water
-        const numSurvivors = 3 + Math.floor(Math.random() * 4);
-        const clothColors = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#db2777'];
-        for (let s = 0; s < numSurvivors; s++) {
-          ship.survivors.push({
-            x: ship.x + (Math.random() - 0.5) * 50,
-            y: ship.y - 4,
-            vy: -0.8 - Math.random() * 0.5,
-            vx: (Math.random() - 0.5) * 0.8,
-            surfaced: false,
-            rescued: false,
-            bobPhase: Math.random() * Math.PI * 2,
-            panicPhase: Math.random() * Math.PI * 2,
-            clothColor: clothColors[s % clothColors.length],
-            huddled: Math.random() < 0.4,
-          });
-        }
-        world.caveMessage = { text: 'CIVILIAN SHIP DESTROYED — SURVIVORS IN WATER! SCORE ZERO', timer: 250 };
-        SFX.gameOver();
-      }
-      return false;
-    }
-    return true;
-  });
-
-  // Update survivors
-  const sub = world.sub;
-  for (const s of ship.survivors) {
-    if (s.rescued) continue;
-    if (!s.surfaced) {
-      s.y += s.vy * dt;
-      s.x += s.vx * dt;
-      if (s.y <= WATER_LINE + 3) {
-        s.y = WATER_LINE + 3;
-        s.surfaced = true;
-      }
-    } else {
-      s.bobPhase += dt * 0.06;
-      s.panicPhase += dt * 0.12;
-      s.y = WATER_LINE + 3 + Math.sin(s.bobPhase) * 2;
-      s.x += Math.sin(s.bobPhase * 0.2) * 0.01 * dt;
-      // Rescue: sub parks close, floating, slow
-      if (!sub.disembarked && sub.floating
-        && Math.abs(sub.worldX - s.x) < 30
-        && Math.hypot(sub.vx, sub.vy) < 1.5) {
-        s.rescued = true;
-        world.score += 500;
-        world.caveMessage = { text: `SURVIVOR RESCUED! +500 (${ship.survivors.filter(sv => sv.rescued).length}/${ship.survivors.length})`, timer: 80 };
-        SFX.embark();
-      }
-    }
-  }
-}
-
-function drawPassengerShip() {
-  const ship = world.terrain.passengerShip;
-  if (!ship) return;
-
-  // Draw survivors even when ship is destroyed
-  for (const s of ship.survivors) {
-    if (s.rescued) continue;
-    const svx = toScreen(s.x);
-    const svy = s.y;
-    ctx.save();
-
-    // Door Kickers hostage style: small huddled figure, bright clothing, frightened
-    ctx.globalAlpha = 0.9;
-
-    // Life preserver ring (if surfaced)
-    if (s.surfaced) {
-      ctx.strokeStyle = '#ff6b00';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(svx, svy, 5, 0, TWO_PI); ctx.stroke();
-    }
-
-    // Body (huddled crouch or upright treading)
-    if (s.huddled) {
-      // Curled up, knees drawn
-      ctx.fillStyle = s.clothColor;
-      ctx.beginPath(); ctx.ellipse(svx, svy - 3, 4, 6, 0.2, 0, TWO_PI); ctx.fill();
-    } else {
-      // Upright, waving
-      ctx.fillStyle = s.clothColor;
-      ctx.fillRect(svx - 2.5, svy - 8, 5, 9);
-    }
-
-    // Head
-    ctx.fillStyle = '#f0c8a0';
-    ctx.beginPath(); ctx.arc(svx, svy - 10, 3, 0, TWO_PI); ctx.fill();
-    // Hair
-    ctx.fillStyle = '#4a3520';
-    ctx.beginPath(); ctx.arc(svx, svy - 11.5, 2.5, Math.PI, 0); ctx.fill();
-
-    // Panicked arms waving
-    if (!s.huddled && s.surfaced) {
-      ctx.strokeStyle = '#f0c8a0';
-      ctx.lineWidth = 1.5;
-      const wave = Math.sin(s.panicPhase);
-      ctx.beginPath();
-      ctx.moveTo(svx - 3, svy - 6);
-      ctx.lineTo(svx - 8, svy - 12 + wave * 4);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(svx + 3, svy - 6);
-      ctx.lineTo(svx + 8, svy - 12 + Math.sin(s.panicPhase + 1.8) * 4);
-      ctx.stroke();
-    }
-
-    // Rescue prompt when sub is nearby
-    if (s.surfaced && !world.sub.disembarked) {
-      const dist = Math.abs(world.sub.worldX - s.x);
-      if (dist < 60) {
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = '9px Arial'; ctx.textAlign = 'center';
-        ctx.fillText('RESCUE', svx, svy - 18);
-      }
-    }
-
-    ctx.restore();
-  }
-
-  if (ship.destroyed) return;
-  const sx = toScreen(ship.x);
-  if (sx < -80 || sx > W + 80) return;
-  const sy = ship.y;
-
-  ctx.save();
-
-  // Hull — white civilian vessel
-  ctx.fillStyle = '#f0f0f0';
-  ctx.beginPath();
-  ctx.moveTo(sx - 35, sy);
-  ctx.lineTo(sx - 28, sy - 6);
-  ctx.lineTo(sx + 28, sy - 6);
-  ctx.lineTo(sx + 38, sy);
-  ctx.lineTo(sx + 38, sy + 3);
-  ctx.lineTo(sx - 35, sy + 3);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#bbb';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // Waterline stripe
-  ctx.fillStyle = '#1e40af';
-  ctx.fillRect(sx - 35, sy + 1, 73, 2);
-
-  // Superstructure
-  ctx.fillStyle = '#e8e8e8';
-  ctx.fillRect(sx - 18, sy - 14, 30, 8);
-  ctx.fillStyle = '#ddd';
-  ctx.fillRect(sx - 12, sy - 19, 18, 5);
-
-  // Windows
-  ctx.fillStyle = '#60a5fa';
-  for (let w = 0; w < 6; w++) {
-    ctx.fillRect(sx - 16 + w * 5, sy - 12, 3, 3);
-  }
-
-  // Funnel
-  ctx.fillStyle = '#e74c3c';
-  ctx.fillRect(sx + 2, sy - 24, 5, 5);
-  ctx.fillStyle = '#222';
-  ctx.fillRect(sx + 2, sy - 26, 5, 2);
-  // Light smoke
-  if (ship.moving && world.tick % 8 < 5) {
-    ctx.fillStyle = 'rgba(150,150,150,0.2)';
-    ctx.beginPath(); ctx.arc(sx + 4, sy - 28 - (world.tick % 15) * 0.3, 2, 0, TWO_PI); ctx.fill();
-  }
-
-  // People on deck (tiny dots)
-  ctx.fillStyle = '#333';
-  const peopleSeed = Math.floor(world.tick / 30);
-  for (let p = 0; p < 4; p++) {
-    const px = sx - 14 + p * 8 + Math.sin(peopleSeed + p * 1.7) * 2;
-    ctx.fillRect(px, sy - 8, 2, 3);
-    ctx.fillStyle = ['#c0392b', '#2980b9', '#27ae60', '#f39c12'][p];
-    ctx.fillRect(px, sy - 9, 2, 1);
-    ctx.fillStyle = '#333';
-  }
-
-  // Dwell indicator
-  if (!ship.moving) {
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.font = '8px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('DOCKED', sx, sy - 30);
-  }
-
-  // Health bar (only show if damaged)
-  const hpPct = ship.hp / ship.maxHp;
-  if (hpPct < 1) {
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(sx - 20, sy - 36, 40, 4);
-    ctx.fillStyle = hpPct > 0.5 ? '#2ecc71' : '#f39c12';
-    ctx.fillRect(sx - 20, sy - 36, 40 * hpPct, 4);
-  }
-
-  // Civilian label
-  ctx.fillStyle = '#60a5fa'; ctx.font = '8px Arial'; ctx.textAlign = 'center';
-  ctx.fillText('CIVILIAN', sx, sy - 38);
-
-  ctx.restore();
-}
 
 function updateDepthCharges(dt) {
   const sub = world.sub;
@@ -4681,14 +2789,14 @@ function initWorld() {
     sunBurnTimer: 0,
     sunBurnTick: 0,
     sub: {
-      worldX: 180,      // Start at home port
-      y: WATER_LINE - 7, // Floating at dock
+      worldX: terrain.startPort.x, // Start inside home port hangar
+      y: WATER_LINE - 15,          // Sitting on hangar dock (above waterline)
       vx: 0, vy: 0,
       angle: 0,
       facing: 1,        // 1 = right, -1 = left
       parts: createParts(),
       wasInWater: false,
-      floating: false,
+      floating: true,    // On dock = floating state
       liftingOff: false,
       disembarked: false,
       disembarkIsland: null,
@@ -4698,15 +2806,30 @@ function initWorld() {
       pilotVy: 0,
       pilotOnGround: true,
       diving: false,
-      periscopeMode: false,
+      periscopeMode: false,   // Starts retracted in hangar; auto-extends on water
       periscopeDepth: 0,
+      _periscopeManualCooldown: 60, // Brief cooldown so auto-extend doesn't trigger immediately in hangar
       torpedoAmmo: START_TORPEDOES,
       missileAmmo: START_MISSILES,
       depthChargeAmmo: START_DEPTH_CHARGES,
+      railgunAmmo: RAILGUN_MAX_AMMO,
+      bouncingBombAmmo: BBOMB_MAX_AMMO,
       afterburnerCharge: AFTERBURNER_MAX_CHARGE,
       afterburnerActive: false,
       caterpillarDrive: false,
       commanderHp: COMMANDER_MAX_HP,
+      commanderAimAngle: 0,       // Swivel angle for disembarked aiming (z/x)
+      commanderGrenades: CMDR_GRENADE_MAX,
+      commanderPpcAmmo: CMDR_PPC_AMMO,
+      // Rescue ladder — toggled with CapsLock. Drops from the sub's belly
+      // and can pluck hostages / Evel off islands without disembarking.
+      // Effectively useless without the VTOL upgrade because you can't hold
+      // position steady enough to line up the winch.
+      ladderDeployed: false,
+      ladderLength: 0,            // Current extended length (animates)
+      vtolUpgrade: false,         // Unlocked later — lets sub hover stable
+      ladderPassenger: null,      // {kind, ref} if something is clinging on
+      ladderShakeAccum: 0,        // Builds up while player swings erratically
     },
     torpedoes: [],       // All positions in world coords
     missiles: [],
@@ -4725,13 +2848,25 @@ function initWorld() {
     airInterceptors: [],       // Lightning squadrons
     airInterceptorTimer: 0,
     nemesis: null,             // Mini airborne-sub, toggle/higher levels
+    // Red Arrow squadron — two smaller wingmen subs
+    squadron: createSquadron(),
+    squadronMode: 'off',       // off by default; Q to cycle: general, aqua, aero, terra, astro
+    _evelCameratron: null,     // Cameratron popup state for Evel Knievel jumps
     score: 0,
     kills: 0,
+    // Weapon selection: 1 = torpedo/pistol, 2 = missile/grenade, 3 = depth charge, 9 = PPC
+    selectedWeapon: 1,
+    commanderWeapon: 1,
     fireCooldown: 0,
     missileCooldown: 0,
     depthChargeCooldown: 0,
+    commanderFireCooldown: 0,
     enemyTimer: 0,
     gameOver: false,
+    deathCause: null,  // { cause, detail } set when gameOver is triggered
+    // Game mode chosen on the splash menu. Currently only 'airborne' is
+    // playable; 'subcommando' is reserved for v2.
+    gameMode: (typeof window !== 'undefined' && window.__chosenGameMode) || 'airborne',
     quitConfirm: false,
     paused: false,
     menuOpen: false,
@@ -4742,8 +2877,13 @@ function initWorld() {
     airEject: null,
     gunPost: null,
     gunPostBullets: [],
+    subMgBullets: [],       // Sub machine gun projectiles
+    railgunShots: [],       // Gauss railgun projectiles
+    bouncingBombs: [],      // Barnes Wallis bouncing bombs
+    commanderBullets: [],   // Pistol/grenade/PPC projectiles from disembarked commander
     subInCave: null,     // Reference to cave the sub is hiding in
-    mission: { type: 'patrol', timer: 0, active: false, failed: false },
+    mission: { type: 'patrol', timer: 0, active: false, failed: false, completed: false },
+    hostages: [],
     // WASM co-processor (AffineScript physics kernel, airborne-final-working.wasm).
     // Populated asynchronously by init() after the module loads.
     wasm: null,
@@ -4757,56 +2897,86 @@ function initWorld() {
 let world = null;
 
 async function init() {
-  canvas.width = W; canvas.height = H; canvas.focus();
-  world = initWorld();
-
-  // --- Load AffineScript WASM physics co-processor ---
-  // The WASM exports init_state() and step_state(...34 args) which model a
-  // simplified version of the game world (sub, weapons, 2 projectiles, 2 enemies).
-  // We run it in lockstep with the JS simulation as a verified frame counter
-  // and secondary score tracker.  Resolve the path relative to this script
-  // file so the fetch works whether the page is served from repo root
-  // (index.html → gossamer/app_gossamer.js) or from gossamer/ directly.
-  const _wasmUrl = (() => {
-    const scriptSrc = document.currentScript && document.currentScript.src;
-    if (scriptSrc) {
-      // script is at <repo>/gossamer/app_gossamer.js; WASM is at <repo>/build/
-      return new URL('../build/airborne-final-working.wasm', scriptSrc).href;
-    }
-    return '../build/airborne-final-working.wasm'; // fallback (direct open)
-  })();
+  // markReady() is guaranteed to fire via the finally block so the splash
+  // screen always becomes dismissable, even if something in world init throws.
   try {
-    const resp = await fetch(_wasmUrl);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const buf = await resp.arrayBuffer();
-    const { instance } = await WebAssembly.instantiate(buf, {
-      // Provide a no-op fd_write stub — the WASM only uses it for println().
-      wasi_snapshot_preview1: { fd_write: () => 0 },
-    });
-    world.wasm = instance.exports;
-    // init_state() returns a pointer to a [tag, len=29, ...fields] array in
-    // WASM linear memory.  Slice off the two-word header to get 29 state fields.
-    const ptr = world.wasm.init_state();
-    const view = new DataView(world.wasm.memory.buffer);
-    world.wasmState = Array.from({ length: 31 }, (_, i) => view.getInt32(ptr + i * 4, true)).slice(2);
-    console.info('[ASS] WASM co-processor ready — init_state ptr:', ptr);
-  } catch (e) {
-    world.wasm = null;
-    console.warn('[ASS] WASM co-processor unavailable:', e.message);
-  }
+    canvas.width = W; canvas.height = H; canvas.focus();
+    world = initWorld();
 
-  const splash = window.__gossamerSplash;
-  if (splash && typeof splash.markReady === 'function') {
-    splash.markReady();
+    // --- Load AffineScript WASM physics co-processor ---
+    // The WASM exports init_state() and step_state(...34 args) which model a
+    // simplified version of the game world (sub, weapons, 2 projectiles, 2 enemies).
+    // We run it in lockstep with the JS simulation as a verified frame counter
+    // and secondary score tracker.  Resolve the path relative to this script
+    // file so the fetch works whether the page is served from repo root
+    // (index.html → gossamer/app_gossamer.js) or from gossamer/ directly.
+    const _wasmUrl = (() => {
+      const scriptSrc = document.currentScript && document.currentScript.src;
+      if (scriptSrc) {
+        // script is at <repo>/gossamer/app_gossamer.js; WASM is at <repo>/build/
+        return new URL('../build/airborne-final-working.wasm', scriptSrc).href;
+      }
+      return '../build/airborne-final-working.wasm'; // fallback (direct open)
+    })();
+    try {
+      const resp = await fetch(_wasmUrl);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const buf = await resp.arrayBuffer();
+      const { instance } = await WebAssembly.instantiate(buf, {
+        // Provide a no-op fd_write stub — the WASM only uses it for println().
+        wasi_snapshot_preview1: { fd_write: () => 0 },
+      });
+      world.wasm = instance.exports;
+      // init_state() returns a pointer to a [tag, len=29, ...fields] array in
+      // WASM linear memory.  Slice off the two-word header to get 29 state fields.
+      const ptr = world.wasm.init_state();
+      const view = new DataView(world.wasm.memory.buffer);
+      world.wasmState = Array.from({ length: 31 }, (_, i) => view.getInt32(ptr + i * 4, true)).slice(2);
+      console.info('[ASS] WASM co-processor ready — init_state ptr:', ptr);
+    } catch (e) {
+      world.wasm = null;
+      console.warn('[ASS] WASM co-processor unavailable:', e.message);
+    }
+
+    requestAnimationFrame(gameLoop);
+  } catch (e) {
+    // World init failed — attempt a bare-minimum fallback world so the game
+    // loop at least has something to render, then let the splash clear.
+    console.error('[ASS] init() failed:', e);
+    if (!world) {
+      try { world = initWorld(); } catch (e2) {
+        console.error('[ASS] Fallback initWorld() also failed:', e2);
+      }
+    }
+    if (world) requestAnimationFrame(gameLoop);
+  } finally {
+    // Always unblock the splash screen regardless of init outcome.
+    const splash = window.__gossamerSplash;
+    if (splash && typeof splash.markReady === 'function') splash.markReady();
   }
-  requestAnimationFrame(gameLoop);
 }
 
 let lastTime = 0;
+let _splashCleared = false;
 function gameLoop(ts) {
   const dt = Math.min(ts - lastTime, 32);
   lastTime = ts;
-  if (!world.gameOver && !world.paused) update(dt / 16);
+
+  // Don't process game input while the splash screen is still covering the canvas.
+  // Keys pressed to dismiss the splash would otherwise register as game thrust/fire,
+  // launching the sub uncontrollably on the first visible frame.
+  const splashEl = document.getElementById('loading');
+  const splashActive = splashEl && splashEl.style.display !== 'none'
+                     && !splashEl.classList.contains('splash-complete');
+  if (!splashActive && !_splashCleared) {
+    // Splash just finished — flush all key state so nothing from the
+    // dismiss interaction bleeds into the game.
+    _splashCleared = true;
+    for (const k in keys) delete keys[k];
+    for (const k in keyJustPressed) delete keyJustPressed[k];
+  }
+
+  if (!splashActive && !world.gameOver && !world.paused) update(dt / 16);
   else if (world.paused) updatePauseMenu();
   draw();
   for (const k in keyJustPressed) delete keyJustPressed[k];
@@ -4923,7 +3093,8 @@ function saveGameState() {
       },
     };
     window.localStorage.setItem('ass_save_state', JSON.stringify(snapshot));
-    world.caveMessage = { text: 'Game saved', timer: 90 };
+    if (typeof verisimdbSaveGame === 'function') verisimdbSaveGame(snapshot);
+    ticker('Game saved', 60);
     return true;
   } catch {
     world.caveMessage = { text: 'Save failed — storage unavailable', timer: 120 };
@@ -4967,7 +3138,7 @@ function loadGameState() {
       if (s.parts) fresh.sub.parts = s.parts;
     }
     world = fresh;
-    world.caveMessage = { text: 'Game loaded', timer: 90 };
+    ticker('Game loaded', 60);
     return true;
   } catch {
     world.caveMessage = { text: 'Load failed — corrupt save data', timer: 120 };
@@ -4985,7 +3156,7 @@ function hasSavedGame() {
 
 // Rebind state: null = normal pause, string = waiting for key for that action
 let rebindAction = null;
-const REBIND_ACTIONS = ['torpedo', 'missile', 'depthCharge', 'afterburner', 'periscope', 'disembark', 'embark', 'emergencyEject', 'chaff', 'cruise'];
+const REBIND_ACTIONS = ['fire', 'stabilise', 'afterburner', 'periscope', 'disembark', 'embark', 'emergencyEject', 'chaff', 'swivelLeft', 'swivelRight'];
 
 function keyLabel(key) {
   if (key === ' ') return 'Space';
@@ -5040,6 +3211,24 @@ function updatePauseMenu() {
     world.settings.nemesisSub = !world.settings.nemesisSub;
     saveSettings(world.settings);
   }
+  // Q: cycle squadron mode (off → general → aqua → aero → terra → astro → off)
+  if (keyJustPressed['q'] || keyJustPressed['Q']) {
+    const curIdx = SQUADRON_MODES.indexOf(world.squadronMode);
+    const nextIdx = (curIdx + 1) % SQUADRON_MODES.length;
+    world.squadronMode = SQUADRON_MODES[nextIdx];
+    const label = world.squadronMode === 'off' ? 'SQUADRON: OFF' :
+                  world.squadronMode === 'astro' ? 'SQUADRON: ASTRO (COMING SOON)' :
+                  `SQUADRON: ${world.squadronMode.toUpperCase()}`;
+    ticker(label, 50);
+  }
+  // Cycle through missions (M key) — only if no mission active
+  if ((keyJustPressed['m'] || keyJustPressed['M']) && (!world.mission || !world.mission.active)) {
+    const missionCycle = ['strike', 'hostage', 'escort'];
+    const lastType = world.mission ? world.mission.type : 'patrol';
+    const idx = missionCycle.indexOf(lastType);
+    const nextType = missionCycle[(idx + 1) % missionCycle.length];
+    startMission(nextType);
+  }
   // Save game
   if (keyJustPressed['s'] || keyJustPressed['S']) {
     saveGameState();
@@ -5067,6 +3256,7 @@ function updatePauseMenu() {
       ensureLeaderboardRecorded('QUIT');
       world.quitConfirm = true;
       world.gameOver = true;
+      setDeathCause(world, 'quit');
     }
   }
   // Enter rebind mode: press R then a number
@@ -5211,13 +3401,17 @@ function emergencyEject(sub) {
         landed: false,
         dead: false,
       };
-      // Sub is now uncrewed — it will fly on under physics until it crashes
-      // Don't set disembarked — the sub physics loop still runs, just no input
+      // Sub is now uncrewed — damaged from eject, will crash and sink
       sub.disembarked = false; // Sub is NOT docked — it's flying uncrewed
-      world.caveMessage = {
-        text: halo ? 'HALO EJECT — CHUTE DEPLOYS LOW' : 'EMERGENCY EJECT — COMMANDER AWAY',
-        timer: 150,
-      };
+      sub._wrecked = true;     // Mark as wrecked — physics will make it crash and sink
+      sub._wreckTimer = 0;     // Timer for wreck sequence
+      // Eject blast damages the sub
+      for (const key of Object.keys(sub.parts)) {
+        if (sub.parts[key] && typeof sub.parts[key].hp === 'number') {
+          sub.parts[key].hp = Math.max(1, sub.parts[key].hp - 20);
+        }
+      }
+      midNotice(halo ? 'HALO EJECT — CHUTE DEPLOYS LOW' : 'EMERGENCY EJECT — SUB ABANDONED', 150);
       SFX.disembark();
     }
   }
@@ -5251,10 +3445,39 @@ function updateAirEject(dt) {
     addParticles(sub.worldX, sub.y, 25, '#e74c3c');
     SFX.explodeBig();
   }
-  // Sub hits water
+  // Sub hits water — wrecked subs sink to the ocean floor
   if (sub.y >= WATER_LINE && sub.vy > 0) {
     addParticles(sub.worldX, WATER_LINE, 10, '#85c1e9');
-    sub.vy *= 0.3;
+    SFX.waterSplash();
+    if (sub._wrecked) {
+      // Wrecked sub sinks — slow descent with bubbles
+      sub.vy = 0.5; // Steady sink rate
+      sub.vx *= 0.3; // Water slows horizontal
+      sub._sinking = true;
+    } else {
+      sub.vy *= 0.3;
+    }
+  }
+  // Sinking wreck continues to the ocean floor
+  if (sub._sinking) {
+    sub.vy = Math.min(sub.vy + 0.02 * dt, 0.8); // Accelerate slowly
+    sub.vx *= 0.97; // Water drag
+    sub.angle += 0.003 * dt; // Slow tumble
+    sub.worldX += sub.vx * dt;
+    sub.y += sub.vy * dt;
+    // Bubble trail as it sinks
+    if (world.tick % 8 === 0) {
+      addParticles(sub.worldX, sub.y - 5, 2, '#85c1e9');
+    }
+    // Hit the seabed
+    const groundY = getGroundY(sub.worldX);
+    if (sub.y >= groundY - 8) {
+      sub.y = groundY - 8;
+      sub.vy = 0; sub.vx = 0;
+      sub._sinking = false;
+      addParticles(sub.worldX, sub.y, 8, '#5d4037');
+      ticker('Your sub hit the ocean floor', 80);
+    }
   }
 
   // --- Commander descent ---
@@ -5287,12 +3510,14 @@ function updateAirEject(dt) {
     world.caveMessage = { text: 'COMMANDER IN THE WATER — GAME OVER', timer: 200 };
     // Trigger game over after a delay
     world.gameOver = true;
+    setDeathCause(world, 'eject-water');
   } else if (ej.pilotY >= pilotGroundY - 4) {
     ej.pilotY = pilotGroundY - 4;
     ej.landed = true;
     ej.pilotVy = 0;
     world.caveMessage = { text: 'COMMANDER LANDED — GAME OVER', timer: 200 };
     world.gameOver = true;
+    setDeathCause(world, 'eject-ground');
   }
 
   // Enemy fire can kill the commander during descent
@@ -5306,6 +3531,7 @@ function updateAirEject(dt) {
         ej.dead = true;
         world.caveMessage = { text: 'COMMANDER KIA', timer: 200 };
         world.gameOver = true;
+        setDeathCause(world, 'eject-shot');
         SFX.damage();
       }
     }
@@ -5737,8 +3963,8 @@ function updateOrbitMode(dt) {
     fireOrbitalProjectile(space, sub, 'missile');
   }
 
-  // Space bar: immediate full stop
-  if (keys[' ']) {
+  // Left Shift: stabiliser / full stop in orbit
+  if (keys['Shift'] || keys[keybinds.stabilise]) {
     space.shipVx *= Math.pow(0.85, dt);
     space.shipVy *= Math.pow(0.85, dt);
     if (Math.hypot(space.shipVx, space.shipVy) < 0.01) {
@@ -5968,7 +4194,8 @@ function update(dt) {
   }
 
   handleSunBurn(dt);
-  const directWarpKey = ['1', '2', '3', '4', '5'].find((k) => keyJustPressed[k]);
+  // In orbit, use F+number for warp destinations (number keys alone are weapons now)
+  const directWarpKey = ['4', '5'].find((k) => keyJustPressed[k]); // 4/5 don't conflict
   if (directWarpKey && world.mode === 'orbit' && !world.paused) {
     const dest = PLANET_HOTKEY_MAP[directWarpKey];
     startPlanetWarp(dest);
@@ -5985,13 +4212,15 @@ function update(dt) {
     return;
   }
 
-  // --- Camera: smooth follow sub (X and Y) ---
-  const targetCamX = sub.worldX - W * 0.4;
+  // --- Camera: smooth follow sub (or pilot when disembarked) ---
+  const camFollowX = sub.disembarked ? sub.pilotX : sub.worldX;
+  const camFollowY = sub.disembarked ? sub.pilotY : sub.y;
+  const targetCamX = camFollowX - W * 0.4;
   world.cameraX += (targetCamX - world.cameraX) * CAMERA_SMOOTH * dt * 4;
   world.cameraX = Math.max(0, Math.min(TERRAIN_LENGTH - W, world.cameraX));
 
-  // Vertical camera: follow sub, keeping it roughly in the middle
-  const targetCamY = sub.y - H * 0.45;
+  // Vertical camera: follow sub (or pilot), keeping roughly in the middle
+  const targetCamY = camFollowY - H * 0.45;
   world.cameraY += (targetCamY - world.cameraY) * CAMERA_SMOOTH * dt * 4;
   world.cameraY = Math.max(0, world.cameraY); // Don't go above sky
 
@@ -6003,17 +4232,18 @@ function update(dt) {
     if (sub.diverMode) {
       updateDiverMode(sub, dt);
     } else if (sub.disembarkIsland) {
-      // Gun post toggle with G
+      // Gun post toggle with G (legacy MG emplacement)
       if ((keyJustPressed['g'] || keyJustPressed['G']) && !world.gunPost) {
         setupGunPost(sub);
       }
       if (world.gunPost) {
         updateGunPost(dt);
-        return; // Commander is manning the gun post, skip normal island movement
-      }
+        // Don't return — world must keep updating (enemies, effects, etc.)
+      } else {
       const dock = sub.disembarkIsland;
       const leftLimit = dock.x - dock.baseW / 2 + 4;
       const rightLimit = dock.x + dock.baseW / 2 - 4;
+      // Movement: arrow keys or j/k
       const moveInput = (keys['k'] || keys['K'] || keys['ArrowRight']) ? 1
         : (keys['j'] || keys['J'] || keys['ArrowLeft']) ? -1 : 0;
       if (moveInput !== 0) {
@@ -6038,19 +4268,117 @@ function update(dt) {
       } else {
         sub.pilotY = groundY;
       }
+
+      // ── Trionic SubCommando weapons & z/x swivel ──
+      // Z/X swivel aim (commander aims in a direction for shooting)
+      const swivelSpeed = 0.04;
+      if (keys['z'] || keys['Z']) sub.commanderAimAngle -= swivelSpeed * dt;
+      if (keys['x'] || keys['X']) sub.commanderAimAngle += swivelSpeed * dt;
+      sub.commanderAimAngle = Math.max(-Math.PI * 0.7, Math.min(Math.PI * 0.7, sub.commanderAimAngle));
+
+      // Weapon selection: 1=pistol, 2=grenade, 9=PPC
+      if (keyJustPressed['1']) { world.commanderWeapon = 1; ticker('Pistol selected', 35); }
+      if (keyJustPressed['2']) { world.commanderWeapon = 2; ticker('Grenade selected', 35); }
+      if (keyJustPressed['9']) { world.commanderWeapon = 9; ticker('PPC selected', 35); }
+
+      // Spacebar fires selected commander weapon
+      world.commanderFireCooldown = Math.max(0, world.commanderFireCooldown - dt);
+      const cmdFire = keys[' '] || keys[keybinds.fire];
+      const aimCos = Math.cos(sub.commanderAimAngle);
+      const aimSin = Math.sin(sub.commanderAimAngle);
+
+      if (cmdFire && world.commanderFireCooldown <= 0) {
+        if (world.commanderWeapon === 1) {
+          // Pistol — fast, infinite ammo
+          world.commanderBullets.push({
+            worldX: sub.pilotX, y: sub.pilotY - 4,
+            vx: aimCos * CMDR_PISTOL_SPEED, vy: aimSin * CMDR_PISTOL_SPEED,
+            life: CMDR_PISTOL_LIFE, damage: CMDR_PISTOL_DAMAGE, type: 'pistol',
+          });
+          world.commanderFireCooldown = CMDR_PISTOL_COOLDOWN;
+        } else if (world.commanderWeapon === 2 && sub.commanderGrenades > 0) {
+          // Grenade — arced trajectory, explodes on contact or timeout
+          sub.commanderGrenades--;
+          world.commanderBullets.push({
+            worldX: sub.pilotX, y: sub.pilotY - 6,
+            vx: aimCos * CMDR_GRENADE_SPEED, vy: aimSin * CMDR_GRENADE_SPEED - 1.5,
+            life: CMDR_GRENADE_LIFE, damage: CMDR_GRENADE_DAMAGE, type: 'grenade',
+            blastRadius: CMDR_GRENADE_BLAST_RADIUS,
+          });
+          world.commanderFireCooldown = CMDR_GRENADE_COOLDOWN;
+          world.caveMessage = { text: `${sub.commanderGrenades} GRENADES LEFT`, timer: 40 };
+        } else if (world.commanderWeapon === 9 && sub.commanderPpcAmmo > 0) {
+          // PPC — devastating beam, long cooldown
+          sub.commanderPpcAmmo--;
+          world.commanderBullets.push({
+            worldX: sub.pilotX, y: sub.pilotY - 4,
+            vx: aimCos * CMDR_PPC_SPEED, vy: aimSin * CMDR_PPC_SPEED,
+            life: CMDR_PPC_LIFE, damage: CMDR_PPC_DAMAGE, type: 'ppc',
+          });
+          world.commanderFireCooldown = CMDR_PPC_COOLDOWN;
+          addParticles(sub.pilotX, sub.pilotY - 4, 12, '#ff00ff');
+          SFX.explodeBig();
+          world.caveMessage = { text: `PPC FIRED — ${sub.commanderPpcAmmo} CHARGES LEFT`, timer: 60 };
+        }
+      }
+      } // Close the else block for gun post vs island movement
     }
     updateEnemies(dt);
     updateProjectiles(dt);
+    updateNewProjectiles(dt);
     updateEffects(dt);
     updateTelemetry(dt, sub.vx, sub.vy, 'atmosphere');
     return;
   }
 
   if (world.chaffCooldown > 0) world.chaffCooldown = Math.max(0, world.chaffCooldown - dt);
-  const periscopeToggle = keyJustPressed['p'] || keyJustPressed['P'];
-  if (!sub.disembarked && periscopeToggle) {
-    if (sub.periscopeMode) exitPeriscopeMode(sub);
-    else enterPeriscopeMode(sub);
+
+  // ── Periscope system ──
+  // Two modes toggled by Shift+P:
+  //   AUTO periscope: extends when settled on water (stealth from air/radar), retracts in flight
+  //   MANUAL periscope: never auto-extends — player has full control with P
+  // P always toggles periscope on/off regardless of mode.
+  // Flight always retracts (can't fly with periscope out).
+  if (world.autoPeriscope === undefined) world.autoPeriscope = false; // Default: manual
+  const inFlight = sub.y < WATER_LINE - 10 && !sub.floating;
+
+  // Shift+P toggles auto/manual mode
+  if ((keyJustPressed['p'] || keyJustPressed['P']) && keys['Shift']) {
+    world.autoPeriscope = !world.autoPeriscope;
+    ticker(world.autoPeriscope ? 'Auto periscope: ON — hides from air/radar' : 'Auto periscope: OFF — manual only', 60);
+  } else {
+    // P alone: manual toggle
+    const periscopeToggle = keyJustPressed['p'] || keyJustPressed['P'];
+    if (!sub.disembarked && periscopeToggle) {
+      if (sub.periscopeMode) {
+        exitPeriscopeMode(sub);
+      } else if (sub.floating || sub.y > WATER_LINE) {
+        enterPeriscopeMode(sub);
+      }
+    }
+  }
+
+  // Flight always retracts — can't fly with periscope deployed
+  if (inFlight && sub.periscopeMode) {
+    exitPeriscopeMode(sub);
+    ticker('Periscope retracted — airborne', 35);
+  }
+
+  // Auto-extend when in AUTO mode and settled on water surface
+  if (world.autoPeriscope && !sub.periscopeMode && !inFlight) {
+    if (!sub._periscopeSettleTimer) sub._periscopeSettleTimer = 0;
+    const settledOnSurface = sub.floating
+      && sub.y >= WATER_LINE - 12 && sub.y <= WATER_LINE + 3
+      && Math.abs(sub.vy) < 0.3 && Math.abs(sub.vx) < 1.5
+      && !sub.liftingOff && !sub.diving;
+    if (settledOnSurface) {
+      sub._periscopeSettleTimer += dt;
+    } else {
+      sub._periscopeSettleTimer = 0;
+    }
+    if (sub._periscopeSettleTimer > 30) {
+      enterPeriscopeMode(sub);
+    }
   }
   const periscopeSinkInput = sub.periscopeMode && keys['ArrowDown'];
   const periscopeRiseInput = sub.periscopeMode && keys['ArrowUp'];
@@ -6148,44 +4476,58 @@ function update(dt) {
       sub.afterburnerCharge = Math.min(AFTERBURNER_MAX_CHARGE, sub.afterburnerCharge + AFTERBURNER_RECHARGE * dt);
     }
 
-    // Space bar: cruise (air) / stabilise (water) — affected by damage
-    if (keys[' '] && !sub.disembarked) {
-      if (sub.y < WATER_LINE - 5 && !sub.floating) {
-        // In air: level cruise — effectiveness depends on damage
-        const towerOk = sub.parts.tower > 0;
-        const wingsOk = sub.parts.wings > 0;
+    // Left Shift: stabiliser in all environments.
+    // Air: horizontal stabilisation; wings hit → slight descent; tower red → disabled.
+    // Water: flat stabilisation on both axes; hull hit → slight sinking; tower red → disabled.
+    const wantStabilise = keys['Shift'] || keys[keybinds.stabilise];
+    if (wantStabilise && !sub.disembarked) {
+      const towerPct = sub.parts.tower / 70;
+      const towerRed = towerPct <= 0.08;
+      if (towerRed) {
+        // Control area red/destroyed — stabiliser offline
+      } else if (sub.y < WATER_LINE - 5 && !sub.floating) {
+        // ── AIR: level out horizontally ──
         const wingPct = sub.parts.wings / 60;
-        if (!towerOk) {
-          // Cockpit destroyed — cruise not available, cannot level out
-          // (do nothing — sub continues on current trajectory)
-        } else if (!wingsOk) {
-          // Wings destroyed — forced descent, cannot hold altitude
-          sub.vy += 0.08 * dt; // Sink
-          sub.angle *= 0.95;   // Sluggish levelling
-        } else {
-          // Normal cruise — effectiveness scaled by wing condition
-          const cruiseEff = 0.5 + wingPct * 0.5; // 50-100% effectiveness
-          sub.angle *= 1 - (0.2 * cruiseEff);
-          sub.vy *= 1 - (0.1 * cruiseEff);
-          // Damaged wings: slight descent tendency
-          if (wingPct < 0.5) sub.vy += 0.03 * (1 - wingPct) * dt;
+        const eff = towerPct * (0.5 + wingPct * 0.5);
+        sub.angle *= 1 - (0.2 * eff);
+        sub.vy *= 1 - (0.08 * eff);
+        sub.vx *= 1 - (0.02 * eff);
+        if (wingPct < 0.5) sub.vy += 0.04 * (1 - wingPct) * dt;
+      } else if (sub.y > WATER_LINE || sub.floating) {
+        // ── WATER: strong stabilise — brings sub to near-stop ──
+        const hullPct = sub.parts.hull / 120;
+        const eff = towerPct * (0.5 + hullPct * 0.5);
+        sub.vx *= 1 - (0.18 * eff);  // Much stronger than before
+        sub.vy *= 1 - (0.18 * eff);  // Strong vertical damping
+        sub.angle *= 1 - (0.25 * eff);
+        if (hullPct < 0.5) sub.vy += 0.02 * (1 - hullPct) * dt;
+      }
+    }
+
+    // S key: air brake / aqua brake — rapid deceleration
+    // In air: deploys flaps, heavy drag on both axes, nose pitches up slightly
+    // In water: reverse thrust, heavy drag, comes to near stop quickly
+    // Engine must be functional to brake (no engine = no brake authority)
+    if ((keys['s'] || keys['S']) && !sub.disembarked && sub.parts.engine > 0) {
+      const enginePct = sub.parts.engine / 80;
+      const brakeForce = 0.15 * enginePct;
+      if (sub.y < WATER_LINE - 5 && !sub.floating) {
+        // Air brake — flaps out, heavy drag
+        sub.vx *= 1 - (brakeForce * dt);
+        sub.vy *= 1 - (brakeForce * 0.6 * dt); // Less vertical damping in air
+        sub.angle *= 1 - (0.05 * dt); // Nose levels slightly
+        // Air brake particles (flap turbulence)
+        if (world.tick % 4 === 0 && Math.abs(sub.vx) > 0.5) {
+          addParticles(sub.worldX - sub.facing * 12, sub.y - 4, 1, '#94a3b8');
+          addParticles(sub.worldX - sub.facing * 12, sub.y + 4, 1, '#94a3b8');
         }
       } else if (sub.y > WATER_LINE || sub.floating) {
-        // Underwater / on surface: stabilise across all axes
-        const hullPct = sub.parts.hull / 120;
-        if (hullPct > 0.3) {
-          // Hull intact enough — full stabilisation
-          sub.vx *= 0.92;
-          sub.vy *= 0.92;
-          sub.angle *= 0.85;
-        } else if (hullPct > 0) {
-          // Hull badly damaged — slower stabilisation, tendency to sink
-          sub.vx *= 0.95;
-          sub.vy *= 0.96;
-          sub.angle *= 0.92;
-          sub.vy += 0.04 * (1 - hullPct) * dt; // Sink faster with more damage
-        } else {
-          // Hull destroyed — no stabilisation at all
+        // Aqua brake — reverse thrust, heavy drag on all axes
+        sub.vx *= 1 - (brakeForce * 1.2 * dt); // Stronger in water (more resistance)
+        sub.vy *= 1 - (brakeForce * 1.0 * dt);
+        // Bubble particles
+        if (world.tick % 3 === 0 && Math.hypot(sub.vx, sub.vy) > 0.3) {
+          addParticles(sub.worldX - sub.facing * 10, sub.y, 2, '#85c1e9');
         }
       }
     }
@@ -6193,6 +4535,35 @@ function update(dt) {
     // Gravity
     if (!sub.floating) sub.vy += GRAVITY * dt;
     sub.vy = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, sub.vy));
+
+    // ── STALL MECHANIC ──
+    // In air, if forward speed drops too low the sub loses lift and enters a stall:
+    // nose drops, controls become sluggish, and gravity takes over until speed recovers.
+    // Wings must be functional; no wings = permanent stall state (already handled by damage).
+    const inAir = sub.y < WATER_LINE - 5 && !sub.floating && !sub.liftingOff;
+    const STALL_SPEED = 1.0;          // Below this forward speed → stall warning
+    const STALL_CRITICAL = 0.5;       // Below this → full stall, nose drops hard
+    const fwdSpeedAbs = Math.abs(sub.vx);
+    if (inAir && sub.parts.wings > 0) {
+      if (fwdSpeedAbs < STALL_CRITICAL) {
+        // Full stall — nose drops, controls barely respond
+        sub.angle += (sub.angle < 0.3 ? 0.04 : 0.01) * dt; // Force nose down
+        sub.vy += 0.06 * dt; // Extra gravity (stall sink)
+        // Stall buffet — slight random wobble
+        sub.vx += (Math.random() - 0.5) * 0.04 * dt;
+        sub.angle += (Math.random() - 0.5) * 0.02 * dt;
+        if (world.tick % 30 === 0) {
+          actionIcon('2b07Fe0f', 30, '#ef4444'); hudFlash('STALL — INCREASE SPEED', 30);
+        }
+      } else if (fwdSpeedAbs < STALL_SPEED) {
+        // Stall warning — sluggish, slight nose drop tendency
+        sub.angle += 0.01 * dt;
+        sub.vy += 0.02 * dt;
+        if (world.tick % 60 === 0) {
+          hudFlash('STALL WARNING — LOW AIRSPEED', 25, '#f59e0b');
+        }
+      }
+    }
 
     sub.worldX += sub.vx * dt;
     sub.y += sub.vy * dt;
@@ -6219,6 +4590,32 @@ function update(dt) {
   // World bounds
   sub.worldX = Math.max(30, Math.min(TERRAIN_LENGTH - 30, sub.worldX));
 
+  // --- Surface-skim spray effect ---
+  // When the sub hedgehops along the water with its propeller dipping into
+  // the surface, kick up a spray trail. Rewards careful low-altitude flight.
+  // Conditions: airborne, very low alt (prop in the water), moving forward.
+  {
+    const propY = sub.y + 4;          // propeller sits a bit below sub centre
+    const propInWater = propY > WATER_LINE - 2 && propY < WATER_LINE + 6;
+    const airborne = !sub.floating && !sub.periscopeMode && sub.y < WATER_LINE - 2;
+    const fwdSpeed = Math.abs(sub.vx);
+    if (airborne && propInWater && fwdSpeed > 1.0 && world.tick % 2 === 0) {
+      // Spray behind the sub — a short curling arc of water droplets.
+      const rearX = sub.worldX - Math.sign(sub.vx || sub.facing || 1) * 16;
+      const intensity = Math.min(1, (fwdSpeed - 1.0) / 3.0); // 0..1 by speed
+      const count = 2 + Math.floor(intensity * 3);
+      for (let k = 0; k < count; k++) {
+        const jx = (Math.random() - 0.5) * 8;
+        const jy = (Math.random() - 0.2) * 4;
+        addParticles(rearX + jx, WATER_LINE + jy, 1, '#bfe6ff');
+      }
+      // Occasional bigger droplet for visual punch
+      if (Math.random() < 0.25) {
+        addParticles(rearX - Math.sign(sub.vx) * 6, WATER_LINE - 2, 1, '#85c1e9');
+      }
+    }
+  }
+
   // --- Water physics ---
   const inWater = sub.y + 9 > WATER_LINE;
   if (!sub.periscopeMode) {
@@ -6241,18 +4638,25 @@ function update(dt) {
         sub.floating = false;
         sub.liftingOff = true;
         addParticles(sub.worldX, WATER_LINE, 10, '#85c1e9');
-      } else {
-        // Bad angle entry (belly flop, sideways, etc.) — DAMAGE
-        const impactForce = spd * (1 - entryAngle); // Worse when flat
-        const dmg = Math.max(3, impactForce * 5);
+      } else if (spd > 3.0) {
+        // High-speed bad angle entry (belly flop, sideways) — DAMAGE
+        // Only punish genuinely fast impacts, not lazy drifts into water
+        const impactForce = (spd - 2.5) * (1 - entryAngle); // Worse when flat + fast
+        const dmg = Math.max(2, impactForce * 4);
         damageRandomPart(sub.parts, dmg);
         SFX.islandCrash();
         addExplosion(sub.worldX, WATER_LINE, 'small');
         addParticles(sub.worldX, WATER_LINE, 12, '#85c1e9');
         sub.floating = false;
-        // Hard impact slows you down
         sub.vx *= 0.7;
         sub.vy *= 0.5;
+        actionIcon('D83dDca5', 45, '#ef4444'); ticker('BELLYFLOP!', 50);
+      } else {
+        // Slow or medium entry at a bad angle — no damage, just enter water
+        sub.floating = false;
+        sub.vx *= 0.85;
+        sub.vy *= 0.6;
+        addParticles(sub.worldX, WATER_LINE, 6, '#85c1e9');
       }
     }
     sub.wasInWater = inWater;
@@ -6271,11 +4675,17 @@ function update(dt) {
       } else {
       const depth = sub.y - (WATER_LINE - 7);
       if (depth > 0) {
-        const buoyFactor = sub.diving ? 0.3 : 1;
-        sub.vy -= BUOYANCY * buoyFactor * dt * (1 + depth * 0.02);
+        const buoyFactor = sub.diving ? 0.15 : 0.5;
+        sub.vy -= BUOYANCY * buoyFactor * dt * (1 + depth * 0.01);
       }
-        sub.vx *= WATER_DRAG; sub.vy *= SURFACE_DAMPING;
-        if (!wantsDive && sub.y <= WATER_LINE - 5 && Math.abs(sub.vy) < 0.5) {
+        sub.vx *= WATER_DRAG;
+        sub.vy *= SURFACE_DAMPING;
+        // Natural vertical stabilisation underwater — sub tends toward neutral buoyancy.
+        // Without active input, vy damps toward zero (sub holds depth).
+        if (!keys['ArrowUp'] && !keys['ArrowDown'] && !sub.diving) {
+          sub.vy *= 0.96; // Gentle auto-damp when no vertical input
+        }
+        if (!wantsDive && sub.y <= WATER_LINE - 5 && Math.abs(sub.vy) < 0.3) {
           sub.floating = true; sub.y = WATER_LINE - 7; sub.vy = 0; SFX.waterBob();
         }
       }
@@ -6295,16 +4705,50 @@ function update(dt) {
   updateDivingBell(dt);
   updateAirEject(dt);
 
+  // ── Orbit entry — Back to the Future style ──
+  // Requirements: 88+ MPH, afterburner ON, mid-screen altitude band, sharp pull-up
   const currentSpeedMph = velocityToMph(sub.vx, sub.vy, 'atmosphere');
-  const sharpAscent = currentSpeedMph >= ORBIT_TRIGGER_SPEED_MPH
-    && keys['ArrowUp']
-    && sub.angle <= SHARP_ASCENT_ANGLE
-    && sub.vy <= SHARP_ASCENT_VY
-    && !sub.floating
-    && !sub.periscopeMode;
+  const ORBIT_MIN_ALT = 100;  // Must be above this Y (not too low)
+  const ORBIT_MAX_ALT = 350;  // Must be below this Y (not too high — mid-screen)
+  const altOk = sub.y > ORBIT_MIN_ALT && sub.y < ORBIT_MAX_ALT;
+  const speedOk = currentSpeedMph >= ORBIT_TRIGGER_SPEED_MPH;
+  const burnerOn = sub.afterburnerActive;
+  const inAirFlight = !sub.floating && !sub.periscopeMode;
+
+  // ── "Flux capacitor" ready state — flashing sub at 88+ with afterburner + right altitude ──
+  const fluxReady = speedOk && burnerOn && altOk && inAirFlight;
+  if (!world._fluxFlashTimer) world._fluxFlashTimer = 0;
+  if (fluxReady) {
+    world._fluxFlashTimer += dt;
+    // Flash the sub body (rendered in drawSub via world._fluxReady)
+    world._fluxReady = true;
+    // Periodic message
+    if (world._fluxFlashTimer > 0 && world._fluxFlashTimer < 3) {
+      hudFlash('88 MPH — PULL UP TO LAUNCH!', 20, '#f97316');
+    }
+  } else {
+    world._fluxReady = false;
+    world._fluxFlashTimer = 0;
+  }
+
+  // Actual orbit entry: flux ready initiates, then latches until entry completes.
+  // Once the ascent starts, altitude band no longer matters — you're committed.
+  if (!world._ascentLatch) world._ascentLatch = false;
+  const sharpPullUp = keys['ArrowUp'] && sub.angle <= SHARP_ASCENT_ANGLE && sub.vy <= SHARP_ASCENT_VY;
+  if (fluxReady && sharpPullUp) world._ascentLatch = true;
+  if (world._ascentLatch && (!keys['ArrowUp'] || sub.floating)) world._ascentLatch = false; // Released — abort
+  const sharpAscent = world._ascentLatch;
   if (sharpAscent) {
     sub.vy -= STARLIFT_ACCEL * dt;
     if (sub.y <= SPACE_ENTRY_ALTITUDE) {
+      world._ascentLatch = false;
+      // ── FREEZE FRAME — burning tracks into the sky ──
+      // Store the trail origin for the fire-trail effect
+      world._orbitTrail = {
+        x: sub.worldX, y: sub.y,
+        startTick: world.tick,
+        fadeLife: 120, // ~2 seconds of burning trail
+      };
       enterOrbitMode(currentSpeedMph);
       updateTelemetry(dt, world.space.shipVx, world.space.shipVy, 'orbit');
       return;
@@ -6340,7 +4784,7 @@ function update(dt) {
     sub.floating = false; SFX.islandCrash();
     addExplosion(sub.worldX, sub.y + 10, 'big');
     addParticles(sub.worldX, sub.y + 10, 12, '#5d4037');
-    if (sub.caterpillarDrive) { sub.caterpillarDrive = false; world.caveMessage = { text: 'STEALTH BROKEN — COLLISION', timer: 60 }; }
+    if (sub.caterpillarDrive) { sub.caterpillarDrive = false; hudFlash('STEALTH BROKEN — COLLISION', 50, '#f97316'); }
   }
 
   // --- Caterpillar drive toggle (underwater only, requires engine) ---
@@ -6349,10 +4793,7 @@ function update(dt) {
       world.caveMessage = { text: 'ENGINE CRITICAL — CATERPILLAR DRIVE OFFLINE', timer: 80 };
     } else {
       sub.caterpillarDrive = !sub.caterpillarDrive;
-      world.caveMessage = {
-        text: sub.caterpillarDrive ? 'CATERPILLAR DRIVE ENGAGED — SILENT RUNNING' : 'CATERPILLAR DRIVE DISENGAGED',
-        timer: 80,
-      };
+      ticker(sub.caterpillarDrive ? 'Caterpillar drive engaged — silent running' : 'Caterpillar drive disengaged', 60);
     }
   }
   // Auto-disengage caterpillar when engine goes critical or leaving water
@@ -6360,12 +4801,112 @@ function update(dt) {
     sub.caterpillarDrive = false;
   }
 
-  // --- Firing ---
-  world.fireCooldown = Math.max(0, world.fireCooldown - dt);
-  world.missileCooldown = Math.max(0, world.missileCooldown - dt);
+  // --- Rescue ladder toggle (CapsLock) ---
+  // Drops a rope ladder from the sub's belly. Used to winch up hostages
+  // (and very occasionally Evel) WITHOUT disembarking. Without the VTOL
+  // upgrade the sub can't hold station, so the ladder swings uselessly.
+  // CANNOT retract while something is clinging on.
+  if (keyJustPressed['CapsLock']) {
+    if (sub.ladderPassenger) {
+      ticker('Can\'t retract — passenger on the ladder!', 60);
+    } else {
+      sub.ladderDeployed = !sub.ladderDeployed;
+      ticker(sub.ladderDeployed
+        ? (sub.vtolUpgrade ? 'Rescue ladder deployed' : 'Ladder deployed — hover unstable without VTOL')
+        : 'Rescue ladder retracted', 80);
+    }
+  }
+  // Extend/retract ladder smoothly — forced deployed while someone clings.
+  {
+    const targetLen = (sub.ladderDeployed || sub.ladderPassenger) ? 50 : 0;
+    sub.ladderLength += (targetLen - sub.ladderLength) * 0.15 * dt;
+  }
+
+  // --- Ladder passenger physics ---
+  // A clinging passenger drags on the sub: extra vx damping + slight downward
+  // pull. Shake-off requires violent velocity swings (best done by skimming
+  // the water erratically) OR crushing on a land/island surface.
+  if (sub.ladderPassenger) {
+    const p = sub.ladderPassenger;
+    // Drag penalty — feels like carrying a sack of trouble
+    sub.vx *= 0.985;
+    sub.vy += 0.04 * dt;
+    // Erratic-swing shake-off: accumulate based on lateral jerk
+    const prevVx = sub._prevVxForShake || 0;
+    const jerk = Math.abs(sub.vx - prevVx);
+    sub._prevVxForShake = sub.vx;
+    // Only counts while the ladder tip is in the water (drag-through-water)
+    const tipY = sub.y + sub.ladderLength;
+    if (tipY > WATER_LINE) {
+      sub.ladderShakeAccum += jerk * 8 * dt;
+    } else {
+      sub.ladderShakeAccum *= 0.98; // leaks when airborne
+    }
+    if (sub.ladderShakeAccum > 14) {
+      // Shaken loose — flings them into the water
+      ticker('Shook him loose!', 80);
+      if (p.ref) {
+        p.ref.swimming = true;
+        p.ref.alive = true;
+        p.ref.swimTarget = null;
+        p.ref.y = WATER_LINE + 2;
+      }
+      sub.ladderPassenger = null;
+      sub.ladderShakeAccum = 0;
+      SFX.waterSplash && SFX.waterSplash();
+    }
+    // Crush on land/island: if the ladder tip hits terrain while moving fast
+    const groundY = getGroundY(sub.worldX);
+    const islandHit = islandHitTest(sub.worldX, tipY);
+    if ((tipY >= groundY - 2 || islandHit) && Math.hypot(sub.vx, sub.vy) > 1.0) {
+      midNotice('PASSENGER CRUSHED ON LAND', 100);
+      if (p.ref) { p.ref.alive = false; }
+      addParticles(sub.worldX, tipY, 10, '#b91c1c');
+      SFX.islandCrash && SFX.islandCrash();
+      sub.ladderPassenger = null;
+      sub.ladderShakeAccum = 0;
+    }
+  } else {
+    sub.ladderShakeAccum = Math.max(0, sub.ladderShakeAccum - 0.05 * dt);
+  }
+
+  // --- Weapon selection (1=MG, 2=torpedo, 3=missile, 4=depth charge, 9=railgun) ---
+  if (keyJustPressed['1']) { world.selectedWeapon = 1; ticker('Machine gun selected', 40); }
+  if (keyJustPressed['2']) { world.selectedWeapon = 2; ticker('Torpedo selected', 40); }
+  if (keyJustPressed['3']) { world.selectedWeapon = 3; ticker('Missile selected', 40); }
+  if (keyJustPressed['4']) { world.selectedWeapon = 4; ticker('Depth charge selected', 40); }
+  if (keyJustPressed['5']) { world.selectedWeapon = 5; ticker('Bouncing bomb selected — level flight, low alt', 60); }
+  if (keyJustPressed['9']) { world.selectedWeapon = 9; ticker('Gauss railgun selected', 40); }
+
+  // --- Firing (Spacebar fires selected weapon) ---
+  // Each weapon has its OWN cooldown so switching weapons doesn't block firing.
+  if (!world._wpnCooldown) world._wpnCooldown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 9: 0 };
+  const wc = world._wpnCooldown;
+  for (const k in wc) wc[k] = Math.max(0, wc[k] - dt);
+  world.depthChargeCooldown = Math.max(0, world.depthChargeCooldown - dt);
 
   const unlimitedAmmo = world.settings.supplyFrequency === 'unlimited';
-  if (keys['Control'] && world.fireCooldown <= 0 && canFireTorpedo(sub.parts) && (sub.torpedoAmmo > 0 || unlimitedAmmo)) {
+  const wantFire = keys[' '] || keys[keybinds.fire];
+
+  function breakStealth() {
+    if (sub.caterpillarDrive) { sub.caterpillarDrive = false; hudFlash('STEALTH BROKEN', 50, '#f97316'); }
+  }
+
+  // SLOT 1: Machine gun — default, infinite ammo, rapid fire
+  if (wantFire && world.selectedWeapon === 1 && wc[1] <= 0) {
+    const spread = (Math.random() - 0.5) * 0.12;
+    const aimAngle = sub.angle + spread;
+    world.subMgBullets.push({
+      worldX: sub.worldX + sub.facing * 16, y: sub.y,
+      vx: Math.cos(aimAngle) * SUB_MG_SPEED * sub.facing + sub.vx * 0.3,
+      vy: Math.sin(aimAngle) * SUB_MG_SPEED + sub.vy * 0.2,
+      life: SUB_MG_LIFE, damage: SUB_MG_DAMAGE,
+    });
+    wc[1] = SUB_MG_COOLDOWN; breakStealth();
+  }
+
+  // SLOT 2: Torpedo (including LGT and rogue variants)
+  if (wantFire && world.selectedWeapon === 2 && wc[2] <= 0 && canFireTorpedo(sub.parts) && (sub.torpedoAmmo > 0 || unlimitedAmmo)) {
     if (!unlimitedAmmo) sub.torpedoAmmo--;
     const isLGT = Math.random() < 0.05;
     const isRogue = !isLGT && Math.random() < 0.1;
@@ -6376,18 +4917,15 @@ function update(dt) {
       life: isLGT ? 600 : 180,
       trail: [], rogue: isRogue,
       fromSub: true, active: true,
-      lgt: isLGT,
-      lgtTarget: null,
-      lgtOrbitAngle: 0,
-      lgtJumpTimer: 0,
+      lgt: isLGT, lgtTarget: null, lgtOrbitAngle: 0, lgtJumpTimer: 0,
     });
-    world.fireCooldown = FIRE_COOLDOWN; SFX.torpedoLaunch();
-    if (sub.caterpillarDrive) { sub.caterpillarDrive = false; world.caveMessage = { text: 'STEALTH BROKEN — WEAPON FIRED', timer: 60 }; }
-    if (isLGT) world.caveMessage = { text: 'LGT TORPEDO DEPLOYED', timer: 50 };
+    wc[2] = FIRE_COOLDOWN; SFX.torpedoLaunch(); breakStealth();
+    if (isLGT) ticker('LGT torpedo deployed', 40);
   }
 
-  const surfaceLaunch = sub.floating && !sub.periscopeMode;
-  if (keys['Enter'] && world.missileCooldown <= 0 && (sub.missileAmmo > 0 || unlimitedAmmo) && surfaceLaunch) {
+  // SLOT 3: Missile (air or surface — not underwater or periscope)
+  const canLaunchMissile = !sub.periscopeMode && sub.y < WATER_LINE + 5;
+  if (wantFire && world.selectedWeapon === 3 && wc[3] <= 0 && (sub.missileAmmo > 0 || unlimitedAmmo) && canLaunchMissile) {
     if (!unlimitedAmmo) sub.missileAmmo--;
     world.missiles.push({
       worldX: sub.worldX + sub.facing * 10, y: sub.y - 5,
@@ -6395,23 +4933,80 @@ function update(dt) {
       phase: 'drop', dropTimer: 12, life: 250, trail: [],
       surfaceLaunch: true,
     });
-    world.missileCooldown = FIRE_COOLDOWN * 1.5; SFX.missileLaunch();
-    if (sub.caterpillarDrive) { sub.caterpillarDrive = false; world.caveMessage = { text: 'STEALTH BROKEN — WEAPON FIRED', timer: 60 }; }
+    wc[3] = FIRE_COOLDOWN * 1.5; SFX.missileLaunch(); breakStealth();
   }
 
-  if (keyJustPressed['AltGraph'] && world.depthChargeCooldown <= 0 && (sub.depthChargeAmmo > 0 || unlimitedAmmo)) {
+  // SLOT 4: Depth charge
+  if (wantFire && world.selectedWeapon === 4 && world.depthChargeCooldown <= 0 && (sub.depthChargeAmmo > 0 || unlimitedAmmo)) {
     if (!unlimitedAmmo) sub.depthChargeAmmo--;
     world.depthCharges.push({
-      worldX: sub.worldX - sub.facing * 4,
-      y: sub.y + 10,
-      vx: sub.vx * 0.35,
-      vy: Math.max(sub.vy, 0) + 1.2,
-      life: DEPTH_CHARGE_LIFE,
-      trail: [],
+      worldX: sub.worldX - sub.facing * 4, y: sub.y + 10,
+      vx: sub.vx * 0.35, vy: Math.max(sub.vy, 0) + 1.2,
+      life: DEPTH_CHARGE_LIFE, trail: [],
     });
     world.depthChargeCooldown = DEPTH_CHARGE_COOLDOWN;
-    addParticles(sub.worldX, sub.y + 10, 6, DEPTH_CHARGE_COLOR);
-    if (sub.caterpillarDrive) { sub.caterpillarDrive = false; world.caveMessage = { text: 'STEALTH BROKEN — WEAPON FIRED', timer: 60 }; }
+    addParticles(sub.worldX, sub.y + 10, 6, DEPTH_CHARGE_COLOR); breakStealth();
+  }
+
+  // SLOT 5: Bouncing bomb — Barnes Wallis inspired, physics-based skill shot.
+  // Must be airborne, low altitude, moving forward, nearly level.
+  // Bounces on water, explodes on land. Angle/speed must be precise.
+  if (wantFire && world.selectedWeapon === 5 && wc[5] <= 0 && sub.bouncingBombAmmo > 0) {
+    const altAboveWater = WATER_LINE - sub.y;
+    const fwdSpeed = Math.abs(sub.vx);
+    const absAngle = Math.abs(sub.angle);
+    const inAir = sub.y < WATER_LINE - 5 && !sub.floating;
+
+    if (!inAir) {
+      hudFlash('BOMB: MUST BE AIRBORNE', 50, '#f59e0b');
+    } else if (altAboveWater > BBOMB_MAX_ALT) {
+      world.caveMessage = { text: 'TOO HIGH — DESCEND BELOW ' + BBOMB_MAX_ALT + ' METRES', timer: 60 };
+    } else if (fwdSpeed < BBOMB_MIN_SPEED) {
+      world.caveMessage = { text: 'TOO SLOW — NEED FORWARD SPEED > ' + BBOMB_MIN_SPEED.toFixed(1), timer: 60 };
+    } else if (absAngle > BBOMB_MAX_ANGLE) {
+      world.caveMessage = { text: 'ANGLE TOO STEEP — LEVEL OUT BEFORE RELEASE', timer: 60 };
+    } else {
+      // Valid release — bomb inherits sub momentum plus a slight downward arc
+      sub.bouncingBombAmmo--;
+      world.bouncingBombs.push({
+        worldX: sub.worldX + sub.facing * 12, y: sub.y + 8,
+        vx: sub.vx * 0.9 + sub.facing * 0.5,
+        vy: Math.max(sub.vy, 0.3) + 0.5, // Slight downward
+        bounces: 0,
+        life: BBOMB_LIFE,
+        spin: 0, // Visual rotation
+      });
+      wc[5] = BBOMB_COOLDOWN; breakStealth();
+      world.caveMessage = { text: `BOMB AWAY — ${sub.bouncingBombAmmo} LEFT`, timer: 50 };
+      SFX.torpedoLaunch();
+    }
+  }
+
+  // SLOT 9: Gauss Railgun — devastating, limited ammo, long cooldown
+  if (wantFire && world.selectedWeapon === 9 && wc[9] <= 0 && sub.railgunAmmo > 0) {
+    sub.railgunAmmo--;
+    const aimAngle = sub.angle;
+    world.railgunShots.push({
+      worldX: sub.worldX + sub.facing * 20, y: sub.y,
+      vx: Math.cos(aimAngle) * RAILGUN_SPEED * sub.facing,
+      vy: Math.sin(aimAngle) * RAILGUN_SPEED,
+      life: RAILGUN_LIFE, damage: RAILGUN_DAMAGE,
+      trail: [],
+    });
+    wc[9] = RAILGUN_COOLDOWN;
+    // Massive recoil — the whole sub kicks backward and nose lifts
+    sub.vx -= sub.facing * 4.0;
+    sub.vy -= 0.8;  // Nose lifts from the force
+    sub.angle -= sub.facing * 0.12; // Barrel kick
+    // Muzzle flash + shockwave particles
+    addParticles(sub.worldX + sub.facing * 22, sub.y, 14, '#7df9ff');
+    addParticles(sub.worldX + sub.facing * 18, sub.y - 3, 6, '#fff');
+    addParticles(sub.worldX + sub.facing * 18, sub.y + 3, 6, '#fff');
+    addExplosion(sub.worldX + sub.facing * 22, sub.y, 'small'); // Muzzle flash
+    SFX.explodeBig(); breakStealth();
+    // Brief screen shake effect
+    world._screenShake = 12;
+    ticker(`Railgun fired — ${sub.railgunAmmo} rounds left`, 60);
   }
 
   // --- Update torpedoes (world coords) ---
@@ -6611,6 +5206,7 @@ function update(dt) {
 
   updateEnemies(dt);
   updateProjectiles(dt);
+  updateNewProjectiles(dt);
 
   // --- RADAR TOWERS ---
   for (const r of world.terrain.radars) {
@@ -6671,6 +5267,7 @@ function update(dt) {
         phase: 'ignite', dropTimer: 0, life: 200, trail: [],
         fromEnemy: true, sam: true,
         targetPart: 'tower', // Specifically targets cockpit
+        sourceRadar: r,      // For aggro attribution (e.g. Red Baron retaliation)
       });
       r.cooldown = 80;
       SFX.missileLaunch();
@@ -6797,6 +5394,66 @@ function update(dt) {
         SFX.damage(); e.health = 0;
         world.enemies = world.enemies.filter(en => en.health > 0);
         break;
+      }
+    }
+    // Sopwith / Red Baron ram collision — not in world.enemies so needs its
+    // own check. Ramming him hurts the sub but he takes big structural damage.
+    const sw = world.sopwith;
+    if (sw && sw.alive
+        && Math.abs(sw.x - sub.worldX) < 22
+        && Math.abs(sw.y - sub.y) < 16) {
+      damageRandomPart(sub.parts, 20);
+      sw.hp -= 6; // Ramming does big damage — biplanes are fragile
+      sw.lastHitTick = world.tick;
+      sw.timesHit++;
+      // A ram counts as the sub attacking him — aggro snaps to sub
+      sw.target = sub;
+      sw.targetKind = 'sub';
+      if (!sw.angered) {
+        sw.angered = true;
+        sw.manoeuvre = 'immelmann';
+        sw.acrobatTimer = 0;
+        midNotice('THE RED BARON AWAKENS!', 120);
+      }
+      addExplosion((sw.x + sub.worldX) / 2, (sw.y + sub.y) / 2, 'big');
+      SFX.damage();
+      // Knock the sub back so you don't stick to him
+      const knockDir = sub.worldX < sw.x ? -1 : 1;
+      sub.vx += knockDir * 1.5;
+      sub.vy -= 0.6;
+    }
+
+    // Nemesis lair rock wall — the cave mouth is passable but the surrounding
+    // rock face is solid. Ramming the rock damages the sub and bounces it off.
+    const lair = world.terrain.nemesisLair;
+    if (lair) {
+      const lhw = lair.w / 2;
+      const lhh = lair.h / 2;
+      const dx = sub.worldX - lair.x;
+      const dy = sub.y - lair.y;
+      // Outer rock bounds (matches the rock polygon in drawNemesisLair)
+      const outerHW = lhw + 28;
+      const outerTop = -(lhh + 20);
+      const outerBot = lhh + 28;
+      const insideOuter = Math.abs(dx) < outerHW && dy > outerTop && dy < outerBot;
+      if (insideOuter) {
+        // Mouth opening (passable ellipse) — same as the void gradient ellipse
+        const mouthRX = lhw * 0.72;
+        const mouthRY = lhh * 0.62;
+        const nx = dx / mouthRX, ny = dy / mouthRY;
+        const insideMouth = (nx * nx + ny * ny) < 1;
+        if (!insideMouth) {
+          // Hit rock — damage scales with impact speed
+          const spd = Math.hypot(sub.vx, sub.vy);
+          const dmg = Math.max(6, Math.min(30, spd * 6));
+          damageRandomPart(sub.parts, dmg);
+          addExplosion(sub.worldX, sub.y, 'small'); SFX.islandCrash();
+          // Bounce the sub away from the lair centre
+          const bx = Math.sign(dx) || 1;
+          const by = Math.sign(dy) || 1;
+          sub.vx = bx * Math.max(1.2, Math.abs(sub.vx) * 0.6);
+          sub.vy = by * Math.max(0.8, Math.abs(sub.vy) * 0.5);
+        }
       }
     }
   }
@@ -6927,6 +5584,7 @@ function update(dt) {
   // Game over: hull destroyed
   if (sub.parts.hull <= 0) {
     world.gameOver = true;
+    setDeathCause(world, 'hull');
     addExplosion(sub.worldX, sub.y, 'big'); SFX.gameOver();
     ensureLeaderboardRecorded('HULL BREACH');
   }
@@ -6939,6 +5597,8 @@ function update(dt) {
   updateHangars(dt);
   updateDestroyer(dt);
   updateMissionTimer(dt);
+  updateStrikeKills();
+  updateHostages(dt);
   updatePassengerShip(dt);
   updateInterceptors(dt);
   updateAkulaMolot(dt);
@@ -6947,35 +5607,333 @@ function update(dt) {
   updateAirSupremacy(dt);
   updateAirInterceptors(dt);
   updateNemesis(dt);
+  updateMotorcyclists(dt);
+  updateSquadron(dt);
   updateTelemetry(dt, sub.vx, sub.vy, 'atmosphere');
+
+  // ── Dynamic music: detect on-screen bosses and set appropriate track ──
+  // Priority: nemesis > berkut > akula > lightning > ambient
+  if (typeof SFX !== 'undefined' && SFX.music) {
+    const nm = world.nemesis;
+    const bk = world.airSupremacy;
+    const ak = world.terrain.akulaMolot;
+    const liAlive = world.airInterceptors.some(l => l.alive);
+    const onScreen = (x) => Math.abs(x - sub.worldX) < W * 1.2;
+
+    if (nm && nm.alive && onScreen(nm.x)) {
+      SFX.music.set('nemesis');
+    } else if (bk && bk.alive && onScreen(bk.x)) {
+      SFX.music.set('berkut');
+    } else if (ak && !ak.destroyed && onScreen(ak.x)) {
+      SFX.music.set('akula');
+    } else if (liAlive && world.airInterceptors.some(l => l.alive && onScreen(l.x))) {
+      SFX.music.set('lightning');
+    } else {
+      SFX.music.set('ambient');
+    }
+  }
+}
+
+// ============================================================
+// RED ARROW SQUADRON — Two smaller wingmen subs that follow
+// the player and provide support fire. Visual: Red Arrows style
+// (red body with white chevron, smaller than player).
+// ============================================================
+function createSquadron() {
+  const squad = [];
+  for (let i = 0; i < SQUADRON_COUNT; i++) {
+    squad.push({
+      x: 150 + (i + 1) * 40,  // Start near home port
+      y: WATER_LINE - 30,
+      vx: 0, vy: 0,
+      hp: SQUADRON_HP,
+      alive: true,
+      fireCooldown: 30 + i * 10,
+      bullets: [],
+      inWater: false,
+      targetEnemy: null,
+      formOffset: (i === 0 ? -1 : 1), // Left or right of leader
+    });
+  }
+  return squad;
+}
+
+function updateSquadron(dt) {
+  const mode = world.squadronMode;
+  if (mode === 'off') return;
+  const sub = world.sub;
+
+  for (let idx = 0; idx < world.squadron.length; idx++) {
+    const w = world.squadron[idx];
+    if (!w.alive) continue;
+
+    w.fireCooldown = Math.max(0, w.fireCooldown - dt);
+    w.inWater = w.y > WATER_LINE;
+    const speed = w.inWater ? SQUADRON_SPEED_WATER : SQUADRON_SPEED_AIR;
+
+    // ── Update bullets ──
+    for (let i = w.bullets.length - 1; i >= 0; i--) {
+      const b = w.bullets[i];
+      b.worldX += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+      if (b.life <= 0) { w.bullets.splice(i, 1); continue; }
+      // Hit enemies
+      for (let j = world.enemies.length - 1; j >= 0; j--) {
+        const e = world.enemies[j];
+        if (Math.abs(b.worldX - e.worldX) < 12 && Math.abs(b.y - e.y) < 10) {
+          e.health -= b.damage;
+          if (e.health <= 0) {
+            addExplosion(e.worldX, e.y, 'small'); world.score += 80; world.kills++;
+            world.enemies.splice(j, 1); SFX.enemyDestroyed();
+          }
+          w.bullets.splice(i, 1); break;
+        }
+      }
+    }
+
+    // ── Take damage from enemy projectiles ──
+    for (let i = world.enemies.length - 1; i >= 0; i--) {
+      const e = world.enemies[i];
+      if (Math.abs(e.worldX - w.x) < 14 && Math.abs(e.y - w.y) < 10) {
+        w.hp -= 1;
+        if (w.hp <= 0) {
+          w.alive = false;
+          addExplosion(w.x, w.y, 'small'); addParticles(w.x, w.y, 10, '#ef4444');
+          SFX.explodeSmall();
+          world.caveMessage = { text: 'WINGMAN DOWN', timer: 80 };
+        }
+        break;
+      }
+    }
+    if (!w.alive) continue;
+
+    // ── Find appropriate target based on mode ──
+    w.targetEnemy = null;
+    let bestDist = SQUADRON_ENGAGE_RANGE;
+    const candidates = world.enemies;
+    for (const e of candidates) {
+      const d = Math.hypot(e.worldX - w.x, e.y - w.y);
+      if (d >= bestDist) continue;
+      const eInWater = e.y > WATER_LINE;
+      const eOnLand = e.y < WATER_LINE && e.worldX !== undefined; // rough check
+      // Mode filtering
+      if (mode === 'aqua' && !eInWater) continue;           // Only sea targets
+      if (mode === 'aero' && eInWater) continue;             // Only air targets
+      if (mode === 'terra' && !e.isLandTarget) continue;     // Only land targets
+      if (mode === 'astro') continue;                        // Coming soon
+      // 'general' targets anything nearby
+      bestDist = d;
+      w.targetEnemy = e;
+    }
+
+    // Also target nemesis, sopwith, berkut, etc. if in range
+    const specialTargets = [];
+    if (world.sopwith?.alive && world.sopwith.angered) specialTargets.push({ worldX: world.sopwith.x, y: world.sopwith.y, obj: world.sopwith });
+    if (world.airSupremacy?.alive) specialTargets.push({ worldX: world.airSupremacy.x, y: world.airSupremacy.y, obj: world.airSupremacy });
+    if (world.nemesis?.alive) specialTargets.push({ worldX: world.nemesis.x, y: world.nemesis.y, obj: world.nemesis });
+    for (const t of specialTargets) {
+      const d = Math.hypot(t.worldX - w.x, t.y - w.y);
+      if (d < bestDist) {
+        const tInWater = t.y > WATER_LINE;
+        if (mode === 'aqua' && !tInWater) continue;
+        if (mode === 'aero' && tInWater) continue;
+        bestDist = d;
+        w.targetEnemy = t;
+      }
+    }
+
+    // ── Movement AI ──
+    if (w.targetEnemy && bestDist < SQUADRON_ENGAGE_RANGE) {
+      // Peel off and engage — strafe run
+      const te = w.targetEnemy;
+      const tx = te.worldX || te.x;
+      const ty = te.y;
+      const angleToTarget = Math.atan2(ty - w.y, tx - w.x);
+      const distToTarget = Math.hypot(tx - w.x, ty - w.y);
+      w.vx += Math.cos(angleToTarget) * 0.12 * dt;
+      w.vy += Math.sin(angleToTarget) * 0.08 * dt;
+      // Pull up after close pass
+      if (distToTarget < 30) {
+        w.vy -= 0.12 * dt;
+        w.vx += (w.vx > 0 ? 0.06 : -0.06) * dt;
+      }
+      // Fire
+      if (w.fireCooldown <= 0 && distToTarget < SQUADRON_ENGAGE_RANGE) {
+        const spread = (Math.random() - 0.5) * 0.1;
+        w.bullets.push({
+          worldX: w.x, y: w.y,
+          vx: Math.cos(angleToTarget + spread) * SQUADRON_BULLET_SPEED,
+          vy: Math.sin(angleToTarget + spread) * SQUADRON_BULLET_SPEED,
+          life: SQUADRON_BULLET_LIFE, damage: SQUADRON_BULLET_DAMAGE,
+        });
+        w.fireCooldown = SQUADRON_FIRE_COOLDOWN;
+      }
+      // Return to leader if too far from target (give up)
+      if (Math.hypot(sub.worldX - w.x, sub.y - w.y) > SQUADRON_RETURN_RANGE) {
+        w.targetEnemy = null; // Regroup next frame
+      }
+    } else {
+      // Formation: follow the player with offset
+      const formX = sub.worldX + w.formOffset * SQUADRON_FOLLOW_DIST - sub.facing * 30;
+      const formY = sub.y + w.formOffset * 15;
+      const dx = formX - w.x;
+      const dy = formY - w.y;
+      const formAngle = Math.atan2(dy, dx);
+      const formDist = Math.hypot(dx, dy);
+      // Smooth pull that scales with distance — no hard snap
+      const pull = Math.min(0.25, formDist * 0.002 + 0.02);
+      w.vx += Math.cos(formAngle) * pull * dt;
+      w.vy += Math.sin(formAngle) * pull * dt;
+      // Soft catch-up: if far behind, blend position toward target (no hard teleport)
+      if (formDist > 200) {
+        const blend = Math.min(0.05, (formDist - 200) * 0.0003) * dt;
+        w.x += dx * blend;
+        w.y += dy * blend;
+        w.vx = w.vx * 0.9 + sub.vx * 0.1;
+        w.vy = w.vy * 0.9 + sub.vy * 0.1;
+      }
+    }
+
+    // Speed cap
+    const spd = Math.hypot(w.vx, w.vy);
+    if (spd > speed) { w.vx *= speed / spd; w.vy *= speed / spd; }
+    w.x += w.vx * dt;
+    w.y += w.vy * dt;
+    w.y = clamp(w.y, 20, SEA_FLOOR - 10);
+  }
+}
+
+function drawSquadron() {
+  if (world.squadronMode === 'off') return;
+
+  for (const w of world.squadron) {
+    if (!w.alive) continue;
+    const sx = toScreen(w.x);
+    // Wider cull so they don't pop in/out at screen edges
+    if (sx < -80 || sx > W + 80) continue;
+    const dir = w.vx >= 0 ? 1 : -1;
+    const hpPct = w.hp / SQUADRON_HP;
+
+    // ── Damage smoke trail (yellow < 60%, red < 30%, purple flashing < 15%) ──
+    if (hpPct < 0.6 && world.tick % (hpPct < 0.15 ? 2 : hpPct < 0.3 ? 3 : 5) === 0) {
+      const smokeColor = hpPct < 0.15 ? '#9b59b6' : hpPct < 0.3 ? '#333' : '#555';
+      addParticles(w.x - dir * 14, w.y, 1, smokeColor);
+    }
+
+    ctx.save();
+    ctx.translate(sx, w.y);
+    ctx.scale(dir, 1);
+
+    // ── Purple flash when critical (<15% HP) ──
+    if (hpPct < 0.15 && world.tick % 10 < 5) {
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#9b59b6';
+      ctx.beginPath(); ctx.ellipse(0, 0, 16, 8, 0, 0, TWO_PI); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Smaller sub body — Red Arrows livery (red + white chevron)
+    ctx.fillStyle = hpPct < 0.3 ? '#7f1d1d' : '#dc2626';
+    ctx.beginPath(); ctx.ellipse(0, 0, 12, 4.5, 0, 0, TWO_PI); ctx.fill();
+    ctx.strokeStyle = '#991b1b'; ctx.lineWidth = 0.8; ctx.stroke();
+    // White chevron on hull
+    ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(-4, -3); ctx.lineTo(2, 0); ctx.lineTo(-4, 3); ctx.stroke();
+    // Tower
+    ctx.fillStyle = '#b91c1c';
+    ctx.fillRect(-1.5, -7, 3, 3);
+    // Wings
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.moveTo(-2, -3.5); ctx.lineTo(-6, -8); ctx.lineTo(-3, -8); ctx.lineTo(1, -3.5);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-2, 3.5); ctx.lineTo(-6, 8); ctx.lineTo(-3, 8); ctx.lineTo(1, 3.5);
+    ctx.closePath(); ctx.fill();
+    // Nose
+    ctx.fillStyle = '#fca5a5';
+    ctx.beginPath(); ctx.arc(12, 0, 2.5, -Math.PI / 2, Math.PI / 2); ctx.fill();
+    // Engine
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(-14, -2, 4, 4);
+    // Propeller / bubble trail
+    if (!w.inWater) {
+      const pa = Date.now() / 35;
+      ctx.strokeStyle = '#fca5a5'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-14, Math.sin(pa) * 3.5); ctx.lineTo(-14, -Math.sin(pa) * 3.5); ctx.stroke();
+    } else {
+      ctx.fillStyle = 'rgba(133,193,233,0.25)';
+      for (let b = 0; b < 2; b++) {
+        ctx.beginPath();
+        ctx.arc(-16 - b * 4 + Math.random() * 2, (Math.random() - 0.5) * 3, 1.5, 0, TWO_PI);
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
+
+    // Bullets
+    ctx.fillStyle = '#fca5a5';
+    for (const b of w.bullets) {
+      const bsx = toScreen(b.worldX);
+      if (bsx < -5 || bsx > W + 5) continue;
+      ctx.beginPath(); ctx.arc(bsx, b.y, 1.2, 0, TWO_PI); ctx.fill();
+    }
+  }
+
+  // ── Squadron status boxes (top-right) — tiny, minimal ──
+  if (world.squadronMode !== 'off') {
+    const modeColors = { general: '#94a3b8', aqua: '#38bdf8', aero: '#a78bfa', terra: '#4ade80', astro: '#fbbf24' };
+    const modeColor = modeColors[world.squadronMode] || '#94a3b8';
+
+    // Mode label
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(W - 110, 6, 104, 14);
+    ctx.fillStyle = modeColor;
+    ctx.font = 'bold 9px Arial'; ctx.textAlign = 'right';
+    ctx.fillText(`SQN: ${world.squadronMode.toUpperCase()}`, W - 10, 16);
+
+    // Per-wingman status pip — tiny coloured box per wingman
+    for (let i = 0; i < world.squadron.length; i++) {
+      const w = world.squadron[i];
+      const bx = W - 110 + i * 50;
+      const by = 22;
+
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(bx, by, 46, 12);
+
+      if (!w.alive) {
+        // Dead — grey with X
+        ctx.fillStyle = '#4a4a4a';
+        ctx.fillRect(bx + 1, by + 1, 44, 10);
+        ctx.fillStyle = '#888'; ctx.font = '8px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('DOWN', bx + 23, by + 10);
+      } else {
+        const hpPct = w.hp / SQUADRON_HP;
+        let statusColor, label;
+        if (hpPct > 0.6) { statusColor = '#22c55e'; label = 'OK'; }
+        else if (hpPct > 0.3) { statusColor = '#eab308'; label = 'DMG'; }
+        else if (hpPct > 0.15) { statusColor = '#ef4444'; label = 'CRIT'; }
+        else {
+          // Flashing purple — critical warning
+          statusColor = world.tick % 8 < 4 ? '#9b59b6' : '#1a1a2e';
+          label = 'WARN';
+        }
+        ctx.fillStyle = statusColor;
+        ctx.fillRect(bx + 1, by + 1, 44, 10);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(`W${i + 1} ${label}`, bx + 23, by + 10);
+      }
+    }
+  }
 }
 
 function updateEnemies(dt) {
   const sub = world.sub;
   const hidden = sub.periscopeMode;
-  world.enemyTimer += hidden ? dt * 0.2 : dt;
-  // Cap active aircraft to keep skies clear
-  const airCount = world.enemies.filter(e => e.type !== 'ship').length;
-  if (!hidden && world.enemyTimer > 160 && airCount < 3) {
-    world.enemyTimer = 0;
-    const side = Math.random() < 0.7 ? sub.facing : -sub.facing;
-    const spawnX = sub.worldX + side * (W * 0.6 + Math.random() * 200);
-    // Type selection: aircraft (jet, heli) — lower density than before
-    const roll = Math.random();
-    let type, ey, vx, vy, health;
-    if (roll < 0.55) {
-      // Fast jet fighter
-      type = 'jet'; ey = 60 + Math.random() * 120;
-      vx = side > 0 ? -(3 + Math.random()*1.5) : (3 + Math.random()*1.5);
-      vy = (Math.random()-0.5)*0.3; health = 3;
-    } else {
-      // Helicopter-style threat — slower, hovers in the sky
-      type = 'heli'; ey = 70 + Math.random() * 60;
-      vx = side > 0 ? -(1.2 + Math.random()*0.6) : (1.2 + Math.random()*0.6);
-      vy = (Math.random()-0.5)*0.25; health = 3;
-    }
-    world.enemies.push({ worldX: spawnX, y: ey, vx, vy, health, type });
-  }
+  // Generic filler enemies (random jets/helis) DISABLED — the named enemy systems
+  // (Sopwith, Berkut, Lightning, Nemesis, Akula, Delfin, Destroyer, Interceptors)
+  // provide all the combat variety needed without random clutter.
+  // The array is kept alive for any legacy enemies that might still exist.
   world.enemies = world.enemies.filter(e => {
     e.worldX += e.vx * dt;
     if (e.type === 'ship') {
@@ -7040,12 +5998,243 @@ function updateProjectiles(dt) {
   });
 }
 
+// --- Update sub MG bullets, railgun shots, and commander bullets ---
+function updateNewProjectiles(dt) {
+  const sub = world.sub;
+
+  // Sub MG bullets — damage enemies on contact
+  for (let i = world.subMgBullets.length - 1; i >= 0; i--) {
+    const b = world.subMgBullets[i];
+    b.worldX += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    if (b.life <= 0) { world.subMgBullets.splice(i, 1); continue; }
+    for (let j = world.enemies.length - 1; j >= 0; j--) {
+      const e = world.enemies[j];
+      if (Math.abs(b.worldX - e.worldX) < 14 && Math.abs(b.y - e.y) < 10) {
+        e.health -= b.damage;
+        if (e.health <= 0) {
+          addExplosion(e.worldX, e.y, 'small'); world.score += 100; world.kills++;
+          world.enemies.splice(j, 1); SFX.enemyDestroyed();
+        }
+        world.subMgBullets.splice(i, 1); break;
+      }
+    }
+  }
+
+  // Railgun shots — pierce through enemies, massive damage, trail effect
+  for (let i = world.railgunShots.length - 1; i >= 0; i--) {
+    const r = world.railgunShots[i];
+    r.worldX += r.vx * dt; r.y += r.vy * dt; r.life -= dt;
+    if (r.life % 2 < 1) r.trail.push({ wx: r.worldX, y: r.y, age: 0 });
+    if (r.trail.length > 12) r.trail.shift();
+    r.trail.forEach(t => t.age += dt);
+    if (r.life <= 0) { world.railgunShots.splice(i, 1); continue; }
+    // Railgun pierces — damages ALL enemies in path, doesn't stop
+    for (let j = world.enemies.length - 1; j >= 0; j--) {
+      const e = world.enemies[j];
+      if (Math.abs(r.worldX - e.worldX) < 16 && Math.abs(r.y - e.y) < 12) {
+        e.health -= r.damage;
+        addExplosion(e.worldX, e.y, 'big'); SFX.explodeBig();
+        if (e.health <= 0) {
+          addParticles(e.worldX, e.y, 20, '#7df9ff');
+          world.score += 500; world.kills++; world.enemies.splice(j, 1); SFX.enemyDestroyed();
+        }
+      }
+    }
+  }
+
+  // Bouncing bombs — gravity in air, bounce off water, explode on land
+  for (let i = world.bouncingBombs.length - 1; i >= 0; i--) {
+    const bb = world.bouncingBombs[i];
+    // Gravity
+    bb.vy += GRAVITY * 0.8 * dt;
+    bb.worldX += bb.vx * dt;
+    bb.y += bb.vy * dt;
+    bb.life -= dt;
+    bb.spin += bb.vx * 0.05 * dt; // Visual backspin
+
+    if (bb.life <= 0) { world.bouncingBombs.splice(i, 1); continue; }
+
+    // Water surface bounce
+    if (bb.y >= WATER_LINE && bb.vy > 0) {
+      bb.bounces++;
+      if (bb.bounces > BBOMB_MAX_BOUNCES || Math.abs(bb.vx) < 0.5) {
+        // Out of bounces or too slow — sinks (dud)
+        addParticles(bb.worldX, WATER_LINE, 8, '#85c1e9');
+        SFX.waterSplash();
+        world.bouncingBombs.splice(i, 1);
+        ticker('Bomb sank — dud', 40);
+        continue;
+      }
+      // Bounce: reflect vy, lose energy — big water plume each bounce
+      bb.vy = -Math.abs(bb.vy) * BBOMB_BOUNCE_LOSS;
+      bb.vx *= (BBOMB_BOUNCE_LOSS + 0.15);
+      bb.y = WATER_LINE - 2;
+      // Dramatic water plume — bigger on earlier bounces
+      const plumeSize = Math.max(6, 16 - bb.bounces * 2);
+      addParticles(bb.worldX, WATER_LINE, plumeSize, '#85c1e9');
+      addParticles(bb.worldX - 8, WATER_LINE - 4, 3, '#bfe6ff');
+      addParticles(bb.worldX + 8, WATER_LINE - 4, 3, '#bfe6ff');
+      SFX.waterSplash();
+      world._screenShake = Math.max(world._screenShake || 0, 4); // Slight shake on impact
+    }
+
+    // Ship contact — a bouncing bomb skipping across the water is supposed
+    // to smash into surface ships (that's the whole Barnes Wallis point).
+    // Check every surface vessel along the bomb's path and detonate on hit.
+    let hitShip = null;
+    const bbY = bb.y;
+    // Bombs only interact with ships while roughly at surface level (bomb is
+    // arcing between bounces or cruising low). Ships sit at WATER_LINE - ~6
+    // to - ~8, so anything within ~50px vertically counts as a hull strike.
+    // Use a generous vertical window so a bomb mid-arc still hits a tall hull.
+    if (bbY > WATER_LINE - 60 && bbY < WATER_LINE + 25) {
+      const dest = world.terrain.destroyer;
+      if (dest && !dest.destroyed && Math.abs(bb.worldX - dest.x) < 55) {
+        hitShip = { obj: dest, kind: 'destroyer', score: 2000, civilian: false };
+      }
+      if (!hitShip) {
+        const pass = world.terrain.passengerShip;
+        if (pass && !pass.destroyed && Math.abs(bb.worldX - pass.x) < 45) {
+          hitShip = { obj: pass, kind: 'passenger', score: 0, civilian: true };
+        }
+      }
+      if (!hitShip) {
+        for (const boat of (world.terrain.interceptors || [])) {
+          if (boat.destroyed) continue;
+          if (Math.abs(bb.worldX - boat.x) < 32) {
+            hitShip = { obj: boat, kind: 'interceptor', score: 400, civilian: false };
+            break;
+          }
+        }
+      }
+    }
+    if (hitShip) {
+      addExplosion(bb.worldX, bb.y, 'big');
+      addExplosion(bb.worldX - 12, bb.y - 4, 'big');
+      addParticles(bb.worldX, bb.y, 20, '#ff6b00');
+      SFX.explodeBig();
+      hitShip.obj.hp = 0;
+      hitShip.obj.destroyed = true;
+      if (hitShip.civilian) {
+        world.score = 0;
+        world.caveMessage = { text: 'BOUNCING BOMB HIT CIVILIAN SHIP — SCORE ZERO', timer: 250 };
+        SFX.gameOver();
+      } else {
+        world.score += hitShip.score;
+        world.kills++;
+        midNotice(`BOUNCING BOMB — ${hitShip.kind.toUpperCase()} SUNK!`, 80);
+      }
+      world.bouncingBombs.splice(i, 1);
+      continue;
+    }
+
+    // Land/island contact — EXPLODE
+    const groundY = getGroundY(bb.worldX);
+    const hitIsland = islandHitTest(bb.worldX, bb.y);
+    if (bb.y >= groundY || hitIsland) {
+      // Massive explosion
+      addExplosion(bb.worldX, bb.y, 'big');
+      addExplosion(bb.worldX - 15, bb.y - 5, 'big');
+      addExplosion(bb.worldX + 15, bb.y + 5, 'big');
+      addParticles(bb.worldX, bb.y, 25, '#ff6b00');
+      SFX.explodeBig();
+      // Area damage to all enemies in blast radius
+      for (let j = world.enemies.length - 1; j >= 0; j--) {
+        const e = world.enemies[j];
+        if (Math.hypot(bb.worldX - e.worldX, bb.y - e.y) < BBOMB_BLAST_RADIUS) {
+          e.health -= BBOMB_DAMAGE;
+          if (e.health <= 0) {
+            addExplosion(e.worldX, e.y, 'big');
+            world.score += 600; world.kills++;
+            world.enemies.splice(j, 1); SFX.enemyDestroyed();
+          }
+        }
+      }
+      // Damage radar towers in radius
+      for (const r of world.terrain.radars) {
+        if (!r.destroyed && Math.hypot(bb.worldX - r.x, bb.y - r.y) < BBOMB_BLAST_RADIUS) {
+          r.destroyed = true; r.hp = 0;
+          addExplosion(r.x, r.y, 'big'); world.score += 400;
+        }
+      }
+      world.bouncingBombs.splice(i, 1);
+      midNotice('BOUNCING BOMB — DIRECT HIT!', 80);
+      continue;
+    }
+  }
+
+  // Commander bullets (pistol / grenade / PPC)
+  for (let i = world.commanderBullets.length - 1; i >= 0; i--) {
+    const b = world.commanderBullets[i];
+    b.worldX += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    // Grenades have gravity
+    if (b.type === 'grenade') b.vy += GRAVITY * 0.7 * dt;
+    if (b.life <= 0) {
+      // Grenade explodes on timeout
+      if (b.type === 'grenade' && b.blastRadius) {
+        addExplosion(b.worldX, b.y, 'big'); SFX.explodeBig();
+        for (let j = world.enemies.length - 1; j >= 0; j--) {
+          const e = world.enemies[j];
+          if (Math.hypot(b.worldX - e.worldX, b.y - e.y) < b.blastRadius) {
+            e.health -= b.damage;
+            if (e.health <= 0) {
+              addExplosion(e.worldX, e.y, 'big'); world.score += 200; world.kills++;
+              world.enemies.splice(j, 1); SFX.enemyDestroyed();
+            }
+          }
+        }
+      }
+      world.commanderBullets.splice(i, 1); continue;
+    }
+    // Contact damage for pistol/PPC
+    if (b.type !== 'grenade') {
+      for (let j = world.enemies.length - 1; j >= 0; j--) {
+        const e = world.enemies[j];
+        if (Math.abs(b.worldX - e.worldX) < 14 && Math.abs(b.y - e.y) < 10) {
+          e.health -= b.damage;
+          if (b.type === 'ppc') { addExplosion(e.worldX, e.y, 'big'); SFX.explodeBig(); }
+          else { addExplosion(e.worldX, e.y, 'small'); }
+          if (e.health <= 0) {
+            addParticles(e.worldX, e.y, 10, b.type === 'ppc' ? '#ff00ff' : '#ffd166');
+            world.score += b.type === 'ppc' ? 400 : 150; world.kills++;
+            world.enemies.splice(j, 1); SFX.enemyDestroyed();
+          }
+          if (b.type !== 'ppc') { world.commanderBullets.splice(i, 1); break; } // PPC pierces
+        }
+      }
+    }
+  }
+}
+
 function updateEffects(dt) {
   world.explosions = world.explosions.filter(e => { e.age += dt; return e.age < e.duration; });
   world.particles = world.particles.filter(p => {
     p.worldX += p.vx*dt; p.y += p.vy*dt; p.vy += 0.08*dt; p.age += dt;
     return p.age < p.life;
   });
+}
+
+// ── Notification helpers — four tiers ──
+// midNotice(text, timer)   — big centre-screen banner for critical events
+// hudFlash(text, timer, color) — pulsing warning in bottom-left HUD
+// ticker(text, timer)      — small scrolling text at bottom
+// actionIcon(symbol, timer, color) — floating symbol near the sub
+function midNotice(text, timer) {
+  world.caveMessage = { text, timer: timer || 120, tier: 'mid' };
+}
+function hudFlash(text, timer, color) {
+  if (!world._notifications) world._notifications = { ticker: [], hudFlash: null, actionIcon: null };
+  world._notifications.hudFlash = { text, timer: timer || 80, color: color || '#ef4444' };
+}
+function ticker(text, timer) {
+  if (!world._notifications) world._notifications = { ticker: [], hudFlash: null, actionIcon: null };
+  world._notifications.ticker.push({ text, timer: timer || 60 });
+  if (world._notifications.ticker.length > 5) world._notifications.ticker.shift();
+}
+function actionIcon(symbol, timer, color, offsetX, offsetY) {
+  if (!world._notifications) world._notifications = { ticker: [], hudFlash: null, actionIcon: null };
+  const maxT = timer || 40;
+  world._notifications.actionIcon = { symbol, timer: maxT, maxTimer: maxT, color: color || '#fbbf24', offsetX: offsetX || 0, offsetY: offsetY || 0 };
 }
 
 function addExplosion(wx, y, size) {
@@ -7069,567 +6258,52 @@ function stripedGradient(x0, y0, x1, y1, colors) {
   return gradient;
 }
 
-function drawCompactLegend() {
-  if (!world.settings.showLegend || world.paused) return;
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-  ctx.fillRect(12, H - 56, 430, 40);
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-  ctx.strokeRect(12, H - 56, 430, 40);
-  ctx.fillStyle = 'rgba(255,255,255,0.78)';
-  ctx.font = '11px Arial';
-  ctx.textAlign = 'left';
-  ctx.fillText('Esc: controls  |  E: disembark  |  M: embark  |  A: afterburner  |  P: periscope', 22, H - 33);
-  ctx.fillText('Ctrl: torpedo  |  Enter: missile  |  AltGr: depth charge  |  Space: cruise/stabilise', 22, H - 19);
-}
 
-function drawLeaderboardPanel(x, y, title) {
-  const board = world.leaderboard || [];
-  ctx.fillStyle = 'rgba(0,0,0,0.62)';
-  ctx.fillRect(x, y, 320, 152);
-  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-  ctx.strokeRect(x, y, 320, 152);
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 18px Arial';
-  ctx.textAlign = 'left';
-  ctx.fillText(title, x + 14, y + 24);
-  ctx.font = '12px Arial';
-  if (board.length === 0) {
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fillText('No runs recorded yet.', x + 14, y + 52);
-    return;
-  }
-  board.forEach((entry, index) => {
-    const rowY = y + 48 + index * 20;
-    ctx.fillStyle = index === 0 ? '#fcd34d' : '#e2e8f0';
-    ctx.fillText(`${index + 1}. ${entry.score} pts`, x + 14, rowY);
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillText(`${entry.kills} kills`, x + 118, rowY);
-    ctx.fillText(entry.status || 'Run', x + 180, rowY);
-  });
-}
+// ── HUD/overlay/scoring functions extracted to hud.js ──
+// Compact legend, leaderboard, solar minimap, flight instruments,
+// pause overlay, warp menu, orbit scene, HUD, scoring, damage diagram
 
-function drawSolarMiniMap() {
-  const x = SOLAR_MAP_PADDING;
-  const y = SOLAR_MAP_PADDING;
-  ctx.fillStyle = 'rgba(3,7,18,0.85)';
-  ctx.fillRect(x, y, SOLAR_MAP_SIZE, SOLAR_MAP_SIZE);
-  ctx.strokeStyle = 'rgba(248,250,252,0.2)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x, y, SOLAR_MAP_SIZE, SOLAR_MAP_SIZE);
 
-  const centerX = x + SOLAR_MAP_SIZE / 2;
-  const centerY = y + SOLAR_MAP_SIZE / 2;
-  const bodies = getSolarBodies(world.tick * SOLAR_MAP_ANIMATION_SPEED);
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-  ctx.lineWidth = 1;
-  for (const body of bodies) {
-    if (body.id === 'sun') continue;
-    const orbitRadius = Math.max(14, body.orbitRadius * SOLAR_MAP_SCALE);
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, orbitRadius, 0, TWO_PI);
-    ctx.stroke();
-  }
-
-  for (const body of bodies) {
-    const radius = body.id === 'sun' ? 8 : 4;
-    const px = centerX + body.x * SOLAR_MAP_SCALE;
-    const py = centerY + body.y * SOLAR_MAP_SCALE;
-    ctx.fillStyle = body.id === 'sun' ? '#ffd166' : body.color;
-    ctx.beginPath();
-    ctx.arc(px, py, radius, 0, TWO_PI);
-    ctx.fill();
-    if (body.id !== 'sun') {
-      ctx.fillStyle = '#cbd5e1';
-      ctx.font = '8px "Courier New", monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(body.label.slice(0, 2).toUpperCase(), px, py + 12);
-    }
-  }
-
-  const destination = world.currentDestination || PLANETS[world.currentPlanet];
-  if (destination) {
-    const body = bodies.find((b) => b.label.toLowerCase() === destination.name.toLowerCase());
-    if (body) {
-      const px = centerX + body.x * SOLAR_MAP_SCALE;
-      const py = centerY + body.y * SOLAR_MAP_SCALE;
-      ctx.strokeStyle = destination.star ? '#f97316' : '#34d399';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(px, py, destination.star ? 12 : 7, 0, TWO_PI);
-      ctx.stroke();
-    }
-  }
-
-  ctx.fillStyle = '#e2e8f0';
-  ctx.font = '10px "Courier New", monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText(`Warp hotkeys: 1-4 = planets`, x + 8, y + SOLAR_MAP_SIZE - 32);
-  ctx.fillText(`5 = Sun (hazard)`, x + 8, y + SOLAR_MAP_SIZE - 20);
-  ctx.fillText(`F opens orbit menu`, x + 8, y + SOLAR_MAP_SIZE - 8);
-}
-
-function drawFlightInstruments() {
-  const telemetry = world.telemetry || {};
-  const speed = clamp(telemetry.speedMph || 0, 0, SPEEDOMETER_MAX_MPH);
-  const accel = clamp(telemetry.accelG || 0, 0, ACCELEROMETER_MAX_G);
-
-  const panelX = W - 226;
-  const panelY = 12;
-  const panelW = 214;
-  const panelH = 138;
-  ctx.fillStyle = 'rgba(1,4,14,0.92)';
-  ctx.fillRect(panelX, panelY, panelW, panelH);
-  const grad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-  grad.addColorStop(0, 'rgba(15,23,42,0.7)');
-  grad.addColorStop(1, 'rgba(2,6,18,0.95)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(panelX, panelY, panelW, panelH);
-  ctx.strokeStyle = 'rgba(248,250,252,0.2)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(panelX, panelY, panelW, panelH);
-
-  const centerX = panelX + panelW / 2;
-  // Red accent in space, blue in atmosphere
-  const inOrbit = world.mode === 'orbit';
-  const gaugeColor = inOrbit ? '#ef4444' : '#0ea5e9';
-  const gaugeColorDim = inOrbit ? 'rgba(239,68,68,0.15)' : 'rgba(14,165,233,0.15)';
-
-  ctx.font = 'bold 38px "Courier New", monospace';
-  ctx.fillStyle = gaugeColor;
-  ctx.textAlign = 'center';
-  const speedStr = `${Math.round(speed)}`.padStart(3, '0');
-  ctx.fillText(speedStr, centerX, panelY + 70);
-  ctx.font = '11px "Courier New", monospace';
-  ctx.fillStyle = '#cbd5e1';
-  const label = telemetry.mode === 'orbit' ? 'IMPULSE' : 'MPH';
-  ctx.fillText(label, centerX, panelY + 90);
-
-  const segmentCount = 10;
-  const segmentWidth = (panelW - 32) / segmentCount;
-  const limitColor = telemetry.launchReady ? '#f97316' : '#94a3b8';
-  for (let i = 0; i < segmentCount; i++) {
-    const segX = panelX + 16 + i * segmentWidth;
-    const segmentActive = (speed / SPEEDOMETER_MAX_MPH) > i / segmentCount;
-    ctx.fillStyle = segmentActive ? gaugeColor : gaugeColorDim;
-    ctx.fillRect(segX, panelY + 24, segmentWidth - 2, 6);
-  }
-
-  const accelPanelX = panelX + panelW - 48;
-  const accelPanelY = panelY + 12;
-  const accelPanelH = panelH - 28;
-  ctx.fillStyle = 'rgba(2,6,18,0.85)';
-  ctx.fillRect(accelPanelX, accelPanelY, 36, accelPanelH);
-  ctx.strokeStyle = 'rgba(248,250,252,0.18)';
-  ctx.strokeRect(accelPanelX, accelPanelY, 36, accelPanelH);
-  const accelHeight = Math.max(6, (accel / ACCELEROMETER_MAX_G) * (accelPanelH - 12));
-  ctx.fillStyle = inOrbit
-    ? (accel > 2 ? '#fca5a5' : accel > 1 ? '#f87171' : '#ef4444')
-    : (accel > 2 ? '#ef4444' : accel > 1 ? '#f59e0b' : '#22c55e');
-  ctx.fillRect(accelPanelX + 8, accelPanelY + accelPanelH - 8 - accelHeight, 20, accelHeight);
-  ctx.fillStyle = '#e2e8f0';
-  ctx.font = 'bold 10px "Courier New", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('G', accelPanelX + 18, accelPanelY + 14);
-  ctx.fillText(`${accel.toFixed(2)}G`, accelPanelX + 18, accelPanelY + accelPanelH - 6);
-
-  ctx.font = '11px "Courier New", monospace';
-  ctx.textAlign = 'left';
-  ctx.fillStyle = limitColor;
-  ctx.fillText(telemetry.launchReady ? '88 MPH WINDOW LIVE' : 'Build for 88 MPH', panelX + 12, panelY + panelH - 26);
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText('FLIGHT', panelX + 12, panelY + panelH - 42);
-
-  const destination = world.currentDestination || PLANETS[world.currentPlanet];
-  if (destination) {
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = '10px "Courier New", monospace';
-    ctx.fillText(`DEST: ${destination.name}`, panelX + 12, panelY + panelH - 58);
-    if (destination.hotkey) {
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText(`HOTKEY: ${destination.hotkey}`, panelX + 12, panelY + panelH - 46);
-    }
-  }
-
-  if (world.sunBurnTimer > 0) {
-    ctx.fillStyle = '#f97316';
-    ctx.font = 'bold 11px "Courier New", monospace';
-    ctx.fillText('SUN BURN — HULL HEATING', panelX + 12, panelY + panelH - 12);
-  }
-}
-
-function drawPauseOverlay() {
-  const skin = resolveSubSkin(world.settings);
-  ctx.fillStyle = 'rgba(0,0,0,0.7)';
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#e2e8f0';
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 40px Arial';
-  ctx.fillText('PAUSED', W / 2, 56);
-  ctx.font = '16px Arial';
-  ctx.fillText('Esc resumes', W / 2, 82);
-
-  // --- Controls column ---
-  ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(8,15,30,0.82)';
-  ctx.fillRect(58, 100, 320, 260);
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.strokeRect(58, 100, 320, 260);
-
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 18px Arial';
-  ctx.fillText('Controls', 84, 128);
-  ctx.font = '14px Arial';
-  const controls = [
-    'Arrows: steer, climb, dive',
-    'Ctrl: torpedo',
-    'Enter: missile (surface only)',
-    'AltGr: depth charge',
-    'Space: cruise / stabilise / stop',
-    'A: afterburner',
-    'P: periscope mode',
-    'E: disembark  |  M: embark',
-    'Tab: emergency eject (diving bell)',
-    'Esc: pause and settings',
-  ];
-  controls.forEach((line, idx) => ctx.fillText(line, 84, 156 + idx * 20));
-
-  // --- Settings column ---
-  ctx.fillStyle = 'rgba(8,15,30,0.82)';
-  ctx.fillRect(400, 100, 342, 260);
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.strokeRect(400, 100, 342, 260);
-
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 18px Arial';
-  ctx.fillText('Settings', 420, 128);
-  ctx.font = '14px Arial';
-  ctx.fillText(`Sub skin: ${skin.label}`, 420, 156);
-  ctx.fillText('Use [ and ] to cycle skins', 420, 176);
-  ctx.fillText(`Custom hue: ${Math.round(world.settings.customHue)}${skin.customHue ? ' degrees' : ' (Spectrum only)'}`, 420, 200);
-  ctx.fillText('Use , and . to tune hue', 420, 220);
-  ctx.fillText(`Legend: ${world.settings.showLegend ? 'ON' : 'OFF'}  (L to toggle)`, 420, 248);
-  ctx.fillText(`HALO chute: ${world.settings.haloParachute ? 'ON' : 'OFF'}  (H to toggle)`, 420, 268);
-  ctx.fillText(`Deep diver kit: ${world.settings.deepDiverKit ? 'ON' : 'OFF'}  (D to toggle)`, 420, 288);
-  ctx.fillText(`Supply crates: ${getSupplyFrequency(world.settings).label}  (C to cycle)`, 420, 308);
-  ctx.fillText(`Nemesis sub: ${world.settings.nemesisSub ? 'ON' : 'OFF'}  (G to toggle)`, 420, 328);
-  ctx.fillText(`Leaderboard entries: ${(world.leaderboard || []).length}`, 420, 348);
-
-  // --- Game actions panel ---
-  ctx.fillStyle = 'rgba(8,15,30,0.82)';
-  ctx.fillRect(58, 374, 684, 76);
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.strokeRect(58, 374, 684, 76);
-
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 18px Arial';
-  ctx.fillText('Game', 84, 402);
-  ctx.font = '14px Arial';
-  const savedTag = hasSavedGame() ? '  (save exists)' : '';
-  ctx.fillText(`S: save game   O: load game${savedTag}   N: new game   Q: quit`, 84, 430);
-
-  // --- Key bindings panel ---
-  ctx.fillStyle = 'rgba(8,15,30,0.82)';
-  ctx.fillRect(58, 454, 684, 126);
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.strokeRect(58, 454, 684, 126);
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 14px Arial';
-  ctx.textAlign = 'left';
-  ctx.fillText('Key Bindings (press number to rebind, Backspace to reset all)', 78, 472);
-  ctx.font = '12px Arial';
-  const bindCols = 2;
-  const colW = 330;
-  for (let i = 0; i < REBIND_ACTIONS.length; i++) {
-    const action = REBIND_ACTIONS[i];
-    const col = i < 5 ? 0 : 1;
-    const row = i < 5 ? i : i - 5;
-    const bx = 84 + col * colW;
-    const by = 490 + row * 18;
-    const isRebinding = rebindAction === action;
-    ctx.fillStyle = isRebinding ? '#ff4444' : '#cbd5e1';
-    ctx.fillText(`${i}: ${action}`, bx, by);
-    ctx.fillStyle = isRebinding ? '#ff8888' : '#94a3b8';
-    ctx.fillText(isRebinding ? '[ press new key... ]' : `= ${keyLabel(keybinds[action])}`, bx + 140, by);
-  }
-}
-
-function drawWarpMenu() {
-  if (!world.menuOpen) return;
-  const palette = getCurrentPlanetPalette();
-  const nextPlanet = PLANETS[(world.currentPlanet + 1) % PLANETS.length];
-  ctx.fillStyle = 'rgba(4,4,18,0.92)';
-  ctx.fillRect(W/2 - 220, H/2 - 140, 440, 220);
-  ctx.strokeStyle = palette.accent;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(W/2 - 220, H/2 - 140, 440, 220);
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 24px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('Orbit Menu', W/2, H/2 - 90);
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = '16px Arial';
-  ctx.fillText(`Next planet: ${nextPlanet.name}`, W/2, H/2 - 54);
-  ctx.font = '14px Arial';
-  ctx.fillText('Press Enter to depart once you have a sustained 88 MPH climb', W/2, H/2 - 24);
-  ctx.fillText('Use the arrow keys to build velocity, then aim straight up', W/2, H/2 + 4);
-  ctx.fillText('Current planet colors are shown in the HUD and damage map', W/2, H/2 + 32);
-  ctx.fillStyle = palette.enemy;
-  ctx.fillText(`Palette accent: ${palette.name}`, W/2, H/2 + 58);
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = '12px Arial';
-  ctx.fillText('Press F or Esc to close this menu', W/2, H/2 + 78);
-}
-
-function drawComets(space) {
-  for (const c of space.comets) {
-    if (c.trail.length < 2) continue;
-    const pos = c.trail[c.trail.length - 1];
-    // Trail
-    for (let i = 1; i < c.trail.length; i++) {
-      const t0 = c.trail[i - 1];
-      const t1 = c.trail[i];
-      ctx.globalAlpha = (i / c.trail.length) * 0.6;
-      ctx.strokeStyle = '#7dd3fa';
-      ctx.lineWidth   = 1.5 * (i / c.trail.length);
-      ctx.beginPath();
-      ctx.moveTo(t0.x, t0.y);
-      ctx.lineTo(t1.x, t1.y);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-    // Head
-    ctx.fillStyle = '#e0f2fe';
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, c.radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawDebrisClouds(space) {
-  for (const c of space.debrisClouds) {
-    if (c.collected) continue;
-    ctx.save();
-    ctx.translate(c.x, c.y);
-    // Soft glow
-    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, c.radius);
-    grad.addColorStop(0, c.type === 'hull' ? 'rgba(100,200,100,0.12)' : 'rgba(100,150,255,0.12)');
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(0, 0, c.radius, 0, Math.PI * 2);
-    ctx.fill();
-    // Particles
-    ctx.fillStyle = c.type === 'hull' ? '#6ee7b7' : '#93c5fd';
-    for (const p of c.particles) {
-      ctx.beginPath();
-      ctx.arc(p.dx, p.dy, p.r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-}
-
-function drawOrbitalProjectiles(space) {
-  for (const p of space.projectiles) {
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.fillStyle = p.type === 'torpedo' ? '#38bdf8' : '#f97316';
-    ctx.beginPath();
-    ctx.arc(0, 0, p.type === 'torpedo' ? 3 : 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-}
-
-function drawAsteroids(space) {
-  for (const a of space.asteroids) {
-    ctx.save();
-    ctx.translate(a.x, a.y);
-    ctx.fillStyle = a.color;
-    // Rough polygon shape
-    ctx.beginPath();
-    const sides = 6 + Math.floor(a.radius / 4);
-    for (let i = 0; i < sides; i++) {
-      const ang = (i / sides) * Math.PI * 2;
-      const r   = a.radius * (0.75 + 0.25 * Math.sin(ang * 3 + a.id));
-      i === 0 ? ctx.moveTo(Math.cos(ang) * r, Math.sin(ang) * r)
-              : ctx.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-}
-
-function drawOrbitScene() {
-  const space = world.space;
-  const bodies = getSolarBodies(space.time);
-  ctx.fillStyle = '#020617';
-  ctx.fillRect(0, 0, W, H);
-
-  for (let i = 0; i < 90; i++) {
-    const sx = (i * 83 + world.tick * 0.7) % W;
-    const sy = (i * 47) % H;
-    ctx.globalAlpha = 0.2 + (Math.sin(world.tick * 0.015 + i) + 1) * 0.18;
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(sx, sy, 1.5, 1.5);
-  }
-  ctx.globalAlpha = 1;
-
-  ctx.save();
-  ctx.translate(W / 2, H / 2);
-  ctx.scale(space.cameraZoom, space.cameraZoom);
-  ctx.translate(-space.cameraX, -space.cameraY);
-
-  ctx.strokeStyle = 'rgba(148,163,184,0.18)';
-  ctx.lineWidth = 1;
-  for (const body of bodies) {
-    if (body.id === 'sun') continue;
-    ctx.beginPath();
-    ctx.arc(0, 0, body.orbitRadius, 0, TWO_PI);
-    ctx.stroke();
-  }
-
-  // SOI circles — dashed, highlighted when ship is inside
-  ctx.setLineDash([3, 7]);
-  for (const body of bodies) {
-    if (!body.soi) continue;
-    const inside = space.currentSOI && space.currentSOI.id === body.id;
-    ctx.strokeStyle = inside ? 'rgba(250,220,80,0.35)' : 'rgba(255,255,255,0.09)';
-    ctx.lineWidth = inside ? 1 / space.cameraZoom : 0.5 / space.cameraZoom;
-    ctx.beginPath();
-    ctx.arc(body.x, body.y, body.soi, 0, TWO_PI);
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);
-
-  for (const point of space.trail) {
-    ctx.globalAlpha = Math.max(0.08, 0.5 - point.age * 0.01);
-    ctx.fillStyle = '#38bdf8';
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, 1.8, 0, TWO_PI);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-
-  for (const body of bodies) {
-    ctx.save();
-    ctx.translate(body.x, body.y);
-    if (body.ring) {
-      ctx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, body.radius + 8, body.radius * 0.55, 0.3, 0, TWO_PI);
-      ctx.stroke();
-    }
-    ctx.fillStyle = body.color;
-    ctx.beginPath();
-    ctx.arc(0, 0, body.radius, 0, TWO_PI);
-    ctx.fill();
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(body.label, 0, body.radius + 16);
-    ctx.restore();
-  }
-
-  ctx.save();
-  ctx.translate(space.shipX, space.shipY);
-  ctx.rotate(space.shipAngle);
-  const skin = resolveSubSkin(world.settings);
-  ctx.fillStyle = skin.pride ? stripedGradient(-18, 0, 18, 0, ['#e40303', '#ff8c00', '#ffed00', '#008026', '#24408e', '#732982'])
-    : skin.rainbow ? stripedGradient(-18, 0, 18, 0, ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#6a4c93'])
-    : skin.hull;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, 18, 8, 0, 0, TWO_PI);
-  ctx.fill();
-  ctx.fillStyle = skin.tower || '#1f2937';
-  ctx.fillRect(-2, -12, 5, 6);
-  ctx.fillStyle = '#e5e7eb';
-  ctx.beginPath();
-  ctx.moveTo(18, 0);
-  ctx.lineTo(-12, -7);
-  ctx.lineTo(-7, 0);
-  ctx.lineTo(-12, 7);
-  ctx.closePath();
-  ctx.fill();
-  if (world.sub.afterburnerActive) {
-    ctx.fillStyle = AFTERBURNER_COLOR;
-    ctx.beginPath();
-    ctx.moveTo(-17, -3);
-    ctx.lineTo(-28 - Math.random() * 6, 0);
-    ctx.lineTo(-17, 3);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.restore(); // End sub transform
-
-  // Space tourist ship
-  const tourist = space.touristShip;
-  if (tourist && tourist.visible) {
-    ctx.save();
-    ctx.translate(tourist.x, tourist.y);
-    const tAngle = Math.atan2(
-      solarBodyPosition(SOLAR_SYSTEM_BODIES[tourist.toPlanetIdx], space.time).y - tourist.y,
-      solarBodyPosition(SOLAR_SYSTEM_BODIES[tourist.toPlanetIdx], space.time).x - tourist.x
-    );
-    ctx.rotate(tAngle);
-    // White civilian cruise ship
-    ctx.fillStyle = '#f0f0f0';
-    ctx.beginPath(); ctx.ellipse(0, 0, 12, 5, 0, 0, TWO_PI); ctx.fill();
-    ctx.strokeStyle = '#ccc'; ctx.lineWidth = 0.5; ctx.stroke();
-    // Windows
-    ctx.fillStyle = '#60a5fa';
-    for (let w = -2; w <= 2; w++) ctx.fillRect(w * 4 - 1, -2, 2, 1.5);
-    // Label
-    ctx.rotate(-tAngle); // Undo rotation for text
-    ctx.fillStyle = '#94a3b8'; ctx.font = '7px Arial'; ctx.textAlign = 'center';
-    ctx.fillText('TOURIST', 0, -10);
-    if (tourist.dwellTimer > 0) {
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.fillText('DOCKED', 0, 10);
-    }
-    ctx.restore();
-  }
-
-  drawComets(space);
-  drawDebrisClouds(space);
-  drawOrbitalProjectiles(space);
-  drawAsteroids(space);
-  ctx.restore(); // End camera transform
-
-  drawHUD();
-  drawDamageDiagram();
-  drawFlightInstruments();
-  drawCompactLegend();
-
-  if (space.nearestBody) {
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    ctx.fillRect(14, H - 94, 250, 52);
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = '14px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Nearest body: ${space.nearestBody.body.label}`, 24, H - 66);
-    ctx.fillText(`Range: ${Math.round(space.nearestBody.distance)} Mm`, 24, H - 46);
-  }
-
-  if (world.caveMessage && world.caveMessage.timer > 0) {
-    world.caveMessage.timer--;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(W / 2 - 210, 24, 420, 34);
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(world.caveMessage.text, W / 2, 47);
-  }
-
-  if (world.paused) drawPauseOverlay();
-}
 
 // ============================================================
 // DRAWING — all world coords converted via toScreen()
 // ============================================================
 function draw() {
+  // ── Burning fire trail into the sky (Back to the Future moment) ──
+  // Renders on top of the orbit scene for the first ~2 seconds after transition
+  if (world._orbitTrail) {
+    const trail = world._orbitTrail;
+    const age = world.tick - trail.startTick;
+    if (age > trail.fadeLife) {
+      world._orbitTrail = null;
+    } else {
+      const alpha = Math.max(0, 1 - age / trail.fadeLife);
+      const trailSx = trail.x - world.cameraX;
+      // Draw the fire streak from the launch point upward to the top of the screen
+      ctx.save();
+      for (let i = 0; i < 3; i++) {
+        const streak = ctx.createLinearGradient(trailSx + (i - 1) * 6, H, trailSx + (i - 1) * 6, -50);
+        streak.addColorStop(0, `rgba(255,140,0,${alpha * 0.05})`);
+        streak.addColorStop(0.3, `rgba(255,80,0,${alpha * 0.4})`);
+        streak.addColorStop(0.6, `rgba(255,200,50,${alpha * 0.6})`);
+        streak.addColorStop(0.85, `rgba(200,230,255,${alpha * 0.3})`);
+        streak.addColorStop(1, `rgba(255,255,255,0)`);
+        ctx.fillStyle = streak;
+        const wobble = Math.sin(world.tick * 0.3 + i * 2) * (3 + i * 2);
+        ctx.fillRect(trailSx - 4 + wobble + (i - 1) * 6, -50, 8 - i, H + 50);
+      }
+      // Bright flash at the launch point (fading)
+      if (age < 20) {
+        const flashAlpha = (1 - age / 20) * 0.7;
+        ctx.globalAlpha = flashAlpha;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(trailSx, trail.y, 40 - age, 0, TWO_PI); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
+  }
+
   if (world.mode === 'orbit') {
     drawOrbitScene();
     return;
@@ -7641,9 +6315,18 @@ function draw() {
   // Clear full canvas
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
 
-  // Apply vertical camera offset — all world Y positions shift by -camY
+  // Screen shake (railgun recoil, big explosions)
+  let shakeX = 0, shakeY = 0;
+  if (world._screenShake > 0) {
+    world._screenShake -= 1;
+    const intensity = world._screenShake * 0.6;
+    shakeX = (Math.random() - 0.5) * intensity;
+    shakeY = (Math.random() - 0.5) * intensity;
+  }
+
+  // Apply vertical camera offset + screen shake
   ctx.save();
-  ctx.translate(0, -camY);
+  ctx.translate(shakeX, -camY + shakeY);
 
   const palette = getCurrentPlanetPalette();
   // Sky (extends above water line, very tall to cover high flight)
@@ -7715,20 +6398,94 @@ function draw() {
     if (sx < -isl.baseW-20 || sx > W+isl.baseW+20) continue;
     const top = WATER_LINE - isl.h, tH = isl.topW/2, bH = isl.baseW/2;
 
+    // Island colour based on type
+    const isType = isl.type || 'residential';
     const ig = ctx.createLinearGradient(sx,top,sx,WATER_LINE);
-    ig.addColorStop(0,'#8d6e4a'); ig.addColorStop(0.4,'#6d4c2a'); ig.addColorStop(1,'#5d4037');
+    if (isType === 'military') {
+      ig.addColorStop(0,'#5a6a4a'); ig.addColorStop(0.4,'#4a5a3a'); ig.addColorStop(1,'#3a4a2a');
+    } else if (isType === 'industrial') {
+      ig.addColorStop(0,'#7a7a6a'); ig.addColorStop(0.4,'#6a6a5a'); ig.addColorStop(1,'#5a5a4a');
+    } else {
+      ig.addColorStop(0,'#8d6e4a'); ig.addColorStop(0.4,'#6d4c2a'); ig.addColorStop(1,'#5d4037');
+    }
     ctx.fillStyle = ig;
     ctx.beginPath(); ctx.moveTo(sx-tH,top); ctx.lineTo(sx+tH,top);
     ctx.lineTo(sx+bH,WATER_LINE); ctx.lineTo(sx-bH,WATER_LINE); ctx.closePath(); ctx.fill();
 
-    ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 2;
+    ctx.strokeStyle = isType === 'military' ? '#2a3a1a' : '#3e2723'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(sx-tH,top); ctx.lineTo(sx+tH,top);
     ctx.lineTo(sx+bH,WATER_LINE); ctx.lineTo(sx-bH,WATER_LINE); ctx.closePath(); ctx.stroke();
 
     ctx.strokeStyle = '#d4a053'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(sx-tH+3,top+1); ctx.lineTo(sx+tH-3,top+1); ctx.stroke();
 
-    if (isl.h > 20) {
+    // Island decorations based on type
+    if (isType === 'residential') {
+      // Small houses — cute coloured rectangles with triangular roofs
+      if (isl.h > 15) {
+        const houseCount = Math.min(3, Math.floor(isl.topW / 15));
+        const houseColors = ['#c0392b', '#2980b9', '#f39c12', '#27ae60'];
+        for (let h = 0; h < houseCount; h++) {
+          const hx = sx - tH + 8 + h * (isl.topW / (houseCount + 1));
+          ctx.fillStyle = houseColors[h % houseColors.length];
+          ctx.fillRect(hx - 3, top - 7, 6, 7);
+          ctx.fillStyle = '#5d4037';
+          ctx.beginPath(); ctx.moveTo(hx - 4, top - 7); ctx.lineTo(hx, top - 12); ctx.lineTo(hx + 4, top - 7); ctx.fill();
+          // Window
+          ctx.fillStyle = '#fcd34d';
+          ctx.fillRect(hx - 1, top - 5, 2, 2);
+        }
+        // Tree
+        ctx.strokeStyle = '#795548'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(sx + tH - 8, top); ctx.lineTo(sx + tH - 7, top - 14); ctx.stroke();
+        ctx.fillStyle = '#27ae60';
+        ctx.beginPath(); ctx.ellipse(sx + tH - 7, top - 16, 7, 5, 0, 0, TWO_PI); ctx.fill();
+      }
+    } else if (isType === 'industrial') {
+      // Cranes and factory buildings
+      if (isl.h > 12) {
+        // Factory building
+        ctx.fillStyle = '#6b7280';
+        ctx.fillRect(sx - 6, top - 12, 12, 12);
+        // Smokestack
+        ctx.fillStyle = '#4b5563';
+        ctx.fillRect(sx + 2, top - 20, 3, 10);
+        // Smoke puffs
+        if (world.tick % 12 < 6) {
+          ctx.fillStyle = 'rgba(150,150,150,0.3)';
+          ctx.beginPath(); ctx.arc(sx + 4, top - 22 - Math.sin(world.tick * 0.03) * 3, 3, 0, TWO_PI); ctx.fill();
+        }
+        // Crane arm
+        if (isl.topW > 25) {
+          ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(sx - tH + 6, top); ctx.lineTo(sx - tH + 6, top - 18);
+          ctx.lineTo(sx - tH + 18, top - 18); ctx.stroke();
+          // Hanging cable
+          ctx.strokeStyle = '#888'; ctx.lineWidth = 0.5;
+          ctx.beginPath(); ctx.moveTo(sx - tH + 14, top - 18); ctx.lineTo(sx - tH + 14, top - 8); ctx.stroke();
+        }
+      }
+    } else if (isType === 'military') {
+      // Bunkers and gun emplacements
+      if (isl.h > 12) {
+        // Bunker — low concrete block
+        ctx.fillStyle = '#5a5a4a';
+        ctx.fillRect(sx - 8, top - 5, 16, 5);
+        ctx.fillStyle = '#4a4a3a';
+        ctx.fillRect(sx - 7, top - 5, 3, 2); // Gun slit
+        // Sandbag wall
+        ctx.fillStyle = '#8b7d6b';
+        for (let s = 0; s < 3; s++) {
+          ctx.beginPath(); ctx.ellipse(sx + tH - 8 - s * 5, top - 2, 3, 2, 0, 0, TWO_PI); ctx.fill();
+        }
+        // Flag pole
+        ctx.strokeStyle = '#666'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(sx - tH + 5, top); ctx.lineTo(sx - tH + 5, top - 16); ctx.stroke();
+        ctx.fillStyle = '#cc2200';
+        ctx.fillRect(sx - tH + 5, top - 16, 8, 5);
+      }
+    } else if (isl.h > 20) {
+      // Fallback — palm tree for untyped islands
       ctx.strokeStyle='#795548'; ctx.lineWidth=3;
       ctx.beginPath(); ctx.moveTo(sx,top); ctx.lineTo(sx+2,top-22); ctx.stroke();
       ctx.fillStyle='#27ae60';
@@ -7829,6 +6586,7 @@ function draw() {
     drawAmmoStations(world);
     drawMines(world);
     drawChaffs(world);
+    drawHostages();
     drawDestroyer();
     drawPassengerShip();
     drawInterceptors();
@@ -7919,8 +6677,129 @@ function draw() {
   for (const e of world.enemies) drawEnemy(e);
   drawSopwith();
   drawAirSupremacy();
+  drawBerkutDrones();
   drawAirInterceptors();
   drawNemesis();
+  drawMotorcyclists();
+  drawEvelCameratron();
+  drawSquadron();
+
+  // ── New projectile rendering (MG, railgun, bouncing bombs, commander) ──
+  // Sub MG bullets — small yellow dots
+  ctx.fillStyle = '#fde68a';
+  for (const b of world.subMgBullets) {
+    const bsx = toScreen(b.worldX);
+    if (bsx < -5 || bsx > W + 5) continue;
+    ctx.beginPath(); ctx.arc(bsx, b.y, 1.5, 0, TWO_PI); ctx.fill();
+  }
+  // Railgun shots — thick superheated beam with expanding shockwave and ionisation trail
+  for (const r of world.railgunShots) {
+    const rsx = toScreen(r.worldX);
+    if (rsx < -40 || rsx > W + 40) continue;
+
+    // Ionisation trail — thick glowing line from each trail point
+    if (r.trail.length > 1) {
+      for (let i = 1; i < r.trail.length; i++) {
+        const t0 = r.trail[i - 1], t1 = r.trail[i];
+        const age = t1.age;
+        const alpha = Math.max(0, 0.6 - age * 0.04);
+        const width = Math.max(1, 6 - age * 0.3);
+        // Outer glow
+        ctx.strokeStyle = `rgba(125,249,255,${alpha * 0.3})`;
+        ctx.lineWidth = width + 4;
+        ctx.beginPath(); ctx.moveTo(toScreen(t0.wx), t0.y); ctx.lineTo(toScreen(t1.wx), t1.y); ctx.stroke();
+        // Core beam
+        ctx.strokeStyle = `rgba(200,240,255,${alpha})`;
+        ctx.lineWidth = width;
+        ctx.beginPath(); ctx.moveTo(toScreen(t0.wx), t0.y); ctx.lineTo(toScreen(t1.wx), t1.y); ctx.stroke();
+      }
+    }
+
+    // Expanding shockwave ring at the projectile tip
+    const ringAge = RAILGUN_LIFE - r.life;
+    if (ringAge < 15) {
+      const ringR = ringAge * 2.5;
+      const ringAlpha = Math.max(0, 0.5 - ringAge / 20);
+      ctx.strokeStyle = `rgba(125,249,255,${ringAlpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(rsx, r.y, ringR, 0, TWO_PI); ctx.stroke();
+    }
+
+    // Core projectile — bright white/cyan with heavy glow
+    ctx.shadowColor = '#7df9ff'; ctx.shadowBlur = 16;
+    ctx.fillStyle = '#e0f7ff';
+    ctx.beginPath(); ctx.arc(rsx, r.y, 4, 0, TWO_PI); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(rsx, r.y, 2, 0, TWO_PI); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  // Bouncing bombs — cylindrical barrel with backspin, rivets, and water plumes
+  for (const bb of world.bouncingBombs) {
+    const bbsx = toScreen(bb.worldX);
+    if (bbsx < -15 || bbsx > W + 15) continue;
+
+    ctx.save();
+    ctx.translate(bbsx, bb.y);
+    ctx.rotate(bb.spin); // Backspin rotation
+
+    // Barrel body (cylinder seen from the side — rounded rectangle)
+    ctx.fillStyle = '#1a1a2e';
+    ctx.beginPath();
+    ctx.moveTo(-8, -5); ctx.lineTo(8, -5);
+    ctx.arc(8, 0, 5, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(-8, 5);
+    ctx.arc(-8, 0, 5, Math.PI / 2, -Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+    // Metal bands
+    ctx.strokeStyle = '#475569'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-4, -5); ctx.lineTo(-4, 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4, -5); ctx.lineTo(4, 5); ctx.stroke();
+    // Highlight (sheen on top)
+    ctx.strokeStyle = 'rgba(148,163,184,0.4)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-6, -4); ctx.lineTo(6, -4); ctx.stroke();
+    // Rivets (small dots)
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath(); ctx.arc(-6, 0, 1, 0, TWO_PI); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 1, 0, TWO_PI); ctx.fill();
+    ctx.beginPath(); ctx.arc(6, 0, 1, 0, TWO_PI); ctx.fill();
+    // Fuse cap on the end
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(9, 0, 2.5, 0, TWO_PI); ctx.fill();
+
+    ctx.restore();
+
+    // Water plume at surface level when near the waterline (just bounced or about to)
+    if (Math.abs(bb.y - WATER_LINE) < 12 && bb.bounces > 0) {
+      const plumeAlpha = Math.max(0, 0.5 - Math.abs(bb.y - WATER_LINE) / 20);
+      ctx.fillStyle = `rgba(133,193,233,${plumeAlpha})`;
+      // V-shaped spray
+      for (let s = 0; s < 5; s++) {
+        const spread = (s - 2) * 6;
+        const height = 8 + Math.random() * 6;
+        ctx.fillRect(bbsx + spread - 1, WATER_LINE - height, 2, height);
+      }
+    }
+  }
+  // Commander bullets (pistol=yellow, grenade=green arc, PPC=magenta beam)
+  for (const b of world.commanderBullets) {
+    const bsx = toScreen(b.worldX);
+    if (bsx < -10 || bsx > W + 10) continue;
+    if (b.type === 'ppc') {
+      ctx.fillStyle = '#ff00ff';
+      ctx.shadowColor = '#ff00ff'; ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.arc(bsx, b.y, 3, 0, TWO_PI); ctx.fill();
+      ctx.shadowBlur = 0;
+    } else if (b.type === 'grenade') {
+      ctx.fillStyle = '#166534';
+      ctx.beginPath(); ctx.arc(bsx, b.y, 3.5, 0, TWO_PI); ctx.fill();
+      ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.arc(bsx, b.y, 3.5, 0, TWO_PI); ctx.stroke();
+    } else {
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath(); ctx.arc(bsx, b.y, 1.3, 0, TWO_PI); ctx.fill();
+    }
+  }
 
   // Sub
   drawSub(sub);
@@ -8113,6 +6992,9 @@ function draw() {
     ctx.fillStyle = '#ecf0f1'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center';
     ctx.fillText(port.name, px, barY - 12);
   }
+
+  // --- NEMESIS LAIR ---
+  drawNemesisLair();
 
   // --- RADAR TOWERS ---
   for (const r of world.terrain.radars) {
@@ -8456,6 +7338,32 @@ function draw() {
   drawGunPost();
   drawMissionTimer();
 
+  // --- DEBUG OVERLAY — only when launched with --debug ---
+  // Shows camera/sub/pilot state; cache-busted so every reload picks up latest JS.
+  if (typeof window !== 'undefined' && window.DEBUG_MODE) {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ff00ff';
+    ctx.fillRect(W/2 - 220, 10, 440, 128);
+    ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3;
+    ctx.strokeRect(W/2 - 220, 10, 440, 128);
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    const _s = world.sub;
+    const _hx = 420 - 20 - world.cameraY;
+    const _sx = _s.y - world.cameraY;
+    const _x0 = W/2 - 210;
+    ctx.fillText('DEBUG MODE ACTIVE', _x0, 30);
+    ctx.fillText('sub.y       = ' + _s.y.toFixed(1), _x0, 48);
+    ctx.fillText('cameraY     = ' + world.cameraY.toFixed(1), _x0, 66);
+    ctx.fillText('disembarked = ' + _s.disembarked, _x0, 84);
+    ctx.fillText('pilotY      = ' + (_s.pilotY != null ? _s.pilotY.toFixed(1) : 'n/a'), _x0, 102);
+    ctx.fillText('hangar scrY = ' + _hx.toFixed(1) + ' (want 0-600)', _x0, 120);
+    ctx.fillText('sub scrY    = ' + _sx.toFixed(1) + ' (want ~270)', _x0, 136);
+    ctx.restore();
+  }
+
   // Cave message notification
   if (world.caveMessage && world.caveMessage.timer > 0) {
     world.caveMessage.timer--;
@@ -8572,6 +7480,48 @@ function drawSub(sub) {
   const f = sub.facing; // 1=right, -1=left
   const skin = resolveSubSkin(world.settings);
 
+  // --- Rescue ladder ---
+  // Rendered BEFORE the sub body so the rope appears to come out of the belly.
+  if (sub.ladderLength > 1) {
+    const len = sub.ladderLength;
+    const swingAmp = sub.vtolUpgrade ? 2 : 7;
+    const swing = Math.sin(world.tick * 0.12) * swingAmp;
+    const ladderTopY = sub.y + 4;
+    const ladderBotY = ladderTopY + len;
+    const ladderBotX = sx + swing;
+    // Two rails
+    ctx.strokeStyle = '#8a6a3a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx - 3, ladderTopY); ctx.lineTo(ladderBotX - 3, ladderBotY);
+    ctx.moveTo(sx + 3, ladderTopY); ctx.lineTo(ladderBotX + 3, ladderBotY);
+    ctx.stroke();
+    // Rungs
+    ctx.lineWidth = 1;
+    const rungCount = Math.floor(len / 8);
+    for (let r = 0; r < rungCount; r++) {
+      const t = (r + 1) / (rungCount + 1);
+      const rx = sx + swing * t;
+      const ry = ladderTopY + len * t;
+      ctx.beginPath();
+      ctx.moveTo(rx - 3, ry); ctx.lineTo(rx + 3, ry);
+      ctx.stroke();
+    }
+    // Passenger clinging to the bottom
+    if (sub.ladderPassenger) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath(); ctx.arc(ladderBotX, ladderBotY + 2, 3, 0, TWO_PI); ctx.fill();
+      ctx.fillStyle = '#3b82f6'; // blue visor = Evel
+      ctx.fillRect(ladderBotX - 2, ladderBotY + 1, 4, 1.5);
+      // Legs dangling
+      ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ladderBotX - 1, ladderBotY + 4); ctx.lineTo(ladderBotX - 2, ladderBotY + 9);
+      ctx.moveTo(ladderBotX + 1, ladderBotY + 4); ctx.lineTo(ladderBotX + 2, ladderBotY + 9);
+      ctx.stroke();
+    }
+  }
+
   // Wake ripples when floating
   if (sub.floating && !sub.disembarked) {
     ctx.strokeStyle='rgba(133,193,233,0.3)'; ctx.lineWidth=1;
@@ -8580,6 +7530,26 @@ function drawSub(sub) {
       ctx.beginPath(); ctx.ellipse(sx, WATER_LINE+2, 25+i*12, 2+i, 0, 0, Math.PI*2); ctx.stroke();
     }
     ctx.globalAlpha = 1;
+  }
+
+  // ── Flux capacitor flash — Back to the Future style when at 88 MPH + burner + right altitude ──
+  if (world._fluxReady && world.tick % 4 < 2) {
+    // Bright white/blue flash aura around the sub
+    ctx.save();
+    ctx.globalAlpha = 0.4 + Math.sin(world.tick * 0.5) * 0.2;
+    const flashGrad = ctx.createRadialGradient(sx, sub.y, 5, sx, sub.y, 35);
+    flashGrad.addColorStop(0, 'rgba(120,200,255,0.8)');
+    flashGrad.addColorStop(0.5, 'rgba(200,230,255,0.3)');
+    flashGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = flashGrad;
+    ctx.beginPath(); ctx.ellipse(sx, sub.y, 40, 18, sub.angle * f, 0, TWO_PI); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // Sparks trailing behind
+    if (world.tick % 3 === 0) {
+      addParticles(sub.worldX - f * 20, sub.y, 2, '#7df9ff');
+      addParticles(sub.worldX - f * 16, sub.y + (Math.random() - 0.5) * 8, 1, '#fff');
+    }
   }
 
   ctx.save();
@@ -8659,11 +7629,42 @@ function drawSub(sub) {
 
   ctx.restore();
 
-  // Exhaust / propeller trail
+  // Exhaust / propulsion trail
   if (sub.caterpillarDrive) {
-    // Silent running — no visible exhaust at all
+    // Magnetohydrodynamic drive — no propeller, no bubbles.
+    // Water is pulled through the hull and ejected aft as a faint current distortion.
+    const moving = Math.abs(sub.vx) > 0.1 || Math.abs(sub.vy) > 0.1;
+    if (moving) {
+      const speed = Math.hypot(sub.vx, sub.vy);
+      // Water distortion lines — faint, wide, shimmer effect
+      const lineCount = Math.min(6, Math.floor(speed * 3) + 1);
+      for (let i = 0; i < lineCount; i++) {
+        const age = (world.tick * 0.08 + i * 2.1) % 4;
+        const lx = sx - f * (20 + age * 12);
+        const ly = sub.y + Math.sin(world.tick * 0.04 + i * 1.5) * (3 + age * 2);
+        const len = 4 + age * 3;
+        ctx.globalAlpha = 0.08 + (1 - age / 4) * 0.12;
+        ctx.strokeStyle = '#4a9ade';
+        ctx.lineWidth = 1.5 - age * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(lx - f * len, ly + Math.sin(world.tick * 0.06 + i) * 1.5);
+        ctx.stroke();
+      }
+      // Faint thermal shimmer at the water intake (forward) — barely visible
+      if (speed > 0.5) {
+        ctx.globalAlpha = 0.06;
+        ctx.strokeStyle = '#85c1e9';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(sx + f * 14, sub.y - 3);
+        ctx.quadraticCurveTo(sx + f * 18, sub.y, sx + f * 14, sub.y + 3);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
   } else if (inWater) {
-    // Underwater propeller bubble stream
+    // Standard propeller — bubble stream behind the sub
     const moving = Math.abs(sub.vx) > 0.2 || Math.abs(sub.vy) > 0.2;
     if (moving) {
       const speed = Math.hypot(sub.vx, sub.vy);
@@ -8876,467 +7877,9 @@ function drawEnemy(e) {
   ctx.restore();
 }
 
-// ============================================================
-// HUD — bottom info + controls hint
-// ============================================================
-function drawEjectPrimeWarning() {
-  if (world.ejectPrimeTimer <= 0) return;
-  const flash = Math.sin(world.tick * 0.4) > 0;
-  if (!flash) return;
-  ctx.fillStyle = 'rgba(180, 0, 0, 0.85)';
-  ctx.fillRect(12, 8, 200, 28);
-  ctx.strokeStyle = '#ff3333';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(12, 8, 200, 28);
-  ctx.fillStyle = '#ff4444';
-  ctx.font = 'bold 16px Arial';
-  ctx.textAlign = 'left';
-  ctx.fillText('EJECTION PRIMING', 22, 28);
-}
 
-function drawHUD() {
-  if (world.mode === 'orbit') drawSolarMiniMap();
-  drawEjectPrimeWarning();
-  const sub = world.sub;
-  const hudStartY = world.mode === 'orbit'
-    ? SOLAR_MAP_PADDING + SOLAR_MAP_SIZE + 6
-    : SOLAR_MAP_PADDING;
+// ── HUD + scoring + damage diagram extracted to hud.js ──
 
-  // Fuel gauge (afterburner charge) — top-left
-  const fuelPct = sub.afterburnerCharge / AFTERBURNER_MAX_CHARGE;
-  ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(15, hudStartY, 104, 12);
-  ctx.fillStyle = fuelPct > 0.5 ? '#f59e0b' : fuelPct > 0.2 ? '#f97316' : '#ef4444';
-  ctx.fillRect(17, hudStartY + 2, Math.max(0, fuelPct * 100), 8);
-  ctx.strokeStyle='#ecf0f1'; ctx.lineWidth=1; ctx.strokeRect(15, hudStartY, 104, 12);
-
-  ctx.fillStyle='#ecf0f1'; ctx.font='11px Arial'; ctx.textAlign='left';
-  ctx.fillText(`Fuel: ${Math.ceil(fuelPct * 100)}%`, 125, hudStartY + 10);
-
-  // Score & kills
-  ctx.font='bold 16px Arial';
-  ctx.fillText(`Score: ${world.score}`, 15, hudStartY + 32);
-  ctx.font='12px Arial';
-  ctx.fillText(`Kills: ${world.kills}`, 15, hudStartY + 48);
-
-  // WASM co-processor status badge
-  if (world.wasmTick !== undefined) {
-    ctx.font = '9px Arial';
-    ctx.fillStyle = '#34d399';
-    ctx.fillText(`WASM \u2713 t:${world.wasmTick}`, 15, hudStartY + 62);
-  } else if (world.wasm === null) {
-    ctx.font = '9px Arial';
-    ctx.fillStyle = '#9ca3af';
-    ctx.fillText('WASM offline', 15, hudStartY + 62);
-  }
-
-  // Status
-  ctx.textAlign='right'; ctx.font='13px Arial';
-  const statusY = hudStartY + 10;
-  if (world.mode === 'orbit' && world.space?.nearestBody) {
-    ctx.fillStyle = '#c4b5fd';
-    ctx.fillText(`Orbiting near ${world.space.nearestBody.body.label}`, W-15, statusY);
-    // Autopilot indicator
-    if (world.space.autopilotTarget) {
-      const targetDef = SOLAR_SYSTEM_BODIES.find((b) => b.id === world.space.autopilotTarget);
-      ctx.fillStyle = '#34d399';
-      ctx.fillText(`AUTOPILOT: ${targetDef ? targetDef.label : world.space.autopilotTarget}`, W-15, statusY + 16);
-    }
-  } else if (sub.disembarked) {
-    ctx.fillStyle='#d4a053';
-    ctx.fillText(world.divingBell ? 'DIVING BELL — NO RETURN' : sub.diverMode ? 'DIVER DEPLOYED' : 'DISEMBARKED', W-15, statusY);
-  } else if (sub.floating) {
-    ctx.fillStyle='#85c1e9';
-    ctx.fillText('FLOATING', W-15, statusY);
-  } else {
-    const alt = Math.round(WATER_LINE - sub.y);
-    ctx.fillStyle='#ecf0f1';
-    ctx.fillText(alt > 0 ? `Alt: ${alt}` : `Depth: ${-alt}`, W-15, statusY);
-  }
-
-  if (sub.periscopeMode) {
-    ctx.fillStyle='#f1c40f'; ctx.font='11px Arial';
-    ctx.fillText('PERISCOPE MODE — radar blind', W-15, 158);
-  }
-
-  // Facing indicator
-  ctx.fillStyle='#bdc3c7'; ctx.font='12px Arial';
-  ctx.fillText(sub.facing > 0 ? 'HEADING: >>>' : 'HEADING: <<<', W-15, hudStartY + 26);
-
-  // Weapons + ammo
-  ctx.font='12px Arial';
-  const hudUnlimited = world.settings.supplyFrequency === 'unlimited';
-  const tReady = world.fireCooldown <= 0 && canFireTorpedo(sub.parts) && (sub.torpedoAmmo > 0 || hudUnlimited);
-  const mReady = world.missileCooldown <= 0 && (sub.missileAmmo > 0 || hudUnlimited);
-  const dReady = world.depthChargeCooldown <= 0 && (sub.depthChargeAmmo > 0 || hudUnlimited);
-  const tLabel = hudUnlimited ? 'INF' : String(sub.torpedoAmmo);
-  const mLabel = hudUnlimited ? 'INF' : String(sub.missileAmmo);
-  const dLabel = hudUnlimited ? 'INF' : String(sub.depthChargeAmmo);
-  ctx.fillStyle = (!hudUnlimited && sub.torpedoAmmo <= 0) ? '#555' : tReady ? '#2ecc71' : '#7f8c8d';
-  ctx.fillText(`TORP x${tLabel} ${(!hudUnlimited&&sub.torpedoAmmo<=0)?'EMPTY':(tReady?'RDY':(canFireTorpedo(sub.parts)?'...':'DMG'))}`, W-15, 128);
-  ctx.fillStyle = (!hudUnlimited && sub.missileAmmo <= 0) ? '#555' : mReady ? '#e74c3c' : '#7f8c8d';
-  ctx.fillText(`MSL x${mLabel} ${(!hudUnlimited&&sub.missileAmmo<=0)?'EMPTY':(mReady?'RDY':'...')}`, W-15, 142);
-  ctx.fillStyle = (!hudUnlimited && sub.depthChargeAmmo <= 0) ? '#555' : dReady ? DEPTH_CHARGE_COLOR : '#7f8c8d';
-  ctx.fillText(`DCHG x${dLabel} ${(!hudUnlimited&&sub.depthChargeAmmo<=0)?'EMPTY':(dReady?'RDY':'...')}`, W-15, 156);
-  ctx.fillStyle = sub.afterburnerCharge > 20 ? AFTERBURNER_COLOR : '#7f8c8d';
-  ctx.fillText(`A/B ${Math.round(sub.afterburnerCharge)}%`, W-15, 170);
-  // Caterpillar drive indicator
-  if (sub.caterpillarDrive) {
-    ctx.fillStyle = '#22d3ee';
-    ctx.fillText('CAT DRIVE  ON', W-15, 184);
-  } else if (sub.y > WATER_LINE) {
-    ctx.fillStyle = '#555';
-    ctx.fillText('CAT DRIVE OFF', W-15, 184);
-  }
-
-  // Commander HP (right-aligned, below weapons)
-  const cmdHp = sub.commanderHp;
-  const cmdColor = cmdHp >= 3 ? '#2ecc71' : cmdHp === 2 ? '#f59e0b' : cmdHp === 1 ? '#ef4444' : '#555';
-  ctx.fillStyle = cmdColor;
-  ctx.font = '12px Arial';
-  ctx.textAlign = 'right';
-  ctx.fillText(`CDR ${'♥'.repeat(Math.max(0, cmdHp))}${'♡'.repeat(Math.max(0, COMMANDER_MAX_HP - cmdHp))} ${commanderStatusLabel(cmdHp)}`, W-15, 198);
-
-  // Controls
-  ctx.font='11px Arial'; ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.textAlign='center';
-  if (sub.disembarked) ctx.fillText('[M] Return to sub  |  J/K: move  |  Arrows: move', W/2, H-10);
-  else ctx.fillText('Esc: controls | E: disembark | A: afterburner | AltGr: depth | Ctrl: torpedo | Enter: missile', W/2, H-10);
-}
-
-// ============================================================
-// MISSION SCORING SCREEN — detailed end-of-mission breakdown
-// ============================================================
-function drawMissionScoringScreen() {
-  const sub = world.sub;
-  const parts = sub.parts;
-  const failed = world.gameOver && !world.levelComplete;
-  const cmdHp = sub.commanderHp;
-
-  // Background overlay
-  ctx.fillStyle = 'rgba(0,0,0,0.75)';
-  ctx.fillRect(0, 0, W, H);
-
-  // Panel
-  const px = W / 2 - 240;
-  const py = 30;
-  const pw = 480;
-  const ph = H - 60;
-  ctx.fillStyle = 'rgba(8,15,30,0.95)';
-  ctx.fillRect(px, py, pw, ph);
-  ctx.strokeStyle = failed ? '#e74c3c' : '#2ecc71';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(px, py, pw, ph);
-
-  // Title
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 32px Arial';
-  ctx.fillStyle = failed ? '#e74c3c' : '#2ecc71';
-  ctx.fillText(failed ? 'MISSION FAILED' : 'MISSION COMPLETE', W / 2, py + 40);
-
-  // Score and kills
-  ctx.font = 'bold 20px Arial';
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText(`Score: ${world.score}`, W / 2, py + 72);
-  ctx.font = '16px Arial';
-  ctx.fillStyle = '#cbd5e1';
-  ctx.fillText(`Kills: ${world.kills}  |  Duration: ${Math.floor(world.tick / 60)}s`, W / 2, py + 94);
-
-  // --- Commander Status ---
-  let row = py + 126;
-  ctx.textAlign = 'left';
-  ctx.font = 'bold 16px Arial';
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText('COMMANDER', px + 24, row);
-  ctx.textAlign = 'right';
-  const cmdLabel = commanderStatusLabel(cmdHp);
-  const cmdColor = cmdHp >= 3 ? '#2ecc71' : cmdHp === 2 ? '#f59e0b' : cmdHp === 1 ? '#ef4444' : '#555';
-  ctx.fillStyle = cmdColor;
-  ctx.font = 'bold 16px Arial';
-  ctx.fillText(cmdLabel, px + pw - 24, row);
-  // Hearts
-  ctx.font = '14px Arial';
-  ctx.fillText('♥'.repeat(Math.max(0, cmdHp)) + '♡'.repeat(Math.max(0, COMMANDER_MAX_HP - cmdHp)), px + pw - 24, row + 18);
-
-  // Divider
-  row += 36;
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(px + 20, row);
-  ctx.lineTo(px + pw - 20, row);
-  ctx.stroke();
-
-  // --- Sub Components ---
-  row += 22;
-  ctx.textAlign = 'left';
-  ctx.font = 'bold 16px Arial';
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText('SUB SYSTEMS', px + 24, row);
-
-  row += 8;
-  ctx.font = '14px Arial';
-  for (const def of SUB_PARTS) {
-    row += 20;
-    const hp = parts[def.id];
-    const label = componentConditionLabel(hp, def.maxHp);
-    const color = componentConditionColor(hp, def.maxHp);
-
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fillText(def.name, px + 32, row);
-
-    // Condition bar
-    const barX = px + 120;
-    const barW = 180;
-    const barH = 10;
-    const barY = row - 9;
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    ctx.fillRect(barX, barY, barW, barH);
-    ctx.fillStyle = color;
-    ctx.fillRect(barX, barY, barW * (hp / def.maxHp), barH);
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    ctx.strokeRect(barX, barY, barW, barH);
-
-    // Label
-    ctx.textAlign = 'right';
-    ctx.fillStyle = color;
-    ctx.fillText(label, px + pw - 24, row);
-  }
-
-  // Overall sub condition
-  row += 28;
-  const overall = overallHealth(parts);
-  const overallLabel = overall >= 100 ? 'Pristine' : overall > 60 ? 'Cosmetic' : overall > 25 ? 'Damaged' : overall > 0 ? 'Severely Damaged' : 'Destroyed';
-  const overallColor = overall >= 100 ? '#2ecc71' : overall > 60 ? '#a3e635' : overall > 25 ? '#f59e0b' : overall > 0 ? '#ef4444' : '#555';
-  ctx.textAlign = 'left';
-  ctx.font = 'bold 14px Arial';
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText('Overall', px + 32, row);
-  ctx.textAlign = 'right';
-  ctx.fillStyle = overallColor;
-  ctx.fillText(`${overallLabel} (${Math.ceil(overall)}%)`, px + pw - 24, row);
-
-  // Divider
-  row += 16;
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.beginPath();
-  ctx.moveTo(px + 20, row);
-  ctx.lineTo(px + pw - 20, row);
-  ctx.stroke();
-
-  // --- Mission Summary ---
-  row += 22;
-  ctx.textAlign = 'left';
-  ctx.font = 'bold 16px Arial';
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText('MISSION SUMMARY', px + 24, row);
-
-  row += 22;
-  ctx.font = '14px Arial';
-  ctx.fillStyle = '#cbd5e1';
-  const summaryLines = [
-    `Mode: ${world.mode === 'orbit' ? 'Space' : 'Atmosphere'}`,
-    `Supply frequency: ${getSupplyFrequency(world.settings).label}`,
-  ];
-  if (world.currentDestination) {
-    summaryLines.push(`Last destination: ${world.currentDestination.name}`);
-  }
-  for (const line of summaryLines) {
-    ctx.fillText(line, px + 32, row);
-    row += 18;
-  }
-
-  // Restart prompt
-  row = py + ph - 24;
-  ctx.textAlign = 'center';
-  ctx.font = '18px Arial';
-  ctx.fillStyle = '#bdc3c7';
-  if (world.quitConfirm) {
-    ctx.fillText('Press R to restart  |  Press Q to quit to desktop', W / 2, row);
-  } else {
-    ctx.fillText('Press R to restart  |  Press Esc then Q to quit', W / 2, row);
-  }
-}
-
-// ============================================================
-// DAMAGE DIAGRAM — side-view sub schematic at top-centre
-// ============================================================
-function drawDamageDiagram() {
-  const parts = world.sub.parts;
-  const cx = W / 2;         // Centre of diagram
-  const cy = 28;             // Vertical centre
-  const scale = 2.2;         // Scale factor
-
-  // Background panel (includes graded HP bar below schematic)
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-  ctx.fillRect(cx - 75, 5, 150, 66);
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(cx - 75, 5, 150, 66);
-
-  // Label
-  ctx.fillStyle = '#888';
-  ctx.font = '9px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('SYSTEMS', cx, 14);
-
-  // Helper: colour from HP percentage
-  function partColor(hp, maxHp) {
-    const pct = hp / maxHp;
-    if (pct > 0.6) return '#2ecc71';      // Green
-    if (pct > 0.3) return '#f39c12';      // Yellow/orange
-    if (pct > 0)   return '#e74c3c';      // Red
-    return '#444';                         // Dead/dark
-  }
-
-  // Draw the sub schematic (nose right, propeller left)
-  // Positions relative to cx, cy
-
-  // 1. NOSE (far right)
-  ctx.fillStyle = partColor(parts.nose, 100);
-  ctx.beginPath();
-  ctx.arc(cx + 28, cy, 5 * scale, -Math.PI/2, Math.PI/2);
-  ctx.fill();
-
-  // 2. HULL (centre, large ellipse)
-  ctx.fillStyle = partColor(parts.hull, 120);
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, 26, 8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#1a5276';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // 3. TOWER (top, small rectangle)
-  ctx.fillStyle = partColor(parts.tower, 70);
-  ctx.fillRect(cx - 3, cy - 14, 6, 7);
-  // Periscope stub
-  if (parts.tower > 0) {
-    ctx.strokeStyle = partColor(parts.tower, 70);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - 14);
-    ctx.lineTo(cx, cy - 17);
-    ctx.lineTo(cx + 3, cy - 17);
-    ctx.stroke();
-  }
-
-  // 4. ENGINE (far left)
-  ctx.fillStyle = partColor(parts.engine, 80);
-  ctx.fillRect(cx - 30, cy - 4, 8, 8);
-  // Propeller lines
-  if (parts.engine > 0) {
-    const pa = Date.now() / (parts.engine > 40 ? 60 : 150);
-    ctx.strokeStyle = partColor(parts.engine, 80);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx - 30, cy + Math.sin(pa) * 5);
-    ctx.lineTo(cx - 30, cy - Math.sin(pa) * 5);
-    ctx.stroke();
-  }
-
-  // 5. WINGS (top & bottom of hull — swept-back, larger and clearer)
-  ctx.fillStyle = partColor(parts.wings, 60);
-  ctx.strokeStyle = partColor(parts.wings, 60);
-  ctx.lineWidth = 1;
-  // Top wing — wider sweep
-  ctx.beginPath();
-  ctx.moveTo(cx - 4, cy - 6);
-  ctx.lineTo(cx - 16, cy - 17);
-  ctx.lineTo(cx - 8, cy - 17);
-  ctx.lineTo(cx + 2, cy - 7);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // Bottom wing — mirror
-  ctx.beginPath();
-  ctx.moveTo(cx - 4, cy + 6);
-  ctx.lineTo(cx - 16, cy + 17);
-  ctx.lineTo(cx - 8, cy + 17);
-  ctx.lineTo(cx + 2, cy + 7);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // 6. RUDDER / TAIL FIN (V-tail behind engine — clearly separate from wings)
-  ctx.fillStyle = partColor(parts.rudder, 60);
-  ctx.strokeStyle = partColor(parts.rudder, 60);
-  ctx.lineWidth = 1;
-  // Upper tail fin
-  ctx.beginPath();
-  ctx.moveTo(cx - 28, cy - 3);
-  ctx.lineTo(cx - 40, cy - 12);
-  ctx.lineTo(cx - 36, cy - 12);
-  ctx.lineTo(cx - 28, cy - 1);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // Lower tail fin
-  ctx.beginPath();
-  ctx.moveTo(cx - 28, cy + 3);
-  ctx.lineTo(cx - 40, cy + 12);
-  ctx.lineTo(cx - 36, cy + 12);
-  ctx.lineTo(cx - 28, cy + 1);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // Part name labels on hover would be nice but for now, tiny labels below
-  ctx.fillStyle = '#777';
-  ctx.font = '7px Arial';
-  ctx.textAlign = 'center';
-  const labels = [
-    { x: cx - 33, t: 'RDR' },
-    { x: cx - 26, t: 'ENG' },
-    { x: cx - 10, t: 'WNG' },
-    { x: cx,      t: 'HUL' },
-    { x: cx + 2,  t: 'TWR' },
-    { x: cx + 28, t: 'NOS' },
-  ];
-  // Only show labels for damaged parts
-  for (const l of labels) {
-    const def = SUB_PARTS.find(p => p.id === {RDR:'rudder',ENG:'engine',WNG:'wings',HUL:'hull',TWR:'tower',NOS:'nose'}[l.t]);
-    if (def && parts[def.id] < def.maxHp) {
-      ctx.fillStyle = partColor(parts[def.id], def.maxHp);
-      ctx.fillText(l.t, l.x, cy + 22);
-    }
-  }
-
-  // Graded overall HP bar below diagram
-  const barY = 56;
-  const barX = cx - 60;
-  const barW = 120;
-  const barH = 8;
-  const hp = overallHealth(parts);
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(barX - 2, barY - 1, barW + 4, barH + 2);
-  // Draw graded segments: green > yellow > orange > red from left to right
-  const segW = barW / 4;
-  const gradColors = ['#2ecc71', '#f1c40f', '#f39c12', '#e74c3c'];
-  for (let i = 0; i < 4; i++) {
-    const segStart = i * 25;    // 0, 25, 50, 75
-    const segEnd = (i + 1) * 25;
-    const fillFrac = clamp((hp - segStart) / 25, 0, 1);
-    if (fillFrac > 0) {
-      ctx.fillStyle = gradColors[3 - i]; // red at low HP end, green at high
-      ctx.fillRect(barX + i * segW, barY, segW * fillFrac, barH);
-    }
-  }
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(barX - 2, barY - 1, barW + 4, barH + 2);
-  // Segment dividers
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-  for (let i = 1; i < 4; i++) {
-    ctx.beginPath();
-    ctx.moveTo(barX + i * segW, barY);
-    ctx.lineTo(barX + i * segW, barY + barH);
-    ctx.stroke();
-  }
-  ctx.fillStyle = '#ccc';
-  ctx.font = '8px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText(`${Math.ceil(hp)}%`, cx, barY + barH + 9);
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CRASH LOGGING — captures unhandled errors and promise rejections.
@@ -9370,6 +7913,8 @@ function drawDamageDiagram() {
         keepalive: true,
       }).catch(() => {});
     } catch { /* server not running */ }
+    // Mirror to VeriSimDB
+    if (typeof verisimdbLogCrash === 'function') verisimdbLogCrash(entry);
   }
 
   function worldSnapshot() {
@@ -9425,25 +7970,30 @@ function drawDamageDiagram() {
     return logs;
   };
 
-  /** Download stored crash logs as a JSON file. */
   window.ASS_downloadCrashLog = function () {
     const logs = getCrashLogs();
     const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href     = URL.createObjectURL(blob);
-    a.download = `ass-crash-log-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
+    a.href     = url;
+    a.download = `ass-crash-log-${Date.now()}.json`;
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
+    URL.revokeObjectURL(url);
   };
 
-  /** Clear stored crash logs from localStorage. */
   window.ASS_clearCrashLog = function () {
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
-    console.info('[ASS] Crash logs cleared.');
+    console.info('[ASS] Crash log cleared.');
   };
-})();
+}());
 
-// Start
-init().catch(console.error);
+// ─────────────────────────────────────────────────────────────────────────────
+// STARTUP — kick off the async init() once the DOM is ready.
+// document.currentScript is captured at parse time (inside init) so WASM URL
+// resolution works correctly regardless of how the page is served.
+// ─────────────────────────────────────────────────────────────────────────────
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => init());
+} else {
+  init();
+}

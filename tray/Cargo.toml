@@ -14,3 +14,10 @@ libc = "0.2"
 
 # Note: ksni 0.3 drops the clap/atty transitive dependency chain
 # zatty dependency removed — no longer needed
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "tray_bench"
+harness = false

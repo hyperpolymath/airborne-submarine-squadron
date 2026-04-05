@@ -33,10 +33,10 @@ airborne-submarine-squadron/
 
 ### Browser (recommended)
 ```bash
-./launcher.sh            # starts Deno file server on port 6860, opens browser
+./launcher.sh            # starts Deno file server on port 6880, opens browser
 ./launcher.sh --browser  # explicit
 ```
-Then open `http://127.0.0.1:6860/` — loads `index.html` which serves the Gossamer engine.
+Then open `http://127.0.0.1:6880/` — loads `index.html` which serves the Gossamer engine.
 
 ### Gossamer Desktop
 ```bash
@@ -80,7 +80,7 @@ dune build
 just check        # type-check src/main.as
 just build        # compile to WASM
 just run          # run WASM via wasmtime
-just web          # serve on port 6860
+just web          # serve on port 6880
 just launch       # unified launcher
 just gossamer     # Gossamer desktop variant
 just check-tray   # cargo check on tray binary
@@ -131,5 +131,5 @@ One `unsafe` block exists: `libc::kill(pid, 0)` to check process liveness via si
 
 | Port | Purpose |
 |------|---------|
-| 6860 | Main browser game server (686 = Type 686 attack sub) |
-| 6870–6879 | Gossamer fallback server range |
+| 6880 | Main browser game server (686 = Type 688 attack sub) |
+| 6881–6879 | Gossamer fallback server range |
