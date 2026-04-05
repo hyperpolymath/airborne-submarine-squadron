@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 1
 
       - name: Setup Deno
-        uses: denoland/setup-deno@e95548e56dfa95d1a0fa5e1bfb46b44e437b7ec5 # v2
+        uses: denoland/setup-deno@909cc5acb0fdd60627fb858598759246509fa755 # v2
         with:
           deno-version: v2.x
 
