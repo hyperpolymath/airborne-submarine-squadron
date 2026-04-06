@@ -12,7 +12,7 @@
 //   - drawDepthCharges, drawTorpedoes, drawMissiles
 
 /* global world, ctx, TWO_PI, SFX, toScreen, addExplosion, addParticles,
-   damageRandomPart, groundYFromTerrain, WATER_LINE,
+   damageRandomPart, WATER_LINE,
    MINE_RADIUS, triggerMine, islandHitTest, getGroundY, W */
 
 // ============================================================
