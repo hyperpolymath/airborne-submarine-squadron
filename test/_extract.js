@@ -14,6 +14,7 @@ const SRC = [
   await Deno.readTextFile(ROOT + 'gossamer/app_gossamer.js'),
   await Deno.readTextFile(ROOT + 'gossamer/weapons.js'),
   await Deno.readTextFile(ROOT + 'gossamer/orbital.js'),
+  await Deno.readTextFile(ROOT + 'gossamer/persist.js'),
 ].join('\n');
 
 // ── Constant extraction ─────────────────────────────────────────────
@@ -87,10 +88,11 @@ const CONST_NAMES = [
   'DEPTH_CHARGE_BLAST_RADIUS', 'DEPTH_CHARGE_LIFE',
   'EJECT_PRIME_TIMEOUT', 'HALO_DESCENT_SPEED', 'HALO_OPEN_ALTITUDE',
   'GUN_POST_MG_COOLDOWN', 'GUN_POST_MG_SPEED', 'GUN_POST_MG_RANGE',
+  'SETTINGS_KEY', 'LEADERBOARD_KEY', 'KEYBIND_STORAGE_KEY',
 ];
 
 // Multi-line constants that functions depend on
-const MULTI_CONST_NAMES = ['SUB_PARTS'];
+const MULTI_CONST_NAMES = ['SUB_PARTS', 'SUB_SKINS', 'DEFAULT_SETTINGS', 'SUPPLY_FREQUENCY_LEVELS', 'DEFAULT_KEYBINDS'];
 const multiConstPreamble = MULTI_CONST_NAMES.map(name => {
   try {
     const expr = extractMultiLineConst(name);
@@ -122,6 +124,7 @@ const FN_NAMES = [
   'isEngineCritical', 'isHullCritical',
   'getBackDamagePenalty', 'getFrontControlPenalty', 'getHullBuoyancyPenalty',
   'getSupplyFrequency', 'cycleSupplyFrequency',
+  'currentSubSkin', 'resolveSubSkin', 'keyLabel',
 ];
 
 const fnBodies = FN_NAMES.map(name => {

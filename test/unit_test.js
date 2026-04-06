@@ -204,3 +204,84 @@ Deno.test("unit: velocityToMph — positive velocity gives positive mph", () => 
   const mph = F.velocityToMph(5, 0, 'atmosphere');
   assert(mph > 0, `Expected positive mph, got ${mph}`);
 });
+
+// ── persist.js — keyLabel ────────────────────────────────────────────────────
+
+Deno.test("unit: keyLabel — spacebar maps to 'Space'", () => {
+  assertEquals(F.keyLabel(' '), 'Space');
+});
+
+Deno.test("unit: keyLabel — 'AltGraph' maps to 'AltGr'", () => {
+  assertEquals(F.keyLabel('AltGraph'), 'AltGr');
+});
+
+Deno.test("unit: keyLabel — 'Control' maps to 'Ctrl'", () => {
+  assertEquals(F.keyLabel('Control'), 'Ctrl');
+});
+
+Deno.test("unit: keyLabel — arrow keys map to short names", () => {
+  assertEquals(F.keyLabel('ArrowUp'),    'Up');
+  assertEquals(F.keyLabel('ArrowDown'),  'Down');
+  assertEquals(F.keyLabel('ArrowLeft'),  'Left');
+  assertEquals(F.keyLabel('ArrowRight'), 'Right');
+});
+
+Deno.test("unit: keyLabel — single character is uppercased", () => {
+  assertEquals(F.keyLabel('a'), 'A');
+  assertEquals(F.keyLabel('z'), 'Z');
+});
+
+Deno.test("unit: keyLabel — multi-char non-arrow key returned as-is", () => {
+  assertEquals(F.keyLabel('Escape'), 'Escape');
+  assertEquals(F.keyLabel('Shift'),  'Shift');
+});
+
+// ── persist.js — currentSubSkin ──────────────────────────────────────────────
+
+Deno.test("unit: currentSubSkin — 'ocean' id returns ocean skin", () => {
+  const skin = F.currentSubSkin({ subSkin: 'ocean' });
+  assertEquals(skin.id, 'ocean');
+  assert(typeof skin.hull === 'string', 'hull must be a string');
+});
+
+Deno.test("unit: currentSubSkin — unknown id falls back to first skin", () => {
+  const skin = F.currentSubSkin({ subSkin: 'nonexistent' });
+  assertEquals(skin.id, 'ocean');
+});
+
+Deno.test("unit: currentSubSkin — each known id resolves to itself", () => {
+  const ids = ['ocean', 'red', 'amber', 'emerald', 'violet', 'spectrum', 'rainbow', 'pride'];
+  for (const id of ids) {
+    const skin = F.currentSubSkin({ subSkin: id });
+    assertEquals(skin.id, id, `id '${id}' should resolve to itself`);
+  }
+});
+
+// ── persist.js — getSupplyFrequency ──────────────────────────────────────────
+
+Deno.test("unit: getSupplyFrequency — 'normal' resolves correctly", () => {
+  const level = F.getSupplyFrequency({ supplyFrequency: 'normal' });
+  assertEquals(level.id, 'normal');
+  assert(isFinite(level.interval), 'normal interval must be finite');
+});
+
+Deno.test("unit: getSupplyFrequency — 'none' has Infinity interval", () => {
+  const level = F.getSupplyFrequency({ supplyFrequency: 'none' });
+  assertEquals(level.interval, Infinity);
+});
+
+Deno.test("unit: getSupplyFrequency — 'unlimited' has Infinity interval", () => {
+  const level = F.getSupplyFrequency({ supplyFrequency: 'unlimited' });
+  assertEquals(level.interval, Infinity);
+});
+
+Deno.test("unit: getSupplyFrequency — unknown id falls back to 'normal'", () => {
+  const level = F.getSupplyFrequency({ supplyFrequency: 'bogus' });
+  assertEquals(level.id, 'normal');
+});
+
+Deno.test("unit: getSupplyFrequency — 'few' interval greater than 'many'", () => {
+  const few  = F.getSupplyFrequency({ supplyFrequency: 'few' });
+  const many = F.getSupplyFrequency({ supplyFrequency: 'many' });
+  assert(few.interval > many.interval, 'fewer crates = larger interval multiplier');
+});
