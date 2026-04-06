@@ -1,0 +1,112 @@
+<h2>Drifting Hazards — System Design</h2>
+<p class="subtitle">Does this look right? Let me know what to change before we build.</p>
+
+<div class="section">
+  <span class="label">Solar System Layout</span>
+  <div class="mockup" style="margin-top:8px">
+    <div class="mockup-header">Threat Zones</div>
+    <div class="mockup-body" style="padding:0">
+      <svg viewBox="0 0 700 420" style="width:100%;background:#020617;border-radius:4px">
+        <!-- Sun -->
+        <circle cx="350" cy="210" r="18" fill="#ffd166" opacity="0.9"/>
+        <text x="350" y="245" fill="#ffd166" text-anchor="middle" font-size="10" font-family="monospace">SUN</text>
+
+        <!-- Orbit rings -->
+        <circle cx="350" cy="210" r="40" fill="none" stroke="#334155" stroke-width="0.5" stroke-dasharray="2,4"/>
+        <text x="394" y="212" fill="#64748b" font-size="8" font-family="monospace">Mercury</text>
+        <circle cx="350" cy="210" r="58" fill="none" stroke="#334155" stroke-width="0.5" stroke-dasharray="2,4"/>
+        <text x="410" y="212" fill="#64748b" font-size="8" font-family="monospace">Venus</text>
+        <circle cx="350" cy="210" r="78" fill="none" stroke="#4ea8de" stroke-width="0.8" stroke-dasharray="2,4"/>
+        <text x="430" y="212" fill="#4ea8de" font-size="8" font-family="monospace">Earth</text>
+        <circle cx="350" cy="210" r="96" fill="none" stroke="#334155" stroke-width="0.5" stroke-dasharray="2,4"/>
+        <text x="448" y="212" fill="#64748b" font-size="8" font-family="monospace">Mars</text>
+
+        <!-- Asteroid belt zone -->
+        <circle cx="350" cy="210" r="112" fill="none" stroke="#f59e0b" stroke-width="6" stroke-dasharray="4,3" opacity="0.3"/>
+        <circle cx="350" cy="210" r="128" fill="none" stroke="#f59e0b" stroke-width="6" stroke-dasharray="4,3" opacity="0.3"/>
+        <!-- Asteroid belt label -->
+        <text x="350" y="78" fill="#f59e0b" text-anchor="middle" font-size="10" font-family="monospace" font-weight="bold">ASTEROID BELT</text>
+        <text x="350" y="90" fill="#92400e" text-anchor="middle" font-size="9" font-family="monospace">~60 rocks, radius 4–18, breakable</text>
+
+        <!-- Sample asteroids -->
+        <circle cx="462" cy="190" r="5" fill="#92400e" opacity="0.8"/>
+        <circle cx="456" cy="228" r="3" fill="#92400e" opacity="0.7"/>
+        <circle cx="470" cy="210" r="7" fill="#78350f" opacity="0.9"/>
+        <circle cx="445" cy="175" r="4" fill="#92400e" opacity="0.6"/>
+        <circle cx="240" cy="205" r="6" fill="#92400e" opacity="0.8"/>
+        <circle cx="248" cy="230" r="3" fill="#92400e" opacity="0.6"/>
+
+        <circle cx="350" cy="210" r="145" fill="none" stroke="#334155" stroke-width="0.5" stroke-dasharray="2,4"/>
+        <text x="497" y="212" fill="#64748b" font-size="8" font-family="monospace">Jupiter</text>
+
+        <!-- Debris clouds — 3 fixed zones -->
+        <circle cx="415" cy="148" r="12" fill="#475569" opacity="0.2"/>
+        <circle cx="415" cy="148" r="7" fill="#64748b" opacity="0.3"/>
+        <text x="415" y="135" fill="#94a3b8" text-anchor="middle" font-size="9" font-family="monospace">DEBRIS</text>
+
+        <circle cx="285" cy="272" r="10" fill="#475569" opacity="0.2"/>
+        <circle cx="285" cy="272" r="6" fill="#64748b" opacity="0.3"/>
+        <text x="285" y="259" fill="#94a3b8" text-anchor="middle" font-size="9" font-family="monospace">DEBRIS</text>
+
+        <circle cx="380" cy="305" r="14" fill="#475569" opacity="0.2"/>
+        <circle cx="380" cy="305" r="8" fill="#64748b" opacity="0.3"/>
+        <text x="380" y="292" fill="#94a3b8" text-anchor="middle" font-size="9" font-family="monospace">DEBRIS</text>
+
+        <!-- Comet path (elliptical) -->
+        <ellipse cx="310" cy="210" r="170" ry="60" fill="none" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3,5" opacity="0.5" transform="rotate(-35 350 210)"/>
+        <circle cx="497" cy="155" r="5" fill="#38bdf8" opacity="0.9"/>
+        <!-- comet tail -->
+        <line x1="497" y1="155" x2="480" y2="162" stroke="#38bdf8" stroke-width="2" opacity="0.6"/>
+        <line x1="497" y1="155" x2="478" y2="158" stroke="#38bdf8" stroke-width="1" opacity="0.3"/>
+        <text x="510" y="152" fill="#38bdf8" font-size="9" font-family="monospace">COMET</text>
+        <text x="510" y="163" fill="#0e7490" font-size="8" font-family="monospace">elliptical orbit</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:16px">
+
+  <div style="background:#1c1408;border:1px solid #92400e;border-radius:6px;padding:12px">
+    <div class="label" style="color:#f59e0b">Asteroid Belt</div>
+    <ul style="font-size:0.85em;margin:8px 0 0;padding-left:16px;color:#d4d4d4;line-height:1.8">
+      <li>~60 asteroids, orbitRadius 615–780</li>
+      <li>Radii 4–18, each in stable circular orbit</li>
+      <li>HP: small=1, medium=2, large=3 hits</li>
+      <li>Large/medium split into 2–3 fragments on death</li>
+      <li>Collision: damage proportional to closing speed</li>
+    </ul>
+  </div>
+
+  <div style="background:#111827;border:1px solid #475569;border-radius:6px;padding:12px">
+    <div class="label" style="color:#94a3b8">Debris Clouds</div>
+    <ul style="font-size:0.85em;margin:8px 0 0;padding-left:16px;color:#d4d4d4;line-height:1.8">
+      <li>3–5 clouds at fixed orbital positions</li>
+      <li>Each = 15–25 slow-drifting particles</li>
+      <li>No HP — damage on contact</li>
+      <li>Fly slow through them: collect hull repair / ammo</li>
+      <li>New clouds spawn from large asteroid kills</li>
+    </ul>
+  </div>
+
+  <div style="background:#071a2e;border:1px solid #0e7490;border-radius:6px;padding:12px">
+    <div class="label" style="color:#38bdf8">Rogue Comets</div>
+    <ul style="font-size:0.85em;margin:8px 0 0;padding-left:16px;color:#d4d4d4;line-height:1.8">
+      <li>2 comets, parametric elliptical orbits</li>
+      <li>Perihelion near Sun, aphelion past Pluto</li>
+      <li>Fast near Sun, slow at edges</li>
+      <li>Visible trail (last 30 positions)</li>
+      <li>1 hit = heavy damage; not breakable</li>
+    </ul>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:16px;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:12px">
+  <div class="label">Orbital Projectiles</div>
+  <p style="font-size:0.85em;margin:8px 0 0;color:#d4d4d4">
+    New <code style="background:#1e293b;padding:1px 5px;border-radius:3px">space.projectiles[]</code> array. Each projectile starts with ship velocity + fire velocity, then gravity is applied every frame (same loop as ship). Torpedoes fast+short-lived, missiles slower+longer range, depth charges wide arc. All affected by all bodies' gravity. Collide with asteroids (deal damage), debris clouds (clear particles), and enemies (future).
+  </p>
+</div>
+
+<p style="margin-top:20px;color:#94a3b8;font-size:0.9em">Does this design look right? Any changes before we build?</p>
