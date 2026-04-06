@@ -285,3 +285,33 @@ Deno.test("unit: getSupplyFrequency — 'few' interval greater than 'many'", () 
   const many = F.getSupplyFrequency({ supplyFrequency: 'many' });
   assert(few.interval > many.interval, 'fewer crates = larger interval multiplier');
 });
+
+// ── terrain.js — groundYFromTerrain ─────────────────────────────────────────
+
+Deno.test("unit: groundYFromTerrain — negative worldX returns SEA_FLOOR", () => {
+  const terrain = { ground: [{ x: 0, y: 400 }, { x: 4, y: 500 }] };
+  assertEquals(F.groundYFromTerrain(terrain, -1), C.SEA_FLOOR);
+});
+
+Deno.test("unit: groundYFromTerrain — worldX past end returns SEA_FLOOR", () => {
+  const terrain = { ground: [{ x: 0, y: 400 }, { x: 4, y: 500 }] };
+  // With 2 points, idx must be < 1 (length-1). worldX=8 → idx=2 which is >= 1.
+  assertEquals(F.groundYFromTerrain(terrain, 8), C.SEA_FLOOR);
+});
+
+Deno.test("unit: groundYFromTerrain — interpolates at midpoint", () => {
+  const terrain = { ground: [{ x: 0, y: 400 }, { x: 4, y: 500 }] };
+  // worldX=2 → idx=0, frac=0.5, expected = 400 + (500-400)*0.5 = 450
+  assertEquals(F.groundYFromTerrain(terrain, 2), 450);
+});
+
+Deno.test("unit: groundYFromTerrain — returns first point y at worldX=0", () => {
+  const terrain = { ground: [{ x: 0, y: 350 }, { x: 4, y: 600 }] };
+  assertEquals(F.groundYFromTerrain(terrain, 0), 350);
+});
+
+Deno.test("unit: groundYFromTerrain — result is between endpoints for interior worldX", () => {
+  const terrain = { ground: [{ x: 0, y: 400 }, { x: 4, y: 500 }, { x: 8, y: 600 }] };
+  const y = F.groundYFromTerrain(terrain, 3);
+  assert(y >= 400 && y <= 500, `Expected y between 400 and 500, got ${y}`);
+});

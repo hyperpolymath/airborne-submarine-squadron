@@ -15,6 +15,7 @@ const SRC = [
   await Deno.readTextFile(ROOT + 'gossamer/weapons.js'),
   await Deno.readTextFile(ROOT + 'gossamer/orbital.js'),
   await Deno.readTextFile(ROOT + 'gossamer/persist.js'),
+  await Deno.readTextFile(ROOT + 'gossamer/terrain.js'),
 ].join('\n');
 
 // ── Constant extraction ─────────────────────────────────────────────
@@ -124,7 +125,7 @@ const FN_NAMES = [
   'isEngineCritical', 'isHullCritical',
   'getBackDamagePenalty', 'getFrontControlPenalty', 'getHullBuoyancyPenalty',
   'getSupplyFrequency', 'cycleSupplyFrequency',
-  'currentSubSkin', 'resolveSubSkin', 'keyLabel',
+  'currentSubSkin', 'resolveSubSkin', 'keyLabel', 'groundYFromTerrain',
 ];
 
 const fnBodies = FN_NAMES.map(name => {
