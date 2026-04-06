@@ -6593,85 +6593,10 @@ function draw() {
     drawAkulaMolot();
     drawDelfins();
 
-  // --- Depth charges ---
-  for (const charge of world.depthCharges) {
-    for (const p of charge.trail) {
-      ctx.globalAlpha = Math.max(0, 0.35 - p.age * 0.02);
-      ctx.fillStyle = DEPTH_CHARGE_COLOR;
-      ctx.beginPath();
-      ctx.arc(toScreen(p.wx), p.y, 2, 0, TWO_PI);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = DEPTH_CHARGE_COLOR;
-    ctx.beginPath();
-    ctx.arc(toScreen(charge.worldX), charge.y, 5, 0, TWO_PI);
-    ctx.fill();
-    ctx.strokeStyle = '#f8fafc';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(toScreen(charge.worldX), charge.y - 6);
-    ctx.lineTo(toScreen(charge.worldX), charge.y - 10);
-    ctx.stroke();
-  }
-
-  // --- Torpedoes ---
-  for (const t of world.torpedoes) {
-    for (const p of t.trail) {
-      ctx.globalAlpha = Math.max(0,1-p.age/12)*0.3;
-      ctx.fillStyle = t.phase==='drop'?'#bdc3c7':'#85c1e9';
-      ctx.beginPath(); ctx.arc(toScreen(p.wx), p.y, 2, 0, Math.PI*2); ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    ctx.save(); ctx.translate(toScreen(t.worldX), t.y); ctx.rotate(Math.atan2(t.vy, t.vx));
-    if (t.lgt) {
-      // LGT: bright cyan body with fins, distinctive look
-      ctx.fillStyle = '#22d3ee';
-      ctx.beginPath(); ctx.ellipse(0,0,9,3.5,0,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle = '#0891b2'; ctx.lineWidth = 1; ctx.stroke();
-      // Fins (hydrofoils)
-      ctx.fillStyle = '#06b6d4';
-      ctx.beginPath(); ctx.moveTo(-4,-3); ctx.lineTo(-7,-7); ctx.lineTo(-2,-3); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(-4,3); ctx.lineTo(-7,7); ctx.lineTo(-2,3); ctx.fill();
-      // Nose
-      ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(8,0,2.5,-Math.PI/2,Math.PI/2); ctx.fill();
-      // Wake spray
-      ctx.fillStyle = 'rgba(133,193,233,0.6)';
-      ctx.beginPath(); ctx.arc(-11,0,2.5,0,Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(-14,(Math.random()-0.5)*3,1.5,0,Math.PI*2); ctx.fill();
-    } else {
-      ctx.fillStyle = t.phase==='drop'?'#95a5a6':(t.rogue?'#ff9800':'#ffe66d');
-      ctx.beginPath(); ctx.ellipse(0,0,8,3,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#e74c3c'; ctx.beginPath(); ctx.arc(7,0,2.5,-Math.PI/2,Math.PI/2); ctx.fill();
-      if (t.phase!=='drop') { ctx.fillStyle='rgba(133,193,233,0.5)'; ctx.beginPath(); ctx.arc(-9,0,2,0,Math.PI*2); ctx.fill(); }
-      if (t.rogue && t.phase!=='drop') {
-        ctx.strokeStyle='#ff9800'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,-3); ctx.lineTo(0,-7); ctx.stroke();
-        ctx.fillStyle='#ff9800'; ctx.beginPath(); ctx.arc(0,-7,1.5,0,Math.PI*2); ctx.fill();
-      }
-    }
-    ctx.restore();
-  }
-
-  // --- Missiles ---
-  for (const m of world.missiles) {
-    for (const p of m.trail) {
-      ctx.globalAlpha = Math.max(0,1-p.age/15)*0.5;
-      ctx.fillStyle = m.phase==='drop'?'#95a5a6':'#ff6b00';
-      ctx.beginPath(); ctx.arc(toScreen(p.wx),p.y,m.phase==='drop'?1:2.5,0,Math.PI*2); ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    ctx.save(); ctx.translate(toScreen(m.worldX),m.y); ctx.rotate(Math.atan2(m.vy,m.vx));
-    ctx.fillStyle='#ecf0f1'; ctx.fillRect(-7,-2,14,4);
-    ctx.fillStyle='#e74c3c';
-    ctx.beginPath(); ctx.moveTo(-6,-2); ctx.lineTo(-9,-6); ctx.lineTo(-4,-2); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(-6,2); ctx.lineTo(-9,6); ctx.lineTo(-4,2); ctx.fill();
-    ctx.fillStyle='#2c3e50'; ctx.beginPath(); ctx.moveTo(7,-2); ctx.lineTo(11,0); ctx.lineTo(7,2); ctx.fill();
-    if (m.phase==='ignite') {
-      ctx.fillStyle='#ff6b00'; ctx.beginPath(); ctx.moveTo(-7,-1.5); ctx.lineTo(-12-Math.random()*4,0); ctx.lineTo(-7,1.5); ctx.fill();
-      ctx.fillStyle='#ffcc00'; ctx.beginPath(); ctx.moveTo(-7,-0.8); ctx.lineTo(-10-Math.random()*2,0); ctx.lineTo(-7,0.8); ctx.fill();
-    }
-    ctx.restore();
-  }
+  // --- Depth charges, torpedoes, missiles (drawn by weapons.js) ---
+  drawDepthCharges();
+  drawTorpedoes();
+  drawMissiles();
 
   // Enemies
   for (const e of world.enemies) drawEnemy(e);
