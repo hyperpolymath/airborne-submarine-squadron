@@ -130,13 +130,6 @@ const SHARP_ASCENT_ANGLE = -0.42;
 const SHARP_ASCENT_VY = -2.4;
 const STARLIFT_ACCEL = 0.65;
 const SPACE_ENTRY_ALTITUDE = -220;
-const START_DEPTH_CHARGES = 8;
-const DEPTH_CHARGE_COOLDOWN = 42;
-const DEPTH_CHARGE_GRAVITY = 0.22;
-const DEPTH_CHARGE_WATER_DRAG = 0.985;
-const DEPTH_CHARGE_BLAST_RADIUS = 85;
-const DEPTH_CHARGE_LIFE = 180;
-const DEPTH_CHARGE_COLOR = '#9b59b6';
 const EJECT_PRIME_TIMEOUT = 60;
 const DIVING_BELL_SPEED = 0.4;
 const PARACHUTE_DESCENT_SPEED = 0.6;
@@ -1652,7 +1645,6 @@ function getFrontControlPenalty(parts) {
 function getHullBuoyancyPenalty(parts) {
   return clamp(1 - parts.hull / 120, 0, 1);
 }
-function canFireTorpedo(parts) { return parts.nose > 20; }
 function clamp(v, lo, hi)      { return Math.max(lo, Math.min(hi, v)); }
 
 function velocityToMph(vx, vy, mode) {
@@ -2083,54 +2075,6 @@ function ensureLeaderboardRecorded(status) {
   world.leaderboardRecorded = true;
 }
 
-function detonateDepthCharge(charge) {
-  addExplosion(charge.worldX, charge.y, 'big');
-  addParticles(charge.worldX, charge.y, 18, DEPTH_CHARGE_COLOR);
-  SFX.explodeBig();
-
-  for (let i = world.enemies.length - 1; i >= 0; i--) {
-    const enemy = world.enemies[i];
-    const dist = Math.hypot(enemy.worldX - charge.worldX, enemy.y - charge.y);
-    if (dist > DEPTH_CHARGE_BLAST_RADIUS) continue;
-    enemy.health -= 4;
-    if (enemy.health <= 0) {
-      addExplosion(enemy.worldX, enemy.y, 'big');
-      addParticles(enemy.worldX, enemy.y, 10, '#ff9f1c');
-      world.score += 260;
-      world.kills++;
-      world.enemies.splice(i, 1);
-      SFX.enemyDestroyed();
-    }
-  }
-
-  for (const mine of world.mines) {
-    if (!mine.active) continue;
-    const dist = Math.hypot(mine.x - charge.worldX, mine.y - charge.y);
-    if (dist <= DEPTH_CHARGE_BLAST_RADIUS + MINE_RADIUS) {
-      triggerMine(world, mine);
-    }
-  }
-
-  for (const radar of world.terrain.radars) {
-    if (radar.destroyed) continue;
-    const dist = Math.hypot(radar.x - charge.worldX, radar.y - charge.y);
-    if (dist > DEPTH_CHARGE_BLAST_RADIUS * 0.75) continue;
-    radar.hp -= 35;
-    if (radar.hp <= 0) {
-      radar.destroyed = true;
-      addExplosion(radar.x, radar.y, 'big');
-      addParticles(radar.x, radar.y, 15, '#888');
-      world.score += radar.tier * 180;
-      SFX.enemyDestroyed();
-    }
-  }
-
-  const sub = world.sub;
-  if (Math.hypot(sub.worldX - charge.worldX, sub.y - charge.y) < DEPTH_CHARGE_BLAST_RADIUS * 0.45) {
-    damageRandomPart(sub.parts, 18);
-    SFX.damage();
-  }
-}
 
 // ============================================================
 // HANGAR SYSTEM
@@ -2700,49 +2644,6 @@ function isSubProtected() {
 // Destroyer, Interceptor boats, Akula-Molot, Delfin, Passenger ship
 
 
-function updateDepthCharges(dt) {
-  const sub = world.sub;
-  world.depthChargeCooldown = Math.max(0, world.depthChargeCooldown - dt);
-  world.depthCharges = world.depthCharges.filter((charge) => {
-    charge.life -= dt;
-    if (world.tick % 3 === 0) {
-      charge.trail.push({ wx: charge.worldX, y: charge.y, age: 0 });
-      if (charge.trail.length > 12) charge.trail.shift();
-    }
-    charge.trail.forEach((p) => { p.age += dt; });
-
-    if (charge.y < WATER_LINE) {
-      charge.vy += DEPTH_CHARGE_GRAVITY * dt;
-    } else {
-      charge.vy += DEPTH_CHARGE_GRAVITY * 0.25 * dt;
-      charge.vx *= DEPTH_CHARGE_WATER_DRAG;
-      charge.vy *= DEPTH_CHARGE_WATER_DRAG;
-    }
-    charge.worldX += charge.vx * dt;
-    charge.y += charge.vy * dt;
-
-    const groundY = getGroundY(charge.worldX);
-    const hittingGround = charge.y >= groundY - 4;
-    const hitMine = world.mines.some((mine) =>
-      mine.active && Math.hypot(mine.x - charge.worldX, mine.y - charge.y) < MINE_RADIUS + 8
-    );
-    // Check island collision (above and below water)
-    const hitIsland = islandHitTest(charge.worldX, charge.y);
-    // Check radar collision
-    const hitRadar = world.terrain.radars && world.terrain.radars.some((r) =>
-      !r.destroyed && Math.hypot(r.x - charge.worldX, r.y - charge.y) < 22
-    );
-    if (charge.life <= 0 || hittingGround || hitMine || hitIsland || hitRadar) {
-      if (hittingGround) {
-        charge.y = groundY - 4;
-        charge.vy = Math.min(0, charge.vy);
-      }
-      detonateDepthCharge(charge);
-      return false;
-    }
-    return Math.abs(charge.worldX - sub.worldX) < W * 2;
-  });
-}
 
 function handleSunBurn(dt) {
   if (world.sunBurnTimer <= 0) return;
@@ -5965,38 +5866,6 @@ function updateEnemies(dt) {
   });
 }
 
-function updateProjectiles(dt) {
-  const sub = world.sub;
-  world.torpedoes = world.torpedoes.filter(t => {
-    for (let i = world.enemies.length-1; i >= 0; i--) {
-      const e = world.enemies[i];
-      if (Math.abs(t.worldX - e.worldX) < 22 && Math.abs(t.y - e.y) < 18) {
-        e.health -= 2;
-        if (e.health <= 0) {
-          addExplosion(e.worldX, e.y, 'big'); addParticles(e.worldX, e.y, 10, '#ff6b00');
-          world.score += 200; world.kills++; world.enemies.splice(i, 1); SFX.enemyDestroyed();
-        } else { addExplosion(t.worldX, t.y, 'small'); SFX.explodeSmall(); }
-        return false;
-      }
-    }
-    return true;
-  });
-  world.missiles = world.missiles.filter(m => {
-    if (m.phase === 'drop') return true;
-    for (let i = world.enemies.length-1; i >= 0; i--) {
-      const e = world.enemies[i];
-      if (Math.abs(m.worldX - e.worldX) < 20 && Math.abs(m.y - e.y) < 15) {
-        e.health -= 3;
-        if (e.health <= 0) {
-          addExplosion(e.worldX, e.y, 'big'); addParticles(e.worldX, e.y, 14, '#ff6b00');
-          world.score += 300; world.kills++; world.enemies.splice(i, 1); SFX.enemyDestroyed();
-        } else { addExplosion(m.worldX, m.y, 'small'); SFX.explodeSmall(); }
-        return false;
-      }
-    }
-    return true;
-  });
-}
 
 // --- Update sub MG bullets, railgun shots, and commander bullets ---
 function updateNewProjectiles(dt) {
