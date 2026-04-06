@@ -17,12 +17,16 @@
    MPH_PER_GAME_SPEED, SPACE_MPH_PER_GAME_SPEED, AFTERBURNER_MAX_CHARGE,
    SOLAR_SYSTEM_BODIES, SOLAR_SYSTEM_BOUNDARY, PLANETS, SUN_DESTINATION,
    ORBIT_TRIGGER_SPEED_MPH, EJECT_PRIME_TIMEOUT, THERMAL_TEMPS, THERMAL_LABELS,
+   AFTERBURNER_COLOR, TWO_PI,
    SFX, toScreen, velocityToMph, overallHealth, clamp, componentConditionLabel,
    componentConditionColor, commanderStatusLabel, getThermalLayer,
    loadLeaderboard, saveLeaderboard, loadSettings, saveSettings,
    currentSubSkin, resolveSubSkin, cycleSubSkin, adjustCustomHue,
    getSupplyFrequency, cycleSupplyFrequency, loadKeybinds, saveKeybinds,
-   resetKeybinds, keyLabel, keyJustPressed, stripedGradient */
+   resetKeybinds, keyLabel, keyJustPressed, stripedGradient,
+   solarBodyPosition, getSolarBodies,
+   drawComets, drawDebrisClouds, drawOrbitalProjectiles, drawAsteroids,
+   cometPosition */
 
 function drawCompactLegend() {
   if (!world.settings.showLegend || world.paused) return;
@@ -591,6 +595,10 @@ function drawOrbitScene() {
     ctx.restore();
   }
 
+  drawComets(space);
+  drawDebrisClouds(space);
+  drawOrbitalProjectiles(space);
+  drawAsteroids(space);
   ctx.restore(); // End camera transform
 
   drawHUD();
