@@ -1,0 +1,49 @@
+{
+  "name": "airborne-submarine-squadron",
+  "version": "0.5.0",
+  "description": "A browser-forward take on the classic Sopwith-style arcade game built with AffineScript/WASM",
+  "license": "AGPL-3.0-or-later",
+  "author": "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hyperpolymath/airborne-submarine-squadron.git"
+  },
+  "homepage": "https://github.com/hyperpolymath/airborne-submarine-squadron#readme",
+  "bugs": {
+    "url": "https://github.com/hyperpolymath/airborne-submarine-squadron/issues"
+  },
+  "keywords": [
+    "game",
+    "wasm",
+    "affinescript",
+    "arcade",
+    "gossamer",
+    "retro",
+    "submarine",
+    "sopwith"
+  ],
+  "main": "build/airborne-submarine-squadron.wasm",
+  "files": [
+    "build/",
+    "dist/",
+    "src/",
+    "gossamer/",
+    "launcher.sh",
+    "install.sh",
+    "build.sh",
+    "run_wasm.js",
+    "README.adoc"
+  ],
+  "scripts": {
+    "build": "./build.sh",
+    "start": "deno run --allow-all run.js",
+    "launch": "./launcher.sh gossamer",
+    "test": "deno test test/"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
