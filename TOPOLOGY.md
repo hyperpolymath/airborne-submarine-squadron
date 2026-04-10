@@ -12,7 +12,7 @@ A browser-forward arcade flight game built on Gossamer launcher. Features atmosp
 ```
 airborne-submarine-squadron/
 ├── src/
-│   └── main.as                # AffineScript core (compiled to WASM)
+│   └── main.affine                # AffineScript core (compiled to WASM)
 ├── wasm/
 │   └── ... (WASM build artifacts)
 ├── build.sh                   # Build orchestration (AffineScript → WASM)

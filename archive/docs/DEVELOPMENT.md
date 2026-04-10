@@ -4,7 +4,7 @@
 
 ```
 src/
-├── main_final_working.as  # Main game source
+├── main_final_working.affine  # Main game source
 └── types/                # Type definitions
 
 wasm/
@@ -34,7 +34,7 @@ cd affinescript
 dune build
 
 # Compile the game
-./_build/default/bin/affinescript compile src/main_final_working.as -o wasm/airborne-final-working.wasm
+./_build/default/bin/affinescript compile src/main_final_working.affine -o wasm/airborne-final-working.wasm
 ```
 
 ## Code Structure
@@ -120,7 +120,7 @@ function gameLoop() {
 ### Unit Tests
 ```bash
 # Run type checker
-dune exec affinescript -- check src/main_final_working.as
+dune exec affinescript -- check src/main_final_working.affine
 
 # Run comprehensive tests
 dune runtest
@@ -141,13 +141,13 @@ dune runtest
 ### Debug Tools
 ```bash
 # Lexer debug
-dune exec affinescript -- lex src/main_final_working.as
+dune exec affinescript -- lex src/main_final_working.affine
 
 # Parser debug  
-dune exec affinescript -- parse src/main_final_working.as
+dune exec affinescript -- parse src/main_final_working.affine
 
 # AST viewer
-dune exec affinescript -- ast src/main_final_working.as
+dune exec affinescript -- ast src/main_final_working.affine
 ```
 
 ## Deployment

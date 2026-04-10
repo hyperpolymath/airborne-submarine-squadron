@@ -6,9 +6,9 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 # Type-check AffineScript source
 check:
   if command -v affinescript >/dev/null 2>&1; then \
-    affinescript check src/main.as; \
+    affinescript check src/main.affine; \
   elif [ -n "${AFFINESCRIPT_REPO:-}" ] && [ -x "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" ]; then \
-    "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" check src/main.as; \
+    "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" check src/main.affine; \
   else \
     echo "affinescript not found. Set AFFINESCRIPT_REPO=/path/to/affinescript" >&2; \
     exit 1; \
@@ -49,9 +49,9 @@ build-tray:
 # Type-check AffineScript test file
 test-types:
   if command -v affinescript >/dev/null 2>&1; then \
-    affinescript check test_types.as; \
+    affinescript check test_types.affine; \
   elif [ -n "${AFFINESCRIPT_REPO:-}" ] && [ -x "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" ]; then \
-    "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" check test_types.as; \
+    "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" check test_types.affine; \
   else \
     echo "affinescript not found — skipping type check" >&2; \
   fi

@@ -11,10 +11,10 @@ import { assertEquals, assert } from "jsr:@std/assert";
 const ROOT = new URL('..', import.meta.url).pathname;
 
 // ── 1. AffineScript source exists and is non-trivial ────────────────
-Deno.test("smoke: src/main.as exists and has >100 lines", async () => {
-  const text = await Deno.readTextFile(ROOT + "src/main.as");
+Deno.test("smoke: src/main.affine exists and has >100 lines", async () => {
+  const text = await Deno.readTextFile(ROOT + "src/main.affine");
   const lines = text.split("\n").length;
-  assert(lines > 100, `main.as has only ${lines} lines — expected >100`);
+  assert(lines > 100, `main.affine has only ${lines} lines — expected >100`);
 });
 
 // ── 2. Game engine exists and is substantial ────────────────────────
@@ -89,7 +89,7 @@ Deno.test("smoke: run.js --reflect produces valid JSON", async () => {
 });
 
 // ── 10. AffineScript type-check (conditional — needs compiler) ───────
-Deno.test("smoke: test_types.as type-checks if AffineScript compiler available", async () => {
+Deno.test("smoke: test_types.affine type-checks if AffineScript compiler available", async () => {
   // Try to find the AffineScript compiler
   let compilerCmd = null;
   const compilerPaths = [
@@ -127,17 +127,17 @@ Deno.test("smoke: test_types.as type-checks if AffineScript compiler available",
   }
 
   const cmd = new Deno.Command(compilerCmd, {
-    args: ["check", ROOT + "test_types.as"],
+    args: ["check", ROOT + "test_types.affine"],
     stdout: "piped",
     stderr: "piped",
   });
   const { code, stderr } = await cmd.output();
   assertEquals(code, 0,
-    `test_types.as type-check failed (exit ${code}): ${new TextDecoder().decode(stderr).trim()}`);
+    `test_types.affine type-check failed (exit ${code}): ${new TextDecoder().decode(stderr).trim()}`);
 });
 
-// ── 11. src/main.as type-checks if AffineScript compiler available ──
-Deno.test("smoke: src/main.as type-checks if AffineScript compiler available", async () => {
+// ── 11. src/main.affine type-checks if AffineScript compiler available ──
+Deno.test("smoke: src/main.affine type-checks if AffineScript compiler available", async () => {
   let compilerCmd = null;
   try {
     const p = new Deno.Command("which", { args: ["affinescript"], stdout: "null", stderr: "null" });
@@ -162,12 +162,12 @@ Deno.test("smoke: src/main.as type-checks if AffineScript compiler available", a
   }
 
   const cmd = new Deno.Command(compilerCmd, {
-    args: ["check", ROOT + "src/main.as"],
+    args: ["check", ROOT + "src/main.affine"],
     stdout: "piped",
     stderr: "piped",
   });
   const { code } = await cmd.output();
-  assertEquals(code, 0, "src/main.as must type-check cleanly");
+  assertEquals(code, 0, "src/main.affine must type-check cleanly");
 });
 
 // ── 12. run.js --help exits cleanly ─────────────────────────────────

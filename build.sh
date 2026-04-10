@@ -32,20 +32,20 @@ compile_with_affinescript() {
   rm -f "$TMP_WASM"
   if command -v affinescript >/dev/null 2>&1; then
     echo "Using affinescript from PATH"
-    affinescript compile "$ROOT_DIR/src/main.as" -o "$TMP_WASM"
+    affinescript compile "$ROOT_DIR/src/main.affine" -o "$TMP_WASM"
     [ -f "$TMP_WASM" ]
     return $?
   fi
 
   if [ -x "$compiler_repo/_build/default/bin/main.exe" ]; then
     echo "Using affinescript from $compiler_repo/_build/default/bin/main.exe"
-    "$compiler_repo/_build/default/bin/main.exe" compile "$ROOT_DIR/src/main.as" -o "$TMP_WASM"
+    "$compiler_repo/_build/default/bin/main.exe" compile "$ROOT_DIR/src/main.affine" -o "$TMP_WASM"
     [ -f "$TMP_WASM" ]
     return $?
   fi
 
   echo "Using dune exec affinescript from $compiler_repo"
-  ( cd "$compiler_repo" && dune exec affinescript -- compile "$ROOT_DIR/src/main.as" -o "$TMP_WASM" )
+  ( cd "$compiler_repo" && dune exec affinescript -- compile "$ROOT_DIR/src/main.affine" -o "$TMP_WASM" )
   [ -f "$TMP_WASM" ]
   return $?
 }

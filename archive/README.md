@@ -4,7 +4,7 @@ This directory holds superseded files that were kept for reference during cleanu
 
 Current canonical paths remain in the repo root:
 
-- `src/main.as`
+- `src/main.affine`
 - `web/index_home.html`
 - `web/app_enhanced_home.js`
 - `web/style_home.css`
@@ -18,7 +18,7 @@ Current canonical paths remain in the repo root:
 
 Archived contents:
 
-- `archive/src/`: older AffineScript snapshots and backups replaced by `src/main.as`
+- `archive/src/`: older AffineScript snapshots and backups replaced by `src/main.affine`
 - `archive/web/`: unused web variants replaced by the current launcher path or WASM demo
 - `archive/docs/`: stale documentation that pointed at archived paths
 - `archive/root/`: stale root-level summaries and duplicate readme material

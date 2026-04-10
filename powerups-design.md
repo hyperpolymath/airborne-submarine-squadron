@@ -46,7 +46,7 @@
 
 ## Implementation Plan
 
-### AffineScript Types (src/main.as)
+### AffineScript Types (src/main.affine)
 
 ```affinescript
 type PowerUpType

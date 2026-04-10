@@ -96,7 +96,7 @@ Runtime: Deno 2.7.7 (x86_64-unknown-linux-gnu)
 | Benchmark                              | Avg      | p99      | Classification   |
 |----------------------------------------|----------|----------|------------------|
 | Read app_gossamer.js (8966 lines)      | 10.9ms   | 41.9ms   | **Ordinary**     |
-| Read src/main.as (819 lines)           | 0.94ms   | 9.1ms    | **Ordinary**     |
+| Read src/main.affine (819 lines)           | 0.94ms   | 9.1ms    | **Ordinary**     |
 | Read coordination.k9 + section split   | 1.0ms    | 12.2ms   | **Ordinary**     |
 | Stat WASM artifact                     | 0.74ms   | 10.5ms   | **Ordinary**     |
 | Extract 20 constants from source       | 18.4ms   | 199.8ms  | **Acceptable**   |

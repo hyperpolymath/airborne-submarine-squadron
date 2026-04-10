@@ -20,7 +20,7 @@ dune build
 
 # Compile game
 ./_build/default/bin/affinescript compile \
-  ~/airborne-game/src/main_final_working.as \
+  ~/airborne-game/src/main_final_working.affine \
   -o ~/airborne-game/wasm/airborne-final-working.wasm
 ```
 
@@ -33,7 +33,7 @@ docker build -t affinescript .
 
 # Compile in container
 docker run -v ~/airborne-game:/game affinescript \
-  compile /game/src/main_final_working.as \
+  compile /game/src/main_final_working.affine \
   -o /game/wasm/airborne-final-working.wasm
 ```
 
@@ -47,7 +47,7 @@ chmod +x affinescript-linux
 
 # Compile
 ./affinescript-linux compile \
-  ~/airborne-game/src/main_final_working.as \
+  ~/airborne-game/src/main_final_working.affine \
   -o ~/airborne-game/wasm/airborne-final-working.wasm
 ```
 

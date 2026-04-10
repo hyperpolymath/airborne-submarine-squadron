@@ -135,11 +135,11 @@ Deno.test("contract: all K9-protected paths exist", async () => {
 });
 
 // ── 9. AffineScript engine invariant (K9: affinescript-engine) ──────
-Deno.test("contract: src/main.as is AffineScript, not JS framework", async () => {
-  const text = await Deno.readTextFile(ROOT + "src/main.as");
-  assert(text.includes("fn main()"), "main.as must contain 'fn main()' (AffineScript)");
-  assert(text.includes("type World"), "main.as must define World type");
+Deno.test("contract: src/main.affine is AffineScript, not JS framework", async () => {
+  const text = await Deno.readTextFile(ROOT + "src/main.affine");
+  assert(text.includes("fn main()"), "main.affine must contain 'fn main()' (AffineScript)");
+  assert(text.includes("type World"), "main.affine must define World type");
   // Negative: no JS framework imports
-  assert(!text.includes("import React"), "main.as must not import React");
-  assert(!text.includes("import Phaser"), "main.as must not import Phaser");
+  assert(!text.includes("import React"), "main.affine must not import React");
+  assert(!text.includes("import Phaser"), "main.affine must not import Phaser");
 });

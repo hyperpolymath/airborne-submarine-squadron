@@ -20,9 +20,9 @@ Deno.bench("latency: read app_gossamer.js (8966 lines)", async () => {
   await Deno.readTextFile(ROOT + "gossamer/app_gossamer.js");
 });
 
-// ── 2. Source file read: src/main.as (819 lines) ────────────────────
-Deno.bench("latency: read src/main.as (819 lines)", async () => {
-  await Deno.readTextFile(ROOT + "src/main.as");
+// ── 2. Source file read: src/main.affine (819 lines) ────────────────────
+Deno.bench("latency: read src/main.affine (819 lines)", async () => {
+  await Deno.readTextFile(ROOT + "src/main.affine");
 });
 
 // ── 3. K9 coordination file read + parse ────────────────────────────

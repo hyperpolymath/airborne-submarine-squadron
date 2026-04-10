@@ -8,7 +8,7 @@
 airborne-submarine-squadron/
 ├── index.html            # Web entry point (no redirect — loads Gossamer engine directly)
 ├── src/
-│   └── main.as           # Canonical AffineScript source (compiled to WASM)
+│   └── main.affine           # Canonical AffineScript source (compiled to WASM)
 ├── gossamer/
 │   ├── app_gossamer.js   # Gossamer v2 game engine (7300+ lines, current playable game)
 │   ├── index_gossamer.html  # Desktop Gossamer page (served by gossamer/launch.sh)
@@ -77,7 +77,7 @@ dune build
 ## Task Runner
 
 ```bash
-just check        # type-check src/main.as
+just check        # type-check src/main.affine
 just build        # compile to WASM
 just run          # run WASM via wasmtime
 just web          # serve on port 6880
@@ -100,7 +100,7 @@ The WASM co-processor is loaded asynchronously in `init()`. If it fails to load 
 
 ### WASM exports
 
-`src/main.as` must export:
+`src/main.affine` must export:
 - `init_state() -> i32` — returns pointer to 29-field state snapshot
 - `step_state(s0..s28: i32, thrust_x: i32, thrust_y: i32, fire: i32, fire_alt: i32, toggle_env: i32) -> i32`
 - `build_snapshot(29 args) -> i32`

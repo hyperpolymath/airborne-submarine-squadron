@@ -87,7 +87,7 @@ Do NOT delete, reorganise, or replace these without explicit user approval:
 |------|--------|
 | `gossamer/` | Gossamer frontend — HTML5 Canvas game rendering and UI |
 | `tray/` | Rust system tray binary using ksni (KDE StatusNotifierItem) |
-| `src/` | AffineScript source — main.as is the game engine source |
+| `src/` | AffineScript source — main.affine is the game engine source |
 | `web/` | Browser-side JS — placeholder engine, will be replaced by WASM but structure stays |
 | `build/` | WASM build artifacts from AffineScript compilation |
 | `launcher.sh` | Unified launcher script — entry point for the whole application |

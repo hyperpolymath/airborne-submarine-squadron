@@ -79,8 +79,8 @@ Deno.test("compat: run.js --reflect JSON output round-trips", async () => {
 });
 
 // ── 6. AffineScript source has deterministic snapshot format ────────
-Deno.test("compat: main.as build_snapshot starts with length marker 29", async () => {
-  const src = await Deno.readTextFile(ROOT + "src/main.as");
+Deno.test("compat: main.affine build_snapshot starts with length marker 29", async () => {
+  const src = await Deno.readTextFile(ROOT + "src/main.affine");
   // The snapshot array starts with its length (29 fields)
   assert(src.includes("return [\n    29,"),
     "build_snapshot must start array with 29 (field count marker)");
