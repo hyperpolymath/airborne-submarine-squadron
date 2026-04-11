@@ -1,0 +1,5 @@
+fn test_if_expr() -> Int {
+  let x: Int = if (true) { 1 } else { 2 };
+  return x;
+}
+fn main() -> Int { return 0; }

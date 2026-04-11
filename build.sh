@@ -31,21 +31,21 @@ compile_with_affinescript() {
   local compiler_repo="$1"
   rm -f "$TMP_WASM"
   if command -v affinescript >/dev/null 2>&1; then
-    echo "Using affinescript from PATH"
-    affinescript compile "$ROOT_DIR/src/main.affine" -o "$TMP_WASM"
+    echo "Using affinescript from PATH (WASM GC)"
+    affinescript compile "$ROOT_DIR/src/main.affine" --wasm-gc -o "$TMP_WASM"
     [ -f "$TMP_WASM" ]
     return $?
   fi
 
   if [ -x "$compiler_repo/_build/default/bin/main.exe" ]; then
-    echo "Using affinescript from $compiler_repo/_build/default/bin/main.exe"
-    "$compiler_repo/_build/default/bin/main.exe" compile "$ROOT_DIR/src/main.affine" -o "$TMP_WASM"
+    echo "Using affinescript from $compiler_repo/_build/default/bin/main.exe (WASM GC)"
+    "$compiler_repo/_build/default/bin/main.exe" compile "$ROOT_DIR/src/main.affine" --wasm-gc -o "$TMP_WASM"
     [ -f "$TMP_WASM" ]
     return $?
   fi
 
-  echo "Using dune exec affinescript from $compiler_repo"
-  ( cd "$compiler_repo" && dune exec affinescript -- compile "$ROOT_DIR/src/main.affine" -o "$TMP_WASM" )
+  echo "Using dune exec affinescript from $compiler_repo (WASM GC)"
+  ( cd "$compiler_repo" && dune exec affinescript -- compile "$ROOT_DIR/src/main.affine" --wasm-gc -o "$TMP_WASM" )
   [ -f "$TMP_WASM" ]
   return $?
 }
