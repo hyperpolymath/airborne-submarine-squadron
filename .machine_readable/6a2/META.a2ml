@@ -1,44 +1,27 @@
-;; SPDX-License-Identifier: AGPL-3.0-or-later
-;; META.a2ml - Architecture decisions and meta information (6a2 format)
-;; Updated: 2026-04-03
+# SPDX-License-Identifier: PMPL-1.0-or-later
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
+# META.a2ml — Airborne Submarine Squadron meta-level information
+[metadata]
+version = "0.1.0"
+last-updated = "2026-04-11"
 
+[project-info]
+license = "PMPL-1.0-or-later"
+author = "Jonathan D.A. Jewell (hyperpolymath)"
 
-; Front-matter required by hyperpolymath/a2ml-validate-action.
-; The validator matches ^(name|project|version) = "..." at line start.
-name = "airborne-submarine-squadron"
-project = "airborne-submarine-squadron"
-version = "0.5.0"
-schema_version = "1.0.0"
+[architecture-decisions]
+decisions = [
+  # No ADRs recorded
+]
 
-(define meta
-  '((architecture-decisions
-     (adr-001 (title "No Tauri or Electron")
-              (status "accepted")
-              (rationale "Pure WASM + browser + system tray. Lighter, no runtime bloat."))
-     (adr-002 (title "No TypeScript")
-              (status "accepted")
-              (rationale "Vanilla JS + AffineScript. TypeScript banned per project policy."))
-     (adr-003 (title "Deno as sole JS runtime")
-              (status "accepted")
-              (rationale "No Node.js, npm, Bun. Deno for file server and tooling."))
-     (adr-004 (title "ksni for system tray")
-              (status "accepted")
-              (rationale "KDE StatusNotifierItem. Upgraded to ksni 0.3 (Apr 2026)."))
-     (adr-005 (title "Port 6880")
-              (status "accepted")
-              (rationale "Type 688 attack submarine reference."))
-     (adr-006 (title "AffineScript as game engine language")
-              (status "accepted")
-              (rationale "Compiles to WASM. JS placeholder until compiler matures."))
-     (adr-007 (title "Thermal layer system")
-              (status "accepted")
-              (rationale "Three asymmetric water layers with visibility and detection rules."))
-     (adr-008 (title "AGPL-3.0-or-later license")
-              (status "accepted")
-              (rationale "Co-developed project. Exception to PMPL policy.")))
+[development-practices]
+versioning = "SemVer"
+documentation = "AsciiDoc"
+build-tool = "just"
 
-    (development-practices
-     (runtime "Deno")
-     (build "just + bash + cargo")
-     (ci "GitHub Actions (CodeQL)")
-     (testing "Deno check, cargo check, panic-attack assail"))))
+[maintenance-axes]
+scoping-first = true
+axis-1 = "must > intend > like"
+axis-2 = "corrective > adaptive > perfective"
+axis-3 = "systems > compliance > effects"

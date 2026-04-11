@@ -1,32 +1,20 @@
-;; SPDX-License-Identifier: AGPL-3.0-or-later
-;; ECOSYSTEM.a2ml - Ecosystem position and relationships (6a2 format)
-;; Updated: 2026-04-03
+# SPDX-License-Identifier: PMPL-1.0-or-later
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
+# ECOSYSTEM.a2ml — Airborne Submarine Squadron ecosystem position
+[metadata]
+version = "0.1.0"
+last-updated = "2026-04-11"
 
+[project]
+name = "Airborne Submarine Squadron"
+purpose = ""
+role = "game"
 
-; Front-matter required by hyperpolymath/a2ml-validate-action.
-; The validator matches ^(name|project|version) = "..." at line start.
-name = "airborne-submarine-squadron"
-project = "airborne-submarine-squadron"
-version = "0.5.0"
-schema_version = "1.0.0"
+[position-in-ecosystem]
+category = "arcade"
 
-(define ecosystem
-  '((position
-     (type "game")
-     (category "arcade")
-     (monorepo "standalone")
-     (primary-owner "JoshuaJewell")
-     (admin "hyperpolymath"))
-
-    (related-projects
-     (gossamer "Desktop runtime framework — sister project")
-     (affinescript "Game engine language — in nextgen-languages")
-     (verisimdb "Database integration — in nextgen-databases")
-     (proven "Formal verification patterns"))
-
-    (technologies
-     (languages "JavaScript" "AffineScript" "Rust" "Zig" "Bash")
-     (runtime "Deno" "Gossamer (WebKitGTK)")
-     (build "just" "cargo" "affinescript compiler")
-     (desktop "XDG" "ksni (KDE StatusNotifierItem)")
-     (standards "AGPL-3.0-or-later" "Idris2 ABI" "Zig FFI"))))
+[related-projects]
+projects = [
+  # No related projects recorded
+]
