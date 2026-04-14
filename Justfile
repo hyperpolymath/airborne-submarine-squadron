@@ -4,6 +4,8 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 # Type-check AffineScript source
+import? "contractile.just"
+
 check:
   if command -v affinescript >/dev/null 2>&1; then \
     affinescript check src/main.affine; \
