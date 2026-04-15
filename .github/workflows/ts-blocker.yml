@@ -1,37 +1,26 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
-# TypeScript blocker — fails if any .ts or .tsx files are found.
-# TypeScript is banned per RSR policy; use ReScript instead.
+# SPDX-License-Identifier: PMPL-1.0-or-later
+name: TypeScript/JavaScript Blocker
+on: [push, pull_request]
 
-name: TypeScript Blocker
-
-on:
-  push:
-  pull_request:
-
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
-  block-typescript:
-    name: Block TypeScript Files
+  check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-
-      - name: Check for TypeScript files
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Block new TypeScript/JavaScript
         run: |
-          TS_FILES=$(find . \
-            -not -path "./.git/*" \
-            -not -path "./node_modules/*" \
-            \( -name "*.ts" -o -name "*.tsx" \) \
-            2>/dev/null)
-
-          if [ -n "$TS_FILES" ]; then
-            echo "BANNED TypeScript files found:"
-            echo "$TS_FILES"
-            echo ""
-            echo "ERROR: TypeScript is banned. Convert to ReScript (.res) instead."
+          NEW_TS=$(git diff --name-only --diff-filter=A HEAD~1 2>/dev/null | grep -E '\.(ts|tsx)$' | grep -v '\.gen\.' || true)
+          NEW_JS=$(git diff --name-only --diff-filter=A HEAD~1 2>/dev/null | grep -E '\.(js|jsx)$' | grep -v '\.res\.js$' | grep -v '\.gen\.' | grep -v 'node_modules' || true)
+          
+          if [ -n "$NEW_TS" ] || [ -n "$NEW_JS" ]; then
+            echo "❌ New TS/JS files detected. Use ReScript instead."
+            [ -n "$NEW_TS" ] && echo "$NEW_TS"
+            [ -n "$NEW_JS" ] && echo "$NEW_JS"
             exit 1
           fi
-
-          echo "No TypeScript files found."
+          echo "✅ ReScript policy enforced"

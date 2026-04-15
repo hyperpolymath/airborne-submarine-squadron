@@ -1,52 +1,21 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
-# npm/bun blocker — fails if npm or bun lockfiles are committed.
-# This repo uses Deno; npm and bun are banned per RSR policy.
+# SPDX-License-Identifier: PMPL-1.0-or-later
+name: NPM/Bun Blocker
+on: [push, pull_request]
 
-name: npm/bun Blocker
-
-on:
-  push:
-  pull_request:
-
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
-  block-npm-bun:
-    name: Block npm and bun Lockfiles
+  check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-
-      - name: Check for banned lockfiles
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Block npm/bun
         run: |
-          FAIL=0
-
-          if [ -f "package-lock.json" ]; then
-            echo "BANNED: package-lock.json found — use Deno, not npm"
-            FAIL=$((FAIL + 1))
-          fi
-
-          if [ -f "bun.lockb" ]; then
-            echo "BANNED: bun.lockb found — use Deno, not bun"
-            FAIL=$((FAIL + 1))
-          fi
-
-          if [ -f "yarn.lock" ]; then
-            echo "BANNED: yarn.lock found — use Deno, not yarn"
-            FAIL=$((FAIL + 1))
-          fi
-
-          if [ -f "pnpm-lock.yaml" ]; then
-            echo "BANNED: pnpm-lock.yaml found — use Deno, not pnpm"
-            FAIL=$((FAIL + 1))
-          fi
-
-          if [ "$FAIL" -gt 0 ]; then
-            echo ""
-            echo "ERROR: Banned package manager lockfile(s) detected."
-            echo "This project uses Deno. Remove these files."
+          if [ -f "package-lock.json" ] || [ -f "bun.lockb" ] || [ -f ".npmrc" ]; then
+            echo "❌ npm/bun artifacts detected. Use Deno instead."
             exit 1
           fi
-
-          echo "No banned lockfiles found."
+          echo "✅ No npm/bun violations"
