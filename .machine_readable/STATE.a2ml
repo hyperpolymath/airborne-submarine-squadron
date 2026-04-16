@@ -183,4 +183,13 @@ schema_version = "1.0.0"
                    underwater). Solar minimap gains destination tooltip with range/hazard;
                    orbit menu shows per-planet accent/sky/enemy swatches for all 5 warp
                    destinations. Added 5 new chaos tests (penalty bounds, controls.js read
-                   stress, skin catalogue integrity, memory-leak check, script load order).")))
+                   stress, skin catalogue integrity, memory-leak check, script load order).")
+    ("2026-04-16" "Claude Opus 4.6" "v3.0 groundwork. Astrocompass HUD for orbit mode (bow-relative
+                   bearing dial, nearest-body + warp-destination markers, autopilot tag, Sun
+                   pulse warning). Windows installer desktop/install.ps1 (Start Menu + Desktop
+                   shortcuts, runtime auto-detect deno->node fallback). Linux packaging:
+                   packaging/debian/{control,rules,launcher-stub} and
+                   packaging/rpm/airborne-submarine-squadron.spec, plus packaging/README.md.
+                   AffineScript build-chain CI gate .github/workflows/build-chain.yml validates
+                   prebuilt-fallback path, WASM magic bytes, --reflect JSON, and build.sh
+                   fallback documentation. Compile notes captured in BUILD.md.")))

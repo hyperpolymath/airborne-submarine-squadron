@@ -1,0 +1,109 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# AffineScript build-chain gate — validates that build.sh produces a
+# usable WASM artifact under the three supported scenarios:
+#   1. affinescript is on PATH (real compile)
+#   2. AFFINESCRIPT_REPO points to a local checkout (bootstrapped compile)
+#   3. No compiler available (prebuilt fallback from build/ or dist/)
+#
+# This is the gate that catches "build.sh suddenly requires affinescript"
+# regressions — the prebuilt-fallback path MUST continue to work so
+# playtesting and packaging builds don't break.
+name: Build Chain
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - build.sh
+      - run.js
+      - src/**
+      - build/**
+      - dist/**
+      - '.github/workflows/build-chain.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - build.sh
+      - run.js
+      - src/**
+      - build/**
+      - dist/**
+      - '.github/workflows/build-chain.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prebuilt-fallback:
+    name: Prebuilt WASM fallback (no compiler)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
+      - name: Verify affinescript is NOT on PATH
+        run: |
+          if command -v affinescript >/dev/null 2>&1; then
+            echo "::error::affinescript unexpectedly present — test invalid"
+            exit 1
+          fi
+          echo "No affinescript on PATH — good, testing fallback path"
+
+      - name: Run build.sh (must succeed with fallback)
+        run: bash build.sh
+        env:
+          AFFINESCRIPT_REPO: ""
+
+      - name: Verify WASM artifact produced
+        run: |
+          test -f build/airborne-submarine-squadron.wasm \
+            || (echo "::error::build/airborne-submarine-squadron.wasm missing after build.sh" && exit 1)
+          # WASM magic bytes: 00 61 73 6d
+          head -c 4 build/airborne-submarine-squadron.wasm | xxd | head -1
+          magic=$(head -c 4 build/airborne-submarine-squadron.wasm | xxd -p)
+          if [ "$magic" != "0061736d" ]; then
+            echo "::error::WASM magic bytes wrong: $magic (expected 0061736d)"
+            exit 1
+          fi
+          echo "WASM artifact valid (magic bytes OK)"
+
+      - name: Reflect (structural self-check)
+        uses: denoland/setup-deno@909cc5acb0fdd60627fb858598759246509fa755 # v2
+        with:
+          deno-version: v2.x
+
+      - name: Run --reflect
+        run: deno run --allow-all run.js --reflect | head -60
+
+  build-script-lint:
+    name: build.sh has documented fallback
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+
+      - name: Verify fallback is documented in build.sh
+        run: |
+          if ! grep -q 'affinescript not found' build.sh; then
+            echo "::error::build.sh must document the 'affinescript not found' fallback"
+            echo "This is required for reproducibility — see ROADMAP Work Queue."
+            exit 1
+          fi
+          if ! grep -q 'AFFINESCRIPT_REPO' build.sh; then
+            echo "::error::build.sh must reference AFFINESCRIPT_REPO env var"
+            exit 1
+          fi
+          echo "build.sh correctly documents both fallback paths"
+
+      - name: Verify README documents the build chain
+        run: |
+          if ! grep -q 'AFFINESCRIPT_REPO\|affinescript' README.adoc; then
+            echo "::warning::README.adoc does not mention AFFINESCRIPT_REPO or affinescript"
+          fi
+          if ! grep -q 'prebuilt' README.adoc; then
+            echo "::warning::README.adoc does not mention the prebuilt WASM fallback"
+          fi

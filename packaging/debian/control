@@ -1,0 +1,30 @@
+Source: airborne-submarine-squadron
+Section: games
+Priority: optional
+Maintainer: Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/hyperpolymath/airborne-submarine-squadron
+Vcs-Git: https://github.com/hyperpolymath/airborne-submarine-squadron.git
+Vcs-Browser: https://github.com/hyperpolymath/airborne-submarine-squadron
+Rules-Requires-Root: no
+
+Package: airborne-submarine-squadron
+Architecture: all
+Depends: ${misc:Depends},
+         deno (>= 2.0) | nodejs (>= 18)
+Recommends: xdg-utils,
+            desktop-file-utils
+Suggests: wasmtime
+Description: Sopwith-style flying submarine arcade game
+ Airborne Submarine Squadron is a browser-forward take on the classic
+ Sopwith-style arcade, built on the Gossamer launcher. Features
+ atmosphere flight, underwater combat with thermal layers and
+ caterpillar drive, orbital space navigation, three ship types, two
+ enemy submarine classes, mine chain-cutting, supply drops, hangar
+ defence, and a commander ejection system.
+ .
+ The game runs in a modern browser via a Deno-served file server
+ (port 6880) or as a Gossamer desktop variant. A prebuilt WASM
+ module is shipped; the AffineScript source is also included for
+ reproducible rebuilds.
