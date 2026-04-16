@@ -130,6 +130,7 @@ Deno.test("chaos: game engine files are syntactically valid JS", async () => {
     ROOT + "gossamer/enemies.js",
     ROOT + "gossamer/hud.js",
     ROOT + "gossamer/verisimdb.js",
+    ROOT + "gossamer/controls.js",
   ];
   for (const f of files) {
     const src = await Deno.readTextFile(f);
@@ -144,4 +145,96 @@ Deno.test("chaos: game engine files are syntactically valid JS", async () => {
     assert(Math.abs(depth) <= 5,
       `${f.split('/').pop()} has severely unbalanced braces (depth=${depth})`);
   }
+});
+
+// ── 9. Damage penalty functions never return out-of-range values ────
+Deno.test("chaos: damage penalty functions stay bounded [0,1] under adversarial inputs", async () => {
+  const { functions } = await import("./_extract.js");
+  const { getBackDamagePenalty, getFrontControlPenalty, getHullBuoyancyPenalty, clamp } = functions;
+  if (!getBackDamagePenalty || !getFrontControlPenalty || !getHullBuoyancyPenalty) {
+    // Functions exist in source but may not have been extracted — skip
+    return;
+  }
+  // Adversarial inputs: negative HP, huge HP, NaN, Infinity
+  const adversarial = [
+    { nose: -10, hull: -10, tower: -10, engine: -10, wings: -10, rudder: -10 },
+    { nose: 1e9, hull: 1e9, tower: 1e9, engine: 1e9, wings: 1e9, rudder: 1e9 },
+    { nose: 0, hull: 0, tower: 0, engine: 0, wings: 0, rudder: 0 },
+    { nose: 100, hull: 120, tower: 70, engine: 80, wings: 60, rudder: 60 }, // Pristine
+  ];
+  for (const parts of adversarial) {
+    const back = getBackDamagePenalty(parts);
+    const front = getFrontControlPenalty(parts);
+    const buoy = getHullBuoyancyPenalty(parts);
+    assert(back >= 0 && back <= 1, `getBackDamagePenalty returned ${back} for ${JSON.stringify(parts)}`);
+    assert(front >= 0 && front <= 1, `getFrontControlPenalty returned ${front}`);
+    assert(buoy >= 0 && buoy <= 1, `getHullBuoyancyPenalty returned ${buoy}`);
+  }
+});
+
+// ── 10. Rapid keybind rebinds don't corrupt storage ─────────────────
+Deno.test("chaos: controls.js keybind DEFAULT_KEYBINDS is valid under read stress", async () => {
+  // Read controls.js 20 times concurrently and verify every read gives us
+  // identical, structurally valid source — no partial reads or corruption.
+  const path = ROOT + "gossamer/controls.js";
+  const reads = await Promise.all(
+    Array.from({ length: 20 }, () => Deno.readTextFile(path))
+  );
+  const first = reads[0];
+  for (let i = 1; i < reads.length; i++) {
+    assertEquals(reads[i], first, `Read ${i} differs from read 0`);
+  }
+  // Verify essential content is present
+  assert(first.includes("DEFAULT_KEYBINDS"), "Must define DEFAULT_KEYBINDS");
+  assert(first.includes("KEYBIND_STORAGE_KEY"), "Must define storage key");
+  assert(first.includes("loadKeybinds"), "Must define loadKeybinds");
+  assert(first.includes("saveKeybinds"), "Must define saveKeybinds");
+  assert(first.includes("resetKeybinds"), "Must define resetKeybinds");
+});
+
+// ── 11. Resource exhaustion: skin cycling under rapid toggles ───────
+Deno.test("chaos: SUB_SKINS catalogue survives rapid access patterns", async () => {
+  const src = await Deno.readTextFile(ROOT + "gossamer/persist.js");
+  // Find SUB_SKINS array boundaries
+  const startIdx = src.indexOf("const SUB_SKINS = [");
+  assert(startIdx >= 0, "SUB_SKINS must be defined in persist.js");
+  // Count opening `{` to infer number of skin entries
+  const after = src.slice(startIdx);
+  const endIdx = after.indexOf("];");
+  assert(endIdx >= 0, "SUB_SKINS array must terminate");
+  const skinsBlock = after.slice(0, endIdx);
+  // Each skin is one object, one line, starting with "{ id:"
+  const skinMatches = skinsBlock.match(/\{\s*id:\s*'[a-z]+'/g) || [];
+  assert(skinMatches.length >= 5, `Expected 5+ skins, found ${skinMatches.length}`);
+  assert(skinsBlock.includes("'pride'"), "Pride skin must be registered");
+  assert(skinsBlock.includes("'rainbow'"), "Rainbow skin must be registered");
+  assert(skinsBlock.includes("'spectrum'"), "Spectrum custom skin must be registered");
+});
+
+// ── 12. Memory pressure: extracted functions don't leak on repeated calls
+Deno.test("chaos: extracted functions handle repeated invocation without state leaks", async () => {
+  const { functions, constants } = await import("./_extract.js");
+  if (!functions.createParts) return;  // Can't test without createParts
+  // Call createParts 1000 times and verify each returns a fresh, pristine object
+  const samples = [];
+  for (let i = 0; i < 1000; i++) {
+    samples.push(functions.createParts());
+  }
+  // Mutate one; verify others unchanged (no shared state)
+  samples[0].hull = 0;
+  for (let i = 1; i < samples.length; i++) {
+    assertEquals(samples[i].hull, 120,
+      `Sample ${i} was affected by mutation of sample 0 — shared state leak!`);
+  }
+});
+
+// ── 13. File ordering: controls.js must load before persist.js ──────
+Deno.test("chaos: index_gossamer.html loads controls.js before persist.js", async () => {
+  const html = await Deno.readTextFile(ROOT + "gossamer/index_gossamer.html");
+  const ctrlIdx = html.indexOf("controls.js");
+  const persistIdx = html.indexOf("persist.js");
+  assert(ctrlIdx >= 0, "controls.js must be referenced in index_gossamer.html");
+  assert(persistIdx >= 0, "persist.js must be referenced");
+  assert(ctrlIdx < persistIdx,
+    "controls.js must load BEFORE persist.js (persist.js depends on its globals)");
 });

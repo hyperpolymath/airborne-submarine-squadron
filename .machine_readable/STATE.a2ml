@@ -155,10 +155,10 @@ schema_version = "1.0.0"
 
   (critical-next-actions
     (action-1 "Playtest all 3 mission types + aircraft balance in-game with son")
-    (action-2 "CRG B assessment — chaos/resilience tests, coverage feedback on fuzz")
+    (action-2 "CRG B assessment — coverage feedback on fuzz + additional resilience scenarios")
     (action-3 "Island platformer mode for v2 milestone (Trionic SubCommando)")
     (action-4 "Radar/astrocompass for space expansion milestone")
-    (action-5 "Consider extracting controls/keybinds into controls.js (~300 lines)"))
+    (action-5 "Windows full installer (currently ICO-only)"))
 
   (session-history
     ("2026-04-04" "Claude Opus 4.6" "Full blitz test suite: 94 tests + 6 benchmarks across 10 categories.
@@ -173,4 +173,14 @@ schema_version = "1.0.0"
                    saves, crash logs with localStorage fallback). Multi-platform CI (Linux+macOS).
                    Strike missions (8 kills, 100s, +500/kill) and escort missions (protect ship, 133s,
                    +4000). M key cycles missions. hud.js extracted (6616→5706 main, 945 hud).
-                   Game engine now 4 modules: core 5706 + enemies 2583 + hud 945 + verisimdb 163.")))
+                   Game engine now 4 modules: core 5706 + enemies 2583 + hud 945 + verisimdb 163.")
+    ("2026-04-16" "Claude Opus 4.6" "v2.1 Customization Layer shipped. controls.js extracted
+                   (DEFAULT_KEYBINDS, rebind state, CONTROL_SCHEME legend). Pause menu gains
+                   live 5-part colour swatch + R/B/P preset hotkeys (rainbow/spectrum/pride).
+                   Damage diagram: depleted parts flicker, critical parts shimmer. Previously
+                   unused getBackDamagePenalty/getFrontControlPenalty/getHullBuoyancyPenalty
+                   wired into movement+buoyancy (hull damage bleeds up to 60% buoyancy
+                   underwater). Solar minimap gains destination tooltip with range/hazard;
+                   orbit menu shows per-planet accent/sky/enemy swatches for all 5 warp
+                   destinations. Added 5 new chaos tests (penalty bounds, controls.js read
+                   stress, skin catalogue integrity, memory-leak check, script load order).")))

@@ -11,6 +11,7 @@
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const SRC = [
+  await Deno.readTextFile(ROOT + 'gossamer/controls.js'),
   await Deno.readTextFile(ROOT + 'gossamer/app_gossamer.js'),
   await Deno.readTextFile(ROOT + 'gossamer/weapons.js'),
   await Deno.readTextFile(ROOT + 'gossamer/orbital.js'),
