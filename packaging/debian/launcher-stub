@@ -1,0 +1,7 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# /usr/games/airborne-submarine-squadron — shim that points into the
+# system-installed game tree under /usr/share/.
+set -eu
+INSTALL_DIR="/usr/share/airborne-submarine-squadron"
+exec "$INSTALL_DIR/launcher.sh" "$@"

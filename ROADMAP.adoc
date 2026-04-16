@@ -29,18 +29,37 @@ The Gossamer edition now boots a loader, shows retro battle art, draws a live so
       source of truth for key state, DEFAULT_KEYBINDS, rebind actions,
       and the control scheme legend.
 
-=== v3.0 — Multi-platform Deployment
-* [ ] Cross-platform packaging: Linux (deb/rpm), Kinoite/Silverblue, Windows, macOS, Android/iOS webview, Minix, RISC-V, Lua/Node wrappers.
-* [ ] Launcher/issuer automation (`launcher.sh`, `integ.sh`, `doinstall`), CICD health, and desktop/start menu integration.
-* [ ] AffineScript build chain checks with prebuilt WASM fallback messaging.
+=== v3.0 — Multi-platform Deployment (groundwork landed 2026-04-16)
+* [x] Linux packaging manifests: `packaging/debian/` (control + rules +
+      launcher stub) and `packaging/rpm/airborne-submarine-squadron.spec`.
+      Build-ready skeletons; tagged release still needed to produce
+      downloadable `.deb` / `.rpm` artifacts.
+* [x] Windows installer: `desktop/install.ps1` creates Start Menu +
+      Desktop shortcuts with auto-detection of Deno or Node runtime.
+* [x] AffineScript build-chain CI gate: `.github/workflows/build-chain.yml`
+      enforces that the prebuilt-WASM fallback keeps working, validates
+      WASM magic bytes, and checks `build.sh` still documents the
+      `affinescript not found` path. Compile notes captured in `BUILD.md`.
+* [x] Astrocompass HUD for orbit mode (bow-relative bearing to nearest
+      body + warp destination, dashed bearing line, autopilot tag,
+      pulsing Sun warning for star destinations).
+* [ ] Kinoite/Silverblue Flatpak manifest.
+* [ ] macOS `.pkg` bundle.
+* [ ] Android/iOS webview wrappers.
+* [ ] Minix + RISC-V + Lua/Node wrapper packaging.
+* [ ] Tag + release `.deb` / `.rpm` / `.msi` artifacts from CI.
 
 == Work Queue
 
-* Finish the submarine customization screen, keep the damage diagram reactive, and document what each hit zone does (back, front, center).
-* Harden the warp menu instructions (spaceship leaps, afterburner => warp replacement in vacuum, impulse limits, automated `88 MPH` gating).
-* Capture compile notes, reference `AFFINESCRIPT_REPO`, and explain the `affinescript not found` fallback so builds are reproducible.
-* Verify README/ROADMAP mention the Palimpsest-MPL license and include the MPL-2.0 compatibility notice on the GitHub about panel if needed.
-* Update documentation set (README.adoc, explainme.adoc, ROADMAP.adoc) to reflect npm package publishing capabilities.
+* Island platformer mode for v2 milestone (Trionic SubCommando).
+* Radar/astrocompass: astrocompass shipped; consider extending the
+  dial with a mini-radar for hostile bodies / tourist ships.
+* Finish the submarine customization screen polish — bind mouse to
+  the pause-menu swatches so players can click-to-pick a colour.
+* Harden the warp menu instructions (spaceship leaps, afterburner =>
+  warp replacement in vacuum, impulse limits, automated `88 MPH` gating).
+* Update documentation set (README.adoc, explainme.adoc, ROADMAP.adoc)
+  to reflect npm package publishing capabilities.
 * Add package.json maintenance to build process and CI/CD pipeline.
 
 == Future Directions

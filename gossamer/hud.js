@@ -162,6 +162,129 @@ function drawSolarMiniMap() {
   ctx.fillText(`F opens orbit menu`, x + 8, legendY + 12);
 }
 
+// ── ASTROCOMPASS / RADAR (orbit mode) ─────────────────────────────
+// Radial compass showing:
+//   - Ship heading (red triangle, fixed up)
+//   - Nearest body bearing (green dot on outer ring)
+//   - Warp destination bearing (orange dot, dashed ring if out of range)
+//   - Range ring scaled to nearest body's distance
+//
+// Rendered bottom-right, ~86px radius. Draws nothing if we aren't in
+// orbit or have no space data. Safe to call every frame.
+function drawAstrocompass(space, bodies) {
+  if (!space || !bodies) return;
+  const R = 60;                        // Dial radius
+  const cx = W - R - 20;               // Position bottom-right
+  const cy = H - R - 20;
+
+  // Background ring
+  ctx.fillStyle = 'rgba(3,7,18,0.82)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, R + 4, 0, TWO_PI);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(248,250,252,0.18)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Outer graticule (cardinal tick marks at N/E/S/W)
+  ctx.strokeStyle = 'rgba(148,163,184,0.45)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * TWO_PI;
+    const tickInner = i % 2 === 0 ? R - 6 : R - 3;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * tickInner, cy + Math.sin(a) * tickInner);
+    ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+    ctx.stroke();
+  }
+  // N label (up = prograde/bow)
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '9px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('BOW', cx, cy - R + 10);
+
+  // Ship heading marker — red triangle at top, stays fixed because
+  // the dial is a bow-relative display.
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - R + 2);
+  ctx.lineTo(cx - 4, cy - R + 10);
+  ctx.lineTo(cx + 4, cy - R + 10);
+  ctx.closePath();
+  ctx.fill();
+
+  // Helper: convert world-bearing to dial-bearing (bow-relative)
+  function dialAngle(targetX, targetY) {
+    const worldAngle = Math.atan2(targetY - space.shipY, targetX - space.shipX);
+    // Rotate so that bow-forward (shipAngle) maps to -π/2 (up on the dial)
+    return worldAngle - space.shipAngle - Math.PI / 2;
+  }
+
+  // Nearest body marker (green dot on outer ring)
+  if (space.nearestBody && space.nearestBody.body) {
+    const b = space.nearestBody.body;
+    const a = dialAngle(b.x, b.y);
+    const px = cx + Math.cos(a) * (R - 10);
+    const py = cy + Math.sin(a) * (R - 10);
+    ctx.fillStyle = '#34d399';
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, TWO_PI);
+    ctx.fill();
+    // Label initials
+    ctx.fillStyle = '#34d399';
+    ctx.font = '8px "Courier New", monospace';
+    const lx = cx + Math.cos(a) * (R - 22);
+    const ly = cy + Math.sin(a) * (R - 22);
+    ctx.fillText(b.label.slice(0, 3).toUpperCase(), lx, ly + 2);
+  }
+
+  // Warp destination marker (orange — pulses if it's the Sun)
+  const destination = world.currentDestination || PLANETS[world.currentPlanet];
+  if (destination && !destination.star) {
+    const destBody = bodies.find((b) => b.label.toLowerCase() === destination.name.toLowerCase());
+    if (destBody) {
+      const a = dialAngle(destBody.x, destBody.y);
+      const px = cx + Math.cos(a) * (R - 20);
+      const py = cy + Math.sin(a) * (R - 20);
+      ctx.fillStyle = '#f97316';
+      ctx.beginPath();
+      ctx.arc(px, py, 3, 0, TWO_PI);
+      ctx.fill();
+      // Dashed line from centre to destination marker
+      ctx.strokeStyle = 'rgba(249,115,22,0.5)';
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  } else if (destination && destination.star) {
+    // Sun destination — draw a pulsing central warning
+    const pulse = 0.4 + Math.sin(world.tick * 0.2) * 0.3;
+    ctx.fillStyle = `rgba(249,115,22,${pulse})`;
+    ctx.font = 'bold 8px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('☼', cx, cy + 3);
+  }
+
+  // Range readout (centre)
+  if (space.nearestBody) {
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '9px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${Math.round(space.nearestBody.distance)}Mm`, cx, cy + R + 14);
+  }
+  // Autopilot indicator (small text above dial)
+  if (space.autopilotTarget) {
+    ctx.fillStyle = '#34d399';
+    ctx.font = 'bold 9px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`AP: ${space.autopilotTarget.toUpperCase()}`, cx, cy - R - 4);
+  }
+  ctx.textAlign = 'left';
+}
+
 function drawFlightInstruments() {
   const telemetry = world.telemetry || {};
   const speed = clamp(telemetry.speedMph || 0, 0, SPEEDOMETER_MAX_MPH);
@@ -708,6 +831,13 @@ function drawOrbitScene() {
     ctx.fillText(`Nearest body: ${space.nearestBody.body.label}`, 24, H - 66);
     ctx.fillText(`Range: ${Math.round(space.nearestBody.distance)} Mm`, 24, H - 46);
   }
+
+  // ── Astrocompass / radar dial ──────────────────────────────────────
+  // Bottom-right radial compass showing bearing to nearest body and the
+  // current warp destination, plus a range ring scaled to the nearest
+  // body's distance. Only visible in orbit mode and only when we have
+  // something to point at.
+  drawAstrocompass(space, bodies);
 
   // ── Multi-tier notification system ──
   // Initialise queues if needed

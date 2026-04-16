@@ -1,0 +1,39 @@
+#!/usr/bin/make -f
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# debhelper build rules for airborne-submarine-squadron.
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Prefer the prebuilt WASM shipped in build/; fall back to
+	# affinescript compile if AFFINESCRIPT_REPO is set.
+	bash build.sh
+
+override_dh_auto_install:
+	# Install game tree under /usr/share/airborne-submarine-squadron
+	install -d debian/airborne-submarine-squadron/usr/share/airborne-submarine-squadron
+	cp -r gossamer src build dist run.js launcher.sh package.json \
+		debian/airborne-submarine-squadron/usr/share/airborne-submarine-squadron/
+	# Launcher stub in /usr/games
+	install -d debian/airborne-submarine-squadron/usr/games
+	install -m 0755 packaging/debian/launcher-stub \
+		debian/airborne-submarine-squadron/usr/games/airborne-submarine-squadron
+	# Desktop entry + icons
+	install -d debian/airborne-submarine-squadron/usr/share/applications
+	install -m 0644 desktop/airborne-submarine-squadron.desktop \
+		debian/airborne-submarine-squadron/usr/share/applications/
+	install -d debian/airborne-submarine-squadron/usr/share/icons/hicolor/256x256/apps
+	install -m 0644 desktop/icons/airborne-submarine-squadron.png \
+		debian/airborne-submarine-squadron/usr/share/icons/hicolor/256x256/apps/
+	install -d debian/airborne-submarine-squadron/usr/share/icons/hicolor/scalable/apps
+	install -m 0644 desktop/icons/airborne-submarine-squadron.svg \
+		debian/airborne-submarine-squadron/usr/share/icons/hicolor/scalable/apps/
+
+override_dh_auto_test:
+	# Headless tests require Deno; skip if unavailable on the builder.
+	if command -v deno >/dev/null 2>&1; then \
+		deno test --allow-all test/ ; \
+	else \
+		echo "deno not found — skipping test suite" >&2 ; \
+	fi
