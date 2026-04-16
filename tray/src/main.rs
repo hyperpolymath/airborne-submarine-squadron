@@ -217,8 +217,8 @@ mod tests {
     #[test]
     fn test_server_port_reads_valid_port() {
         let port_file = "/tmp/airborne-test-port.txt";
-        let mut f = fs::File::create(port_file).unwrap();
-        writeln!(f, "8080").unwrap();
+        let mut f = fs::File::create(port_file).expect("TODO: handle error");
+        writeln!(f, "8080").expect("TODO: handle error");
         // Temporarily override the port file path by reading directly
         let port: Option<u16> = fs::read_to_string(port_file)
             .ok()
@@ -230,8 +230,8 @@ mod tests {
     #[test]
     fn test_server_port_returns_none_for_invalid_content() {
         let port_file = "/tmp/airborne-test-invalid-port.txt";
-        let mut f = fs::File::create(port_file).unwrap();
-        writeln!(f, "not-a-port").unwrap();
+        let mut f = fs::File::create(port_file).expect("TODO: handle error");
+        writeln!(f, "not-a-port").expect("TODO: handle error");
         let port: Option<u16> = fs::read_to_string(port_file)
             .ok()
             .and_then(|s| s.trim().parse().ok());
@@ -242,8 +242,8 @@ mod tests {
     #[test]
     fn test_server_not_running_with_invalid_pid() {
         // Write an invalid PID to the PID file
-        let mut f = fs::File::create(PID_FILE).unwrap();
-        writeln!(f, "not-a-pid").unwrap();
+        let mut f = fs::File::create(PID_FILE).expect("TODO: handle error");
+        writeln!(f, "not-a-pid").expect("TODO: handle error");
         assert!(!is_server_running());
         let _ = fs::remove_file(PID_FILE);
     }
@@ -281,8 +281,8 @@ mod tests {
     #[test]
     fn test_server_port_returns_valid_range_when_present() {
         let port_file = "/tmp/airborne-contract-port.txt";
-        let mut f = fs::File::create(port_file).unwrap();
-        writeln!(f, "3000").unwrap();
+        let mut f = fs::File::create(port_file).expect("TODO: handle error");
+        writeln!(f, "3000").expect("TODO: handle error");
         let port: Option<u16> = fs::read_to_string(port_file)
             .ok()
             .and_then(|s| s.trim().parse().ok());
@@ -314,8 +314,8 @@ mod tests {
     #[test]
     fn test_server_not_running_with_negative_pid() {
         // Negative PID is invalid, parse should fail so server is not running
-        let mut f = fs::File::create(PID_FILE).unwrap();
-        writeln!(f, "-999999").unwrap();
+        let mut f = fs::File::create(PID_FILE).expect("TODO: handle error");
+        writeln!(f, "-999999").expect("TODO: handle error");
         // -999999 as i32 is valid but kill(-999999, 0) fails (no such group)
         // We can't assert definitively, but it must not panic
         let _ = is_server_running();
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn test_server_port_not_running_with_empty_file() {
         let port_file = "/tmp/airborne-empty-port.txt";
-        fs::File::create(port_file).unwrap();
+        fs::File::create(port_file).expect("TODO: handle error");
         let port: Option<u16> = fs::read_to_string(port_file)
             .ok()
             .and_then(|s| s.trim().parse().ok());
