@@ -13,11 +13,21 @@ The Gossamer edition now boots a loader, shows retro battle art, draws a live so
 * [x] Orbit menu with warp hotkeys (F + Enter) and direct 1‑5 destinations, sun hazard burnout, and cave messages.
 * [x] Leaderboard persistence, compact legend, and pause settings with sub-skin tuning.
 
-=== v2.1 — Customization Layer (in-progress)
-* [ ] Full color picker / palette editor tied to the HUD and documentation (customizing plan incomplete; needs UX polish).
-* [ ] Damage map refinement: per-part blur when depleted, slowed movement, and buoyancy bleed for rear/front/mid hits.
-* [ ] Warp preview / solar map tooltip updates so astronauts understand where each number leads.
-* [ ] Integrate the pride/rainbow skin instructions into the settings panel and documentation.
+=== v2.1 — Customization Layer (shipped 2026-04-16)
+* [x] Colour swatch preview + R/B/P skin-preset hotkeys in the pause menu.
+      Spectrum hue still tunable via `,` / `.`, and a live 5-part swatch
+      (hull/wings/tower/nose/porthole) renders in the settings panel.
+* [x] Damage map refinement: depleted parts flicker/blur in the diagram,
+      unused penalty functions (back damage, front control, hull buoyancy)
+      are wired into movement, and hull damage bleeds buoyancy underwater.
+* [x] Warp preview: solar minimap now shows destination name, hazard
+      warnings, live range, and the orbit menu lists all warp hotkeys
+      with per-planet accent/sky/enemy colour swatches.
+* [x] Pride/Rainbow/Spectrum skins documented in README controls section
+      with persistence details and keybind cheatsheet.
+* [x] Controls/keybinds extracted into `gossamer/controls.js` — single
+      source of truth for key state, DEFAULT_KEYBINDS, rebind actions,
+      and the control scheme legend.
 
 === v3.0 — Multi-platform Deployment
 * [ ] Cross-platform packaging: Linux (deb/rpm), Kinoite/Silverblue, Windows, macOS, Android/iOS webview, Minix, RISC-V, Lua/Node wrappers.

@@ -233,11 +233,20 @@ File format reading, save/load, schema validation.
 #### Chaos Tests
 Failure mode injection. Resilience and recovery testing.
 
-**Example chaos:**
-- Hull takes cumulative damage during mission
-- Nemesis spawns simultaneously with other events
-- Deep water transitions during low-hull scenarios
-- Mission timers expire during active combat
+**Current scenarios (`test/chaos_test.js`):**
+- Port-conflict handling (all 6880-6884 occupied, `--reflect` still works)
+- Concurrent launcher invocations (3× parallel `--reflect`)
+- Missing WASM artifacts (`--reflect` reads registry, not build)
+- Filesystem read stress (10× concurrent reads, identical content)
+- VeriSimDB network-failure graceful degradation
+- K9 file corruption (`--help` works regardless)
+- Rapid startup/shutdown cycles (5× no orphans)
+- Source file syntactic integrity (brace-balance sentinel)
+- Damage penalty functions bounded under adversarial inputs
+- `controls.js` read stress (20× reads, identical content)
+- `SUB_SKINS` catalogue integrity (pride, rainbow, spectrum present)
+- `createParts()` no shared-state leaks across 1000 invocations
+- Script load order (`controls.js` before `persist.js` in `index_gossamer.html`)
 
 #### Mission Tests
 Mission-specific logic, state machines, completion conditions.

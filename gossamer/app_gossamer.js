@@ -2202,9 +2202,7 @@ function drawPeriscopeRod(sub) {
   ctx.restore();
 }
 
-// Rebind state: null = normal pause, string = waiting for key for that action
-let rebindAction = null;
-const REBIND_ACTIONS = ['fire', 'stabilise', 'afterburner', 'periscope', 'disembark', 'embark', 'emergencyEject', 'chaff', 'swivelLeft', 'swivelRight'];
+// Rebind state and REBIND_ACTIONS are now in controls.js.
 
 
 function updatePauseMenu() {
@@ -2226,6 +2224,16 @@ function updatePauseMenu() {
   if (keyJustPressed[']']) cycleSubSkin(world.settings, 1);
   if (keyJustPressed[',']) adjustCustomHue(world.settings, -12);
   if (keyJustPressed['.']) adjustCustomHue(world.settings, 12);
+  // Quick-select skin presets: R=rainbow, B=spectrum (By hue), P=pride
+  if (keyJustPressed['r'] || keyJustPressed['R']) {
+    world.settings.subSkin = 'rainbow'; saveSettings(world.settings);
+  }
+  if (keyJustPressed['b'] || keyJustPressed['B']) {
+    world.settings.subSkin = 'spectrum'; saveSettings(world.settings);
+  }
+  if (keyJustPressed['p'] || keyJustPressed['P']) {
+    world.settings.subSkin = 'pride'; saveSettings(world.settings);
+  }
   if (keyJustPressed['l'] || keyJustPressed['L']) {
     world.settings.showLegend = !world.settings.showLegend;
     saveSettings(world.settings);
@@ -2977,9 +2985,11 @@ function update(dt) {
     // Skip to firing section
   } else if (!sub.periscopeMode) {
     const baseSpdMult = getSpeedMult(sub.parts);
-    const spdMult = sub.caterpillarDrive ? baseSpdMult * CATERPILLAR_SPEED_MULT : baseSpdMult;
-    const thrMult = getThrustMult(sub.parts);
-    const turnMult = getTurnMult(sub.parts);
+    const backPenalty = getBackDamagePenalty(sub.parts);   // engine+rudder → velocity bleed
+    const frontPenalty = getFrontControlPenalty(sub.parts); // nose → reduced control authority
+    const spdMult = (sub.caterpillarDrive ? baseSpdMult * CATERPILLAR_SPEED_MULT : baseSpdMult) * (1 - backPenalty * 0.3);
+    const thrMult = getThrustMult(sub.parts) * (1 - frontPenalty * 0.2);
+    const turnMult = getTurnMult(sub.parts) * (1 - frontPenalty * 0.25);
     const diveInput = keys['ArrowDown'];
     const afterburnerHeld = (keys['a'] || keys['A']) && sub.afterburnerCharge > 0 && sub.y < WATER_LINE - 6 && !isEngineCritical(sub.parts);
 
@@ -3256,7 +3266,9 @@ function update(dt) {
       const depth = sub.y - (WATER_LINE - 7);
       if (depth > 0) {
         const buoyFactor = sub.diving ? 0.15 : 0.5;
-        sub.vy -= BUOYANCY * buoyFactor * dt * (1 + depth * 0.01);
+        const hullBuoyPenalty = getHullBuoyancyPenalty(sub.parts); // 0=pristine, 1=destroyed
+        const buoyMult = 1 - hullBuoyPenalty * 0.6; // damaged hull loses up to 60% buoyancy
+        sub.vy -= BUOYANCY * buoyFactor * buoyMult * dt * (1 + depth * 0.01);
       }
         sub.vx *= WATER_DRAG;
         sub.vy *= SURFACE_DAMPING;

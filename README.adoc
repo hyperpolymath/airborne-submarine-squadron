@@ -50,7 +50,50 @@ Controls, HUD, and color settings live inside the pause menu () and the on-scree
 
 == Controls
 
+Core flight:
 
+- Arrow keys – steer, climb, dive
+- Space – fire selected weapon
+- Shift – stabilise in all modes (atmosphere, water, space)
+- A – afterburner (drains fuel, regenerates over time)
+- P – periscope toggle (Shift+P for auto mode)
+- E / M – disembark / embark
+- Tab – emergency eject (commander)
+- Z / X – aim swivel (on land only)
+
+Weapons (number keys):
+
+- 1 – Machine gun (unlimited)
+- 2 – Torpedo
+- 3 – Missile
+- 4 – Depth charge
+- 5 – Bouncing bomb
+- 9 – Railgun (commander)
+
+Pause menu (Esc):
+
+- `[` / `]` – cycle sub skin
+- `,` / `.` – tune hue (Spectrum skin only)
+- R – rainbow preset  |  B – Spectrum preset  |  P – Pride preset
+- L – toggle legend  |  H – HALO parachute  |  D – deep-diver kit
+- C – cycle supply crate frequency  |  G – Nemesis sub toggle
+- S – save  |  O – load  |  N – new game  |  Q – quit (2-stage)
+- 0–9 – rebind action  |  Backspace – reset keybinds
+
+== Sub Skins & Colour Palettes
+
+Eight skins ship in the pause menu (`[` / `]` to cycle):
+
+- *Ocean Blue* – default (`#4a6baf` hull, `#e74c3c` wings)
+- *Retro Red*, *Amber Gold*, *Emerald*, *Violet* – fixed palettes
+- *Spectrum Custom* – HSL-based, tune hue with `,` / `.` (0–360°)
+- *Rainbow* – animated rainbow stripes, hue shifts with `world.tick`
+- *Pride Submarine* – static 6-stripe pride flag (red, orange, yellow, green, blue, violet)
+
+Spectrum auto-generates hull/wings/tower/nose/porthole colours from a single
+hue value, persisted in `localStorage` under `airborne-submarine-squadron:gossamer:settings`.
+The pause menu shows a live colour-swatch preview of the current skin's
+hull / wings / tower / nose / porthole components.
 
 == Building & Tooling
 

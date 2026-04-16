@@ -17,13 +17,30 @@
 
 ## Still Missing (for CRG B+)
 
-- [ ] Code coverage reports (codecov integration)
-- [ ] Detailed test documentation in CONTRIBUTING.md
-- [ ] Integration tests beyond unit tests
-- [ ] Performance benchmarking suite
+- [x] Extended chaos/resilience tests (13 scenarios including penalty bounds,
+      controls.js read stress, skin catalogue integrity, memory-leak detection,
+      and script load ordering — see `test/chaos_test.js`)
+- [ ] Code coverage reports (codecov integration — wired in CI via
+      `deno test --coverage=./cov/`; codecov upload configured in `test.yml`)
+- [ ] Detailed test documentation in CONTRIBUTING.md (§ Testing present; add
+      chaos-scenario playbook for debugging failure modes)
+- [ ] Integration tests beyond unit tests (mission state machines covered by
+      `mission_test.js` + `integration_test.js`; add cross-module flows)
+- [ ] Performance benchmarking suite (6 latency benchmarks baselined; add
+      render-loop / damage-diagram throughput benchmarks)
 
 ## Run Tests
 
 ```bash
-(check Makefile/justfile/package.json for test command)
+# Full suite
+deno test --allow-all test/
+
+# With coverage
+deno test --allow-all --coverage=./cov/ test/
+
+# Benchmarks
+deno bench --allow-all test/bench.js
+
+# Or via Justfile (once the affinescript toolchain is present)
+just test
 ```

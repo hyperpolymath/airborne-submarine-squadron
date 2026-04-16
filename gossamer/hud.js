@@ -119,12 +119,47 @@ function drawSolarMiniMap() {
     }
   }
 
+  // ── Destination tooltip ──
+  // Show details for the currently targeted destination
+  const destInfo = world.currentDestination || PLANETS[world.currentPlanet];
+  if (destInfo) {
+    const tooltipY = y + SOLAR_MAP_SIZE + 4;
+    ctx.fillStyle = 'rgba(3,7,18,0.85)';
+    ctx.fillRect(x, tooltipY, SOLAR_MAP_SIZE, 48);
+    ctx.strokeStyle = 'rgba(248,250,252,0.15)';
+    ctx.strokeRect(x, tooltipY, SOLAR_MAP_SIZE, 48);
+    ctx.fillStyle = destInfo.star ? '#f97316' : '#34d399';
+    ctx.font = 'bold 10px "Courier New", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(destInfo.name || destInfo.label || 'Unknown', x + 6, tooltipY + 12);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '9px "Courier New", monospace';
+    if (destInfo.star) {
+      ctx.fillText('HAZARD: solar radiation', x + 6, tooltipY + 24);
+      ctx.fillText('Hull damage on approach', x + 6, tooltipY + 36);
+    } else {
+      ctx.fillText(`Palette: ${destInfo.name}`, x + 6, tooltipY + 24);
+      // Show distance from ship if in orbit
+      if (world.mode === 'orbit' && world.space) {
+        const targetBody = bodies.find(b => b.label.toLowerCase() === destInfo.name.toLowerCase());
+        if (targetBody) {
+          const dist = Math.round(Math.hypot(world.space.shipX - targetBody.x, world.space.shipY - targetBody.y));
+          ctx.fillText(`Range: ${dist} Mm`, x + 6, tooltipY + 36);
+        } else {
+          ctx.fillText('Warp: 1-4 planets, 5 sun', x + 6, tooltipY + 36);
+        }
+      } else {
+        ctx.fillText('Warp: 88 MPH + climb', x + 6, tooltipY + 36);
+      }
+    }
+  }
+
   ctx.fillStyle = '#e2e8f0';
   ctx.font = '10px "Courier New", monospace';
   ctx.textAlign = 'left';
-  ctx.fillText(`Warp hotkeys: 1-4 = planets`, x + 8, y + SOLAR_MAP_SIZE - 32);
-  ctx.fillText(`5 = Sun (hazard)`, x + 8, y + SOLAR_MAP_SIZE - 20);
-  ctx.fillText(`F opens orbit menu`, x + 8, y + SOLAR_MAP_SIZE - 8);
+  const legendY = destInfo ? y + SOLAR_MAP_SIZE + 56 : y + SOLAR_MAP_SIZE - 32;
+  ctx.fillText(`Warp: 1-4 planets, 5 Sun`, x + 8, legendY);
+  ctx.fillText(`F opens orbit menu`, x + 8, legendY + 12);
 }
 
 function drawFlightInstruments() {
@@ -407,7 +442,7 @@ function drawPauseOverlay() {
   ctx.font = '11px Arial';
   const settingsLines = [
     { t: `Skin: ${skin.label}`, c: '#cbd5e1' },
-    { t: '[ ] cycle  |  , . tune hue', c: '#64748b' },
+    { t: '[ ] cycle  |  , . tune hue  |  R/B/P preset', c: '#64748b' },
     { t: `Hue: ${Math.round(world.settings.customHue)}${skin.customHue ? '\u00b0' : ' (Spectrum only)'}`, c: '#94a3b8' },
     { t: `Legend: ${world.settings.showLegend ? 'ON' : 'OFF'}  (L)`, c: '#cbd5e1' },
     { t: `HALO chute: ${world.settings.haloParachute ? 'ON' : 'OFF'}  (H)`, c: '#cbd5e1' },
@@ -417,6 +452,29 @@ function drawPauseOverlay() {
     { t: `Auto periscope: ${world.autoPeriscope ? 'ON' : 'OFF'}  (Shift+P)`, c: world.autoPeriscope ? '#38bdf8' : '#94a3b8' },
   ];
   settingsLines.forEach((s, i) => { ctx.fillStyle = s.c; ctx.fillText(s.t, MX + 8, ly + i * 16); });
+
+  // ── Skin preview swatch ──
+  const swY = ly + settingsLines.length * 16 + 2;
+  const swX = MX + 8;
+  const swW = MW - 16;
+  const swH = 18;
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(swX, swY, swW, swH);
+  // Draw colour swatches for the current skin's parts
+  const swatchParts = ['hull', 'wings', 'tower', 'nose', 'porthole'];
+  const partW = (swW - 4) / swatchParts.length;
+  swatchParts.forEach((part, i) => {
+    const color = skin[part] || '#555';
+    ctx.fillStyle = color;
+    ctx.fillRect(swX + 2 + i * partW, swY + 2, partW - 2, swH - 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '7px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(part.slice(0, 4).toUpperCase(), swX + 2 + i * partW + partW / 2, swY + swH - 4);
+  });
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.strokeRect(swX, swY, swW, swH);
+  ctx.textAlign = 'left';
 
   // Squadron + Mission inside same panel
   ly += settingsLines.length * 16 + 6;
@@ -456,27 +514,62 @@ function drawWarpMenu() {
   if (!world.menuOpen) return;
   const palette = getCurrentPlanetPalette();
   const nextPlanet = PLANETS[(world.currentPlanet + 1) % PLANETS.length];
+  const menuW = 440, menuH = 280;
+  const mx = W/2 - menuW/2, my = H/2 - menuH/2;
   ctx.fillStyle = 'rgba(4,4,18,0.92)';
-  ctx.fillRect(W/2 - 220, H/2 - 140, 440, 220);
+  ctx.fillRect(mx, my, menuW, menuH);
   ctx.strokeStyle = palette.accent;
   ctx.lineWidth = 2;
-  ctx.strokeRect(W/2 - 220, H/2 - 140, 440, 220);
+  ctx.strokeRect(mx, my, menuW, menuH);
   ctx.fillStyle = '#f8fafc';
   ctx.font = 'bold 24px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('Orbit Menu', W/2, H/2 - 90);
+  ctx.fillText('Orbit Menu', W/2, my + 30);
   ctx.fillStyle = '#cbd5e1';
   ctx.font = '16px Arial';
-  ctx.fillText(`Next planet: ${nextPlanet.name}`, W/2, H/2 - 54);
+  ctx.fillText(`Next planet: ${nextPlanet.name}`, W/2, my + 56);
+
+  // ── Destination quick-reference ──
+  ctx.font = '11px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  const destY = my + 76;
+  const destList = [];
+  for (let i = 0; i < Math.min(PLANETS.length, 4); i++) {
+    destList.push({ key: i + 1, planet: PLANETS[i] });
+  }
+  destList.push({ key: 5, planet: SUN_DESTINATION });
+  destList.forEach((d, i) => {
+    const isSun = d.planet.star;
+    const isCurrent = !isSun && d.planet === palette;
+    ctx.fillStyle = isCurrent ? '#38bdf8' : isSun ? '#f97316' : '#94a3b8';
+    const tag = isCurrent ? ' (HERE)' : isSun ? ' HAZARD' : '';
+    ctx.fillText(`[${d.key}] ${d.planet.name}${tag}`, mx + 24, destY + i * 16);
+    // Show palette colour swatches
+    if (!isSun && d.planet.accent) {
+      ctx.fillStyle = d.planet.accent;
+      ctx.fillRect(mx + 200, destY + i * 16 - 8, 40, 10);
+      ctx.fillStyle = d.planet.sky || '#000';
+      ctx.fillRect(mx + 244, destY + i * 16 - 8, 40, 10);
+      ctx.fillStyle = d.planet.enemy || '#f00';
+      ctx.fillRect(mx + 288, destY + i * 16 - 8, 40, 10);
+    }
+  });
+  // Column headers for swatches
+  ctx.fillStyle = '#64748b'; ctx.font = '8px Arial';
+  ctx.fillText('ACCENT', mx + 200, destY - 6);
+  ctx.fillText('SKY', mx + 248, destY - 6);
+  ctx.fillText('ENEMY', mx + 290, destY - 6);
+
+  ctx.textAlign = 'center';
   ctx.font = '14px Arial';
-  ctx.fillText('Press Enter to depart once you have a sustained 88 MPH climb', W/2, H/2 - 24);
-  ctx.fillText('Use the arrow keys to build velocity, then aim straight up', W/2, H/2 + 4);
-  ctx.fillText('Current planet colors are shown in the HUD and damage map', W/2, H/2 + 32);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillText('Build 88 MPH + sharp climb to warp', W/2, my + menuH - 74);
+  ctx.fillText('Arrow keys for velocity, aim straight up', W/2, my + menuH - 54);
   ctx.fillStyle = palette.enemy;
-  ctx.fillText(`Palette accent: ${palette.name}`, W/2, H/2 + 58);
+  ctx.fillText(`Current palette: ${palette.name}`, W/2, my + menuH - 34);
   ctx.fillStyle = 'rgba(255,255,255,0.45)';
   ctx.font = '12px Arial';
-  ctx.fillText('Press F or Esc to close this menu', W/2, H/2 + 78);
+  ctx.fillText('Press F or Esc to close this menu', W/2, my + menuH - 14);
 }
 
 function drawOrbitScene() {
@@ -1138,16 +1231,27 @@ function drawDamageDiagram() {
     return '#444';                         // Dead/dark
   }
 
+  // Helper: depleted parts flicker/blur to show they're non-functional.
+  // Returns an alpha value — destroyed parts pulse faintly, critical parts shimmer.
+  function partAlpha(hp, maxHp) {
+    if (hp <= 0) return 0.25 + Math.sin(world.tick * 0.15) * 0.15; // ghostly flicker
+    if (hp / maxHp < 0.05) return 0.5 + Math.sin(world.tick * 0.3) * 0.2; // critical shimmer
+    return 1;
+  }
+
   // Draw the sub schematic (nose right, propeller left)
   // Positions relative to cx, cy
 
   // 1. NOSE (far right)
+  ctx.globalAlpha = partAlpha(parts.nose, 100);
   ctx.fillStyle = partColor(parts.nose, 100);
   ctx.beginPath();
   ctx.arc(cx + 28, cy, 5 * scale, -Math.PI/2, Math.PI/2);
   ctx.fill();
+  ctx.globalAlpha = 1;
 
   // 2. HULL (centre, large ellipse)
+  ctx.globalAlpha = partAlpha(parts.hull, 120);
   ctx.fillStyle = partColor(parts.hull, 120);
   ctx.beginPath();
   ctx.ellipse(cx, cy, 26, 8, 0, 0, Math.PI * 2);
@@ -1155,8 +1259,10 @@ function drawDamageDiagram() {
   ctx.strokeStyle = '#1a5276';
   ctx.lineWidth = 1;
   ctx.stroke();
+  ctx.globalAlpha = 1;
 
   // 3. TOWER (top, small rectangle)
+  ctx.globalAlpha = partAlpha(parts.tower, 70);
   ctx.fillStyle = partColor(parts.tower, 70);
   ctx.fillRect(cx - 3, cy - 14, 6, 7);
   // Periscope stub
@@ -1169,8 +1275,10 @@ function drawDamageDiagram() {
     ctx.lineTo(cx + 3, cy - 17);
     ctx.stroke();
   }
+  ctx.globalAlpha = 1;
 
   // 4. ENGINE (far left)
+  ctx.globalAlpha = partAlpha(parts.engine, 80);
   ctx.fillStyle = partColor(parts.engine, 80);
   ctx.fillRect(cx - 30, cy - 4, 8, 8);
   // Propeller lines
@@ -1183,8 +1291,10 @@ function drawDamageDiagram() {
     ctx.lineTo(cx - 30, cy - Math.sin(pa) * 5);
     ctx.stroke();
   }
+  ctx.globalAlpha = 1;
 
   // 5. WINGS (top & bottom of hull — swept-back, larger and clearer)
+  ctx.globalAlpha = partAlpha(parts.wings, 60);
   ctx.fillStyle = partColor(parts.wings, 60);
   ctx.strokeStyle = partColor(parts.wings, 60);
   ctx.lineWidth = 1;
@@ -1206,8 +1316,10 @@ function drawDamageDiagram() {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+  ctx.globalAlpha = 1;
 
   // 6. RUDDER / TAIL FIN (V-tail behind engine — clearly separate from wings)
+  ctx.globalAlpha = partAlpha(parts.rudder, 60);
   ctx.fillStyle = partColor(parts.rudder, 60);
   ctx.strokeStyle = partColor(parts.rudder, 60);
   ctx.lineWidth = 1;
@@ -1229,6 +1341,7 @@ function drawDamageDiagram() {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+  ctx.globalAlpha = 1;
 
   // Part name labels on hover would be nice but for now, tiny labels below
   ctx.fillStyle = '#777';

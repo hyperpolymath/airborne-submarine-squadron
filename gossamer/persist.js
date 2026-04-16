@@ -4,7 +4,7 @@
 // persist.js — Settings, keybindings, leaderboard, and save-game persistence.
 // Loaded via <script> tag before app_gossamer.js.
 
-/* global world, keys, keyJustPressed,
+/* global world, keys, keyJustPressed, keybinds, keyLabel,
    PLANETS, PLANET_DESTINATIONS, COMMANDER_MAX_HP,
    initWorld, ticker,
    verisimdbSaveLeaderboard, verisimdbSaveSettings, verisimdbSaveGame */
@@ -150,66 +150,11 @@ function adjustCustomHue(settings, delta) {
   return resolveSubSkin(settings);
 }
 
-// ── Keybinding storage ────────────────────────────────────────────────────────
-const KEYBIND_STORAGE_KEY = 'ass_keybindings_v2';
-const DEFAULT_KEYBINDS = {
-  fire:         ' ',           // Spacebar fires the currently selected weapon
-  stabilise:    'Shift',       // Left Shift stabilises in all environments
-  weaponSlot1:  '1',           // Torpedo (sub) / Pistol (commander)
-  weaponSlot2:  '2',           // Missile (sub) / Grenade (commander)
-  weaponSlot3:  '3',           // Depth charge (sub)
-  weaponSlot9:  '9',           // PPC — commander only, experimental
-  afterburner:  'a',
-  periscope:    'p',           // Manual toggle (auto-retracts in flight, extends in water)
-  disembark:    'e',
-  embark:       'm',
-  emergencyEject: 'Tab',
-  chaff:        'c',
-  orbitMenu:    'f',
-  swivelLeft:   'z',           // Commander on land — aim left
-  swivelRight:  'x',           // Commander on land — aim right
-  pause:        'Escape',
-  pickup:       'f',
-};
-
-let keybinds = { ...DEFAULT_KEYBINDS };
-
-function loadKeybinds() {
-  try {
-    const raw = window.localStorage.getItem(KEYBIND_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      keybinds = { ...DEFAULT_KEYBINDS, ...parsed };
-    }
-  } catch {
-    keybinds = { ...DEFAULT_KEYBINDS };
-  }
-}
-
-function saveKeybinds() {
-  try {
-    window.localStorage.setItem(KEYBIND_STORAGE_KEY, JSON.stringify(keybinds));
-  } catch {
-    // Ignore storage failures
-  }
-}
-
-function resetKeybinds() {
-  keybinds = { ...DEFAULT_KEYBINDS };
-  saveKeybinds();
-}
-
-function keyMatchesAction(action) {
-  const bound = keybinds[action];
-  if (!bound) return false;
-  return !!keys[bound] || !!keys[bound.toUpperCase()] || !!keys[bound.toLowerCase()];
-}
-
-function keyJustMatchesAction(action) {
-  const bound = keybinds[action];
-  if (!bound) return false;
-  return !!keyJustPressed[bound] || !!keyJustPressed[bound.toUpperCase()] || !!keyJustPressed[bound.toLowerCase()];
-}
+// Keybinding storage is now in controls.js (loaded before this script).
+// Globals provided by controls.js: keys, keyJustPressed, keybinds,
+// DEFAULT_KEYBINDS, KEYBIND_STORAGE_KEY, REBIND_ACTIONS, rebindAction,
+// loadKeybinds, saveKeybinds, resetKeybinds,
+// keyMatchesAction, keyJustMatchesAction, keyLabel, CONTROL_SCHEME.
 
 function recordLeaderboardEntry(result) {
   const board = loadLeaderboard();
@@ -310,16 +255,4 @@ function hasSavedGame() {
   }
 }
 
-function keyLabel(key) {
-  if (key === ' ') return 'Space';
-  if (key === 'AltGraph') return 'AltGr';
-  if (key === 'Control') return 'Ctrl';
-  if (key === 'ArrowUp') return 'Up';
-  if (key === 'ArrowDown') return 'Down';
-  if (key === 'ArrowLeft') return 'Left';
-  if (key === 'ArrowRight') return 'Right';
-  return key.length === 1 ? key.toUpperCase() : key;
-}
-
-// Initialise keybinds singleton on module load.
-loadKeybinds();
+// keyLabel() is now in controls.js.
