@@ -101,26 +101,16 @@ hull / wings / tower / nose / porthole components.
 -  – installs desktop/start-menu shortcuts through the Gossamer tray workflow.
 -  – multiplatform entry point that wires the Gossamer runtime, browser view, and desktop tray helper.
 -  – optional Justfile targets for type-checking and scripted builds.
--  – npm package configuration for publishing to GitHub Packages.
+-  – Deno lockfile/runtime dependency state.
 
-== Package Publishing
+== Distribution
 
-The project is now configured for npm package publishing on GitHub Packages. See:
+This project is distributed as source + WASM artifacts and launched via Deno/Gossamer.
+No npm packaging is used in this repository.
 
-- `package.json` – npm package configuration
-- `.npmignore` – file inclusion/exclusion rules
-- `GITHUB_PACKAGES_GUIDE.md` – step-by-step publishing instructions
-- `PACKAGE_SETUP_SUMMARY.md` – overview of the package setup
-
-To publish:
-
-[source,bash]
-----
-npm login --registry=https://npm.pkg.github.com
-npm publish
-----
-
-See `GITHUB_PACKAGES_GUIDE.md` for complete setup instructions.
+- `build/` and `dist/` contain the generated WASM payloads.
+- `launcher.sh` and `run.js` are the primary runtime entry points.
+- `Justfile` provides build/test workflows under Deno.
 
 == Launcher Quick Start
 

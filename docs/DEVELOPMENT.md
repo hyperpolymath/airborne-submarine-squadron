@@ -14,8 +14,8 @@ airborne-submarine-squadron/
 │   ├── index_gossamer.html  # Desktop Gossamer page (served by gossamer/launch.sh)
 │   ├── launch.sh         # Desktop launcher (Ephapax native or Deno fallback)
 │   └── main.eph          # Ephapax linear-type Gossamer shell entry point
-├── build/                # WASM artifacts (gitignored — built locally or copied from dist/)
-│   └── airborne-final-working.wasm
+├── build/                # Local WASM build output (gitignored; canonical artifact copied from dist/)
+│   └── airborne-submarine-squadron.wasm
 ├── dist/
 │   └── airborne-submarine-squadron.wasm  # Tracked release artifact
 ├── tray/
@@ -94,7 +94,7 @@ just build-tray   # build tray binary
 | Layer | File | Role |
 |-------|------|------|
 | JS game engine | `gossamer/app_gossamer.js` | Renders full game, handles all input, runs at 60fps |
-| WASM co-processor | `build/airborne-final-working.wasm` | Runs `step_state()` each tick as verified frame counter and secondary score tracker |
+| WASM co-processor | `dist/airborne-submarine-squadron.wasm` | Runs `step_state()` each tick as verified frame counter and secondary score tracker |
 
 The WASM co-processor is loaded asynchronously in `init()`. If it fails to load (e.g. WebKit WASM limitation), the JS engine continues unaffected. When the AffineScript compiler WebKit issue is resolved, the co-processor will be promoted to primary physics engine.
 
@@ -133,3 +133,16 @@ One `unsafe` block exists: `libc::kill(pid, 0)` to check process liveness via si
 |------|---------|
 | 6880 | Main browser game server (686 = Type 688 attack sub) |
 | 6881–6879 | Gossamer fallback server range |
+
+## Forward Development Backlog (Perfective)
+
+This section is the current maintainers' list for "develop this repo further"
+work. Source of truth is `docs/MAINTENANCE-ACTIONS-2026-04-17.adoc`.
+
+- Promote ABI constants from comments into runtime constants shared by JS HUD/WASM bridge.
+- Add startup diagnostics that print ABI version/hash and fail-fast on mismatch.
+- Split remaining monolith sections in `app_gossamer.js` into stable, test-covered modules.
+- Add replay fixtures for deterministic tick-by-tick validation of JS vs WASM co-processor drift.
+- Add stricter source-to-artifact provenance check (embed compiler+contract metadata in artifact manifest).
+- Extend CI to run cross-repo dogfood checks when sibling repos are present.
+- Add event taxonomy docs for gameplay notifications, multiplayer control events, and ops alerts.

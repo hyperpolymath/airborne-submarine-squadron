@@ -1,0 +1,113 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Derived from: developer-ecosystem/standards/session-management-standards/continuity/emergency-termination/CHECKLIST.adoc
+= Airborne Submarine Squadron Low-Credit Rapid Protocol
+:status: ACTIVE
+:version: 1.0.0
+:protocol: continuity / emergency-termination (repo-local binding)
+
+Use this when model credits/tokens are nearly exhausted.
+
+Design rule: preserve first, analyze later.
+
+== Trigger
+
+Run this protocol immediately if any of the following are true:
+
+* remaining credits look low enough to risk abrupt stop
+* session is unstable or likely to be interrupted
+* you cannot safely finish another full implementation cycle
+
+== Tier 0 (<= 15 seconds)
+
+Create five files in repo root:
+
+1. `SESSION_STATE.adoc`
+2. `EMERGENCY-CHECKPOINT.md`
+3. `RECOVERY-TOKEN.txt`
+4. `EMERGENCY.diff`
+5. `EMERGENCY-NOTICE.md`
+
+Minimum commands:
+
+[source,bash]
+----
+cd /var/mnt/eclipse/repos/games-ecosystem/airborne-submarine-squadron
+echo "EMERGENCY-$(date +%Y%m%d-%H%M%S)" > RECOVERY-TOKEN.txt
+git diff > EMERGENCY.diff
+git status --short > EMERGENCY-NOTICE.md
+----
+
+Then append minimal state by hand if time permits:
+
+* goal
+* current task
+* last completed action
+* next intended action
+* active files
+* branch
+* blockers
+
+== Tier 1 (<= 60 seconds)
+
+If there is still time, run:
+
+[source,bash]
+----
+cd /var/mnt/eclipse/repos/games-ecosystem/airborne-submarine-squadron
+git status --short > EMERGENCY-STATUS.txt
+git branch --show-current > EMERGENCY-BRANCH.txt
+git diff > EMERGENCY.diff
+tar czf EMERGENCY-CAPTURE.tar.gz \
+  SESSION_STATE.adoc \
+  EMERGENCY-CHECKPOINT.md \
+  EMERGENCY-NOTICE.md \
+  RECOVERY-TOKEN.txt \
+  EMERGENCY.diff \
+  EMERGENCY-STATUS.txt \
+  EMERGENCY-BRANCH.txt
+----
+
+Do not start new edits after capture.
+
+== Mandatory Resume Pointer
+
+`EMERGENCY-CHECKPOINT.md` must include:
+
+* Active branch
+* Active file
+* Active function/section
+* Last completed action
+* Next intended action
+* Last command run
+* Known blocker
+
+== Repo-Specific Fast Resume
+
+On next session, run this exact order:
+
+[source,bash]
+----
+cd /var/mnt/eclipse/repos/games-ecosystem/airborne-submarine-squadron
+git status --short
+deno test --allow-all test/regression_test.js
+deno test --allow-all test/compatibility_test.js
+deno test --allow-all test/contract_test.js
+deno test --allow-all test/smoke_test.js
+AFF_BIN=$(./scripts/ensure_affinescript.sh --print-bin)
+"$AFF_BIN" check src/main.affine
+----
+
+Expected current blocker (as of 2026-04-17): `src/main.affine` parse errors.
+
+== Do Not Do During Low-Credit Mode
+
+* no refactor
+* no cross-repo architecture redesign
+* no opportunistic cleanup
+* no force-push/reset/rebase
+
+== Preferred Handoff Sentence
+
+Use this exact one-liner in final message:
+
+`Emergency capture complete: restore from RECOVERY-TOKEN.txt and resume at the next intended action in EMERGENCY-CHECKPOINT.md.`

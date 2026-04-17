@@ -1,0 +1,78 @@
+= Airborne Submarine Squadron Maintenance Actions (2026-04-17)
+
+== Scope
+
+This record captures corrective, adaptive, and perfective maintenance actions
+for the current stabilization pass, including upstream dogfooding obligations
+for Gossamer, typed-wasm, and AffineScript.
+
+== Corrective
+
+* Remove npm artifacts and publish-flow drift from this repository.
+** Removed `package.json` and `.npmignore`.
+** Removed npm-publish docs: `GITHUB_PACKAGES_GUIDE.md`, `PACKAGE_SETUP_SUMMARY.md`.
+** Rewrote `DOCUMENTATION_SET_SUMMARY.md` to enforce Deno-only/no-npm invariant.
+* Canonicalize WASM artifact path to `airborne-submarine-squadron.wasm`.
+** Updated launcher/runtime/build references away from legacy ad-hoc artifact names.
+** Added regression lock: no runtime dependency on `airborne-final-working.wasm`.
+* Fix underwater layer split/render tear.
+** Added shared camera-space helper: `gossamer/camera_layers.js`.
+** Wired helper into `gossamer/app_gossamer.js` render path.
+** Added regression lock for camera-aware layer bounds.
+* Restore legacy event callouts.
+** Confirmed and locked `BELLYFLOP!`, `EVEL TAKES THE JUMP!`, and lightning squadron callouts.
+** Added regression lock for event phrase notification paths.
+* Stabilize source-level ABI drift.
+** `src/main.affine` snapshot payload now starts with `tick` (legacy leading length marker removed).
+** `src/main.affine` `step_state` now uses explicit 34-arg bridge signature
+   (29 state fields + 5 input fields), via `step_state_from_input` internal handler.
+
+== Adaptive
+
+=== In-repo (game gossamer layer)
+
+* Introduced `gossamer/camera_layers.js` as reusable camera-space layer math.
+* Render path now consumes shared helper with a strict fallback only for bootstrap.
+
+=== Upstream typed-wasm
+
+* Added versioned contract artifact:
+** `verification-ecosystem/typed-wasm/src/contracts/airborne-submarine-squadron.snapshot-abi.v1.json`
+* Added executable contract test:
+** `verification-ecosystem/typed-wasm/tests/contracts/airborne-step-state-contract.mjs`
+* Added Idris layout contract module:
+** `verification-ecosystem/typed-wasm/src/abi/layout/AirborneSubmarineSquadron.idr`
+* Added test recipe wiring in typed-wasm `Justfile` (`test-contract`, included in `test`).
+
+=== Upstream affinescript
+
+* Added profile fixture:
+** `developer-ecosystem/nextgen-languages/affinescript/test/e2e/fixtures/airborne_submarine_squadron_profile.affine`
+* Added export-signature lock test in `test/test_e2e.ml`:
+** Verifies `init_state` export (`0` params, `i32` result).
+** Verifies `step_state` export (`34` params, all `i32`, `i32` result).
+
+== Perfective
+
+* Promote ABI constants from comments into runtime constants shared by JS HUD/WASM bridge.
+* Add startup diagnostics that print ABI version/hash and fail-fast on mismatch.
+* Split remaining monolith sections in `app_gossamer.js` into stable, test-covered modules.
+* Add replay fixtures for deterministic tick-by-tick validation of JS vs WASM co-processor drift.
+* Add stricter source-to-artifact provenance check (embed compiler+contract metadata in artifact manifest).
+* Extend CI to run cross-repo dogfood checks when sibling repos are present.
+* Add event taxonomy docs for gameplay notifications, multiplayer control events, and ops alerts.
+
+== Burble/Groove Event Boundary
+
+*Authoritative event ownership:* game loop + Gossamer event bus.
+
+Burble is used for:
+
+* Voice-first communication.
+* LLM support channel for operational/development coordination.
+* RTSM high-bandwidth offload where needed.
+
+Burble is *not* the authoritative gameplay event-state owner.
+If event mirroring is needed for multiplayer/admin/ops, mirror selected events over
+Groove/API/FFI with explicit timestamps and IDs, while canonical game state stays local
+and deterministic.

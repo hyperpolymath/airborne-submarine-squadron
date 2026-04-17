@@ -54,17 +54,17 @@ The Gossamer edition now boots a loader, shows retro battle art, draws a live so
 * Island platformer mode for v2 milestone (Trionic SubCommando).
 * Radar/astrocompass: astrocompass shipped; consider extending the
   dial with a mini-radar for hostile bodies / tourist ships.
-* Finish the submarine customization screen polish — bind mouse to
-  the pause-menu swatches so players can click-to-pick a colour.
+* Finish the submarine customization screen, keep the damage diagram
+  reactive, and document what each hit zone does (back, front, center).
 * Harden the warp menu instructions (spaceship leaps, afterburner =>
   warp replacement in vacuum, impulse limits, automated `88 MPH` gating).
+* Capture compile notes, reference `AFFINESCRIPT_REPO`, and explain the `affinescript not found` fallback so builds are reproducible.
 * Update documentation set (README.adoc, explainme.adoc, ROADMAP.adoc)
-  to reflect npm package publishing capabilities.
-* Add package.json maintenance to build process and CI/CD pipeline.
+  to enforce Deno-only runtime and no-npm invariants.
+* Add invariant checks in CI/CD to block npm artifacts (`package.json`, lockfiles, `node_modules/`).
 
 == Future Directions
 
 * Orbital mechanics refinement (zoomed maps, solar orbit snare hazards, planet-specific enemy palettes).
 * Multiplayer sync, cross-sub coordination, and telemetry sharing between consoles.
 * Expand the documentation to include `burble`, `groove`, and `proven` integrations once the core loop stabilizes.
-
