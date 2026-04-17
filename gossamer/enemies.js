@@ -86,7 +86,7 @@ const PASSENGER_DWELL_TIME = 300; // Ticks at each island
    MINE_DAMAGE, CHAFF_COOLDOWN, CHAFF_LIFESPAN, CHAFF_RADIUS, CHAFF_DEFLECT_FORCE,
    CHAFF_COLOR, TWO_PI, SEA_FLOOR, SFX, toScreen, damageRandomPart, islandHitTest,
    addExplosion, addParticles, commanderStatusLabel, groundYFromTerrain,
-   getThermalLayer, thermallyVisible, keyJustPressed,
+   getThermalLayer, thermallyVisible, keyJustPressed, hudFlash, midNotice, ticker,
    SQUADRON_HP */
 
 
@@ -1194,6 +1194,8 @@ function updateAirInterceptors(dt) {
   if (aliveCount === 0 && world.airInterceptorTimer > LIGHTNING_SQUAD_SPAWN_INTERVAL && world.score > 1000) {
     world.airInterceptors = spawnLightningSquad();
     world.airInterceptorTimer = 0;
+    midNotice('LIGHTNING SQUADRON INCOMING', 80);
+    ticker('Lightning squadron appearing on radar', 80);
     hudFlash('LIGHTNING SQUADRON INCOMING', 80, '#a78bfa');
   }
 
@@ -2567,7 +2569,8 @@ function updateMotorcyclists(dt) {
           m.jumpTrail = [];
           // Cameratron event — triggers the mini-frame popup
           world._evelCameratron = { active: true, timer: 0, maxTimer: 180, evel: m };
-          ticker('Evel Knievel jumps!', 50);
+          midNotice('EVEL TAKES THE JUMP!', 80);
+          ticker('Evel takes the jump!', 60);
         }
       }
     }

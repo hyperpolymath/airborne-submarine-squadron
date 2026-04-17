@@ -26,7 +26,7 @@ const REGISTRY = {
   },
   wasm: {
     dist:  "dist/airborne-submarine-squadron.wasm",
-    build: "build/airborne-final-working.wasm",
+    build: "build/airborne-submarine-squadron.wasm",
   },
   ports: {
     primary:  6880,

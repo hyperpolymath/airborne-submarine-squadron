@@ -78,12 +78,15 @@ Deno.test("compat: run.js --reflect JSON output round-trips", async () => {
   assertEquals(parsed, reparsed, "JSON must survive serialization round-trip");
 });
 
-// ── 6. AffineScript source has deterministic snapshot format ────────
-Deno.test("compat: main.affine build_snapshot starts with length marker 29", async () => {
+// ── 6. AffineScript source has canonical 29-field snapshot payload ───
+Deno.test("compat: main.affine build_snapshot starts with tick (no legacy length marker)", async () => {
   const src = await Deno.readTextFile(ROOT + "src/main.affine");
-  // The snapshot array starts with its length (29 fields)
-  assert(src.includes("return [\n    29,"),
-    "build_snapshot must start array with 29 (field count marker)");
+  assert(src.includes("fn build_snapshot("),
+    "main.affine must define build_snapshot()");
+  assert(/fn\s+build_snapshot[\s\S]*return\s*\[\s*w\.tick\s*,/.test(src),
+    "build_snapshot must start array with tick");
+  assert(!/fn\s+build_snapshot[\s\S]*return\s*\[\s*29\s*,/.test(src),
+    "build_snapshot must not use legacy leading length marker");
 });
 
 // ── 7. HTML entry point exists and references game ──────────────────

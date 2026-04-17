@@ -35,8 +35,8 @@ Deno.test("contract: no TypeScript files anywhere in repo", async () => {
 });
 
 // ── 2. No npm artifacts (K9 invariant: no-npm-package-managers) ─────
-Deno.test("contract: no package-lock.json, node_modules, bun.lockb, yarn.lock", async () => {
-  const banned = ['package-lock.json', 'bun.lockb', 'yarn.lock'];
+Deno.test("contract: no package.json, package-lock.json, .npmignore, node_modules, bun.lockb, yarn.lock", async () => {
+  const banned = ['package.json', 'package-lock.json', '.npmignore', 'bun.lockb', 'yarn.lock'];
   for (const name of banned) {
     try {
       await Deno.stat(ROOT + name);
@@ -137,7 +137,10 @@ Deno.test("contract: all K9-protected paths exist", async () => {
 // ── 9. AffineScript engine invariant (K9: affinescript-engine) ──────
 Deno.test("contract: src/main.affine is AffineScript, not JS framework", async () => {
   const text = await Deno.readTextFile(ROOT + "src/main.affine");
-  assert(text.includes("fn main()"), "main.affine must contain 'fn main()' (AffineScript)");
+  assert(
+    text.includes("fn create_world()") || text.includes("fn step_state("),
+    "main.affine must define AffineScript world/step entrypoints"
+  );
   assert(text.includes("type World"), "main.affine must define World type");
   // Negative: no JS framework imports
   assert(!text.includes("import React"), "main.affine must not import React");

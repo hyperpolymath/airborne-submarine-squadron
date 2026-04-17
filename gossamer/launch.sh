@@ -118,7 +118,7 @@ echo ""
 # Serve from the game root (one level up from gossamer/) so that:
 #   /gossamer/index_gossamer.html  — the game page
 #   /gossamer/app_gossamer.js      — the game engine
-#   /build/airborne-final-working.wasm — WASM co-processor
+#   /build/airborne-submarine-squadron.wasm — WASM co-processor
 # are all reachable from the same origin (required for WASM fetch).
 deno run --allow-net --allow-read - <<DENO_SERVER &
 const root = "${GAME_ROOT}";

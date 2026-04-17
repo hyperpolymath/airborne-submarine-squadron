@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OUT_DIR="$ROOT_DIR/build"
 OUT_WASM="$OUT_DIR/airborne-submarine-squadron.wasm"
-LEGACY_WASM="$OUT_DIR/airborne-final-working.wasm"
 DIST_WASM="$ROOT_DIR/dist/airborne-submarine-squadron.wasm"
 TMP_WASM="$OUT_DIR/.airborne-submarine-squadron.wasm.tmp"
 
@@ -16,6 +15,8 @@ find_affinescript_repo() {
     "${AFFINESCRIPT_REPO:-}" \
     "$ROOT_DIR/../nextgen-languages/affinescript" \
     "$ROOT_DIR/../../nextgen-languages/affinescript" \
+    "$ROOT_DIR/../../developer-ecosystem/nextgen-languages/affinescript" \
+    "/var/mnt/eclipse/repos/developer-ecosystem/nextgen-languages/affinescript" \
     "/var/mnt/eclipse/repos/nextgen-languages/affinescript"
   do
     [ -n "$candidate" ] || continue
@@ -26,6 +27,10 @@ find_affinescript_repo() {
   done
   return 1
 }
+
+if [ -x "$ROOT_DIR/scripts/ensure_affinescript.sh" ]; then
+  "$ROOT_DIR/scripts/ensure_affinescript.sh" --warmup >/dev/null 2>&1 || true
+fi
 
 compile_with_affinescript() {
   local compiler_repo="$1"
@@ -54,13 +59,12 @@ preserve_bundled_wasm() {
   rm -f "$TMP_WASM"
   if [ -f "$DIST_WASM" ]; then
     cp "$DIST_WASM" "$OUT_WASM"
-  elif [ -f "$OUT_WASM" ] || [ -f "$LEGACY_WASM" ]; then
-    [ -f "$OUT_WASM" ] || cp "$LEGACY_WASM" "$OUT_WASM"
+  elif [ -f "$OUT_WASM" ]; then
+    :
   else
     echo "No fallback WASM artifact available." >&2
     exit 1
   fi
-  cp "$OUT_WASM" "$LEGACY_WASM"
   echo "Compile failed; reusing fallback WASM:"
   echo "  $OUT_WASM"
   exit 0
@@ -77,14 +81,11 @@ elif command -v affinescript >/dev/null 2>&1; then
 else
   if [ -f "$DIST_WASM" ]; then
     cp "$DIST_WASM" "$OUT_WASM"
-    cp "$OUT_WASM" "$LEGACY_WASM"
     echo "affinescript not found. Reusing prebuilt WASM artifact:"
     echo "  $OUT_WASM"
     echo "Set AFFINESCRIPT_REPO=/path/to/affinescript only if you need a fresh compile."
     exit 0
-  elif [ -f "$OUT_WASM" ] || [ -f "$LEGACY_WASM" ]; then
-    [ -f "$OUT_WASM" ] || cp "$LEGACY_WASM" "$OUT_WASM"
-    cp "$OUT_WASM" "$LEGACY_WASM"
+  elif [ -f "$OUT_WASM" ]; then
     echo "affinescript not found. Reusing existing WASM artifact:"
     echo "  $OUT_WASM"
     echo "Set AFFINESCRIPT_REPO=/path/to/affinescript only if you need a fresh compile."
@@ -97,6 +98,4 @@ else
 fi
 
 mv "$TMP_WASM" "$OUT_WASM"
-cp "$OUT_WASM" "$LEGACY_WASM"
 echo "Wrote $OUT_WASM"
-echo "Updated compatibility copy $LEGACY_WASM"

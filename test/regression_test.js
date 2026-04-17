@@ -104,3 +104,74 @@ Deno.test("regression #007: SIGINT handler registered for clean shutdown", async
   assert(src.includes("SIGTERM"),
     "Must register SIGTERM handler for clean port release");
 });
+
+// ── #008: Deep-camera world-layer integrity (underwater split fix) ─────────
+// Bug: On deep dives, land/water fill used shallow/static extents and produced
+// visual tearing where land appeared to drop under water.
+// Fixed: shared camera-layer helpers + camera-aware view/water bounds.
+Deno.test("regression #008: camera-space layer helpers guard deep-dive coverage", async () => {
+  const helper = await Deno.readTextFile(ROOT + "gossamer/camera_layers.js");
+  const app = await Deno.readTextFile(ROOT + "gossamer/app_gossamer.js");
+  assert(helper.includes("computeWorldLayerBounds"),
+    "camera_layers.js must provide computeWorldLayerBounds()");
+  assert(app.includes("GossamerCameraLayers.computeWorldLayerBounds"),
+    "app_gossamer.js must use shared camera layer helper");
+  assert(app.includes("viewBottom = layerBounds.viewBottom"),
+    "ground fill must use camera-space viewBottom");
+  assert(app.includes("waterBottom = layerBounds.waterBottom"),
+    "water fill must use camera-aware waterBottom");
+});
+
+// ── #009: Legacy event messaging restored (BELLYFLOP/EVEL/LIGHTNING) ───────
+// Bug: legacy callouts disappeared during gameplay churn.
+// Fixed: explicit notifications restored on key events.
+Deno.test("regression #009: legacy event phrases still fire", async () => {
+  const app = await Deno.readTextFile(ROOT + "gossamer/app_gossamer.js");
+  const enemies = await Deno.readTextFile(ROOT + "gossamer/enemies.js");
+
+  assert(app.includes("midNotice('BELLYFLOP!'"),
+    "BELLYFLOP must trigger midNotice");
+  assert(app.includes("ticker('BELLYFLOP!'"),
+    "BELLYFLOP must trigger ticker");
+
+  assert(enemies.includes("midNotice('EVEL TAKES THE JUMP!'"),
+    "EVEL TAKES THE JUMP must trigger midNotice");
+
+  assert(enemies.includes("midNotice('LIGHTNING SQUADRON INCOMING'"),
+    "LIGHTNING SQUADRON INCOMING must trigger midNotice");
+  assert(enemies.includes("ticker('Lightning squadron appearing on radar'"),
+    "LIGHTNING squadron spawn must trigger ticker");
+  assert(enemies.includes("hudFlash('LIGHTNING SQUADRON INCOMING'"),
+    "LIGHTNING SQUADRON INCOMING must trigger hudFlash");
+});
+
+// ── #010: Canonical WASM artifact path (no legacy filename dependency) ─────
+// Bug: runtime/tooling drifted between canonical and ad-hoc filenames.
+// Fixed: build/runtime now standardize on airborne-submarine-squadron.wasm.
+Deno.test("regression #010: no runtime dependency on airborne-final-working.wasm", async () => {
+  const files = [
+    "run.js",
+    "build.sh",
+    "launcher.sh",
+    "gossamer/app_gossamer.js",
+    "gossamer/launch.sh",
+  ];
+  for (const rel of files) {
+    const src = await Deno.readTextFile(ROOT + rel);
+    assert(!src.includes("airborne-final-working.wasm"),
+      `${rel} must not reference legacy airborne-final-working.wasm`);
+  }
+});
+
+// ── #011: Source-level step_state ABI lock (29 state + 5 input i32) ───────
+Deno.test("regression #011: main.affine step_state keeps 34-arg bridge signature", async () => {
+  const src = await Deno.readTextFile(ROOT + "src/main.affine");
+  assert(src.includes("fn step_state("),
+    "main.affine must define step_state()");
+  assert(src.includes("state_tick: Int"),
+    "step_state must include state_* ABI parameters");
+  assert(src.includes("state_mission_failed: Int"),
+    "step_state must include all 29 state fields");
+  assert(src.includes("input_toggle_env: Int"),
+    "step_state must include 5 input fields");
+});

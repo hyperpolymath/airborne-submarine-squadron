@@ -2025,7 +2025,7 @@ function initWorld() {
     subInCave: null,     // Reference to cave the sub is hiding in
     mission: { type: 'patrol', timer: 0, active: false, failed: false, completed: false },
     hostages: [],
-    // WASM co-processor (AffineScript physics kernel, airborne-final-working.wasm).
+    // WASM co-processor (AffineScript physics kernel, airborne-submarine-squadron.wasm).
     // Populated asynchronously by init() after the module loads.
     wasm: null,
     wasmState: null,    // 29-element flat snapshot from last step_state call
@@ -2055,9 +2055,9 @@ async function init() {
       const scriptSrc = document.currentScript && document.currentScript.src;
       if (scriptSrc) {
         // script is at <repo>/gossamer/app_gossamer.js; WASM is at <repo>/build/
-        return new URL('../build/airborne-final-working.wasm', scriptSrc).href;
+        return new URL('../build/airborne-submarine-squadron.wasm', scriptSrc).href;
       }
-      return '../build/airborne-final-working.wasm'; // fallback (direct open)
+      return '../build/airborne-submarine-squadron.wasm'; // fallback (direct open)
     })();
     try {
       const resp = await fetch(_wasmUrl);
@@ -3240,7 +3240,9 @@ function update(dt) {
         sub.floating = false;
         sub.vx *= 0.7;
         sub.vy *= 0.5;
-        actionIcon('D83dDca5', 45, '#ef4444'); ticker('BELLYFLOP!', 50);
+        actionIcon('!', 45, '#ef4444');
+        midNotice('BELLYFLOP!', 80);
+        ticker('BELLYFLOP!', 50);
       } else {
         // Slow or medium entry at a bad angle — no damage, just enter water
         sub.floating = false;
@@ -4889,8 +4891,24 @@ function draw() {
   ctx.translate(shakeX, -camY + shakeY);
 
   const palette = getCurrentPlanetPalette();
+  const layerBounds = (window.GossamerCameraLayers &&
+      typeof window.GossamerCameraLayers.computeWorldLayerBounds === 'function')
+    ? window.GossamerCameraLayers.computeWorldLayerBounds(camY, H, {
+      overscan: 140,
+      minSkyTop: -200,
+      seaFloor: SEA_FLOOR,
+      seaFloorMargin: 100,
+    })
+    : {
+      viewTop: camY - 140,
+      viewBottom: camY + H + 140,
+      skyTop: Math.min(-200, camY - 140),
+      waterBottom: Math.max(SEA_FLOOR + 100, camY + H + 140),
+    };
+  const viewTop = layerBounds.viewTop;
+  const viewBottom = layerBounds.viewBottom;
   // Sky (extends above water line, very tall to cover high flight)
-  const skyTop = -200; // Allow for high flight
+  const skyTop = layerBounds.skyTop; // Keep sky filled above camera even when deep
   const skyGrad = ctx.createLinearGradient(0, skyTop, 0, WATER_LINE);
   skyGrad.addColorStop(0, palette.sky);
   skyGrad.addColorStop(1, palette.water);
@@ -4915,7 +4933,8 @@ function draw() {
   }
 
   // Water (extends deep below surface)
-  const waterBottom = SEA_FLOOR + 100;
+  // Extend water to the camera's visible bottom to avoid deep-dive layer splitting.
+  const waterBottom = layerBounds.waterBottom;
   const wg = ctx.createLinearGradient(0,WATER_LINE,0,waterBottom);
   wg.addColorStop(0, palette.water);
   wg.addColorStop(1, palette.land);
@@ -4930,9 +4949,9 @@ function draw() {
   ctx.stroke();
 
   // Ground
-  ctx.fillStyle = palette.land; ctx.beginPath(); ctx.moveTo(0, H);
+  ctx.fillStyle = palette.land; ctx.beginPath(); ctx.moveTo(0, viewBottom);
   for (let sx = 0; sx <= W; sx += 4) ctx.lineTo(sx, getGroundY(sx + cam));
-  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+  ctx.lineTo(W, viewBottom); ctx.closePath(); ctx.fill();
 
   ctx.strokeStyle = '#4a3020'; ctx.lineWidth = 2; ctx.beginPath();
   for (let sx = 0; sx <= W; sx += 4) {

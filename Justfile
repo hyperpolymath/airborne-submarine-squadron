@@ -9,6 +9,8 @@ import? "contractile.just"
 check:
   if command -v affinescript >/dev/null 2>&1; then \
     affinescript check src/main.affine; \
+  elif [ -x "./scripts/ensure_affinescript.sh" ] && COMPILER=$$(./scripts/ensure_affinescript.sh --print-bin 2>/dev/null); then \
+    "$$COMPILER" check src/main.affine; \
   elif [ -n "${AFFINESCRIPT_REPO:-}" ] && [ -x "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" ]; then \
     "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" check src/main.affine; \
   else \
@@ -52,6 +54,8 @@ build-tray:
 test-types:
   if command -v affinescript >/dev/null 2>&1; then \
     affinescript check test_types.affine; \
+  elif [ -x "./scripts/ensure_affinescript.sh" ] && COMPILER=$$(./scripts/ensure_affinescript.sh --print-bin 2>/dev/null); then \
+    "$$COMPILER" check test_types.affine; \
   elif [ -n "${AFFINESCRIPT_REPO:-}" ] && [ -x "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" ]; then \
     "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" check test_types.affine; \
   else \

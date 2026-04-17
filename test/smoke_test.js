@@ -95,6 +95,7 @@ Deno.test("smoke: test_types.affine type-checks if AffineScript compiler availab
   const compilerPaths = [
     "affinescript",
     ROOT + "../nextgen-languages/affinescript/_build/default/bin/main.exe",
+    ROOT + "../../developer-ecosystem/nextgen-languages/affinescript/_build/default/bin/main.exe",
   ];
   // Check PATH first
   try {
@@ -154,6 +155,10 @@ Deno.test("smoke: src/main.affine type-checks if AffineScript compiler available
   if (!compilerCmd) {
     const siblingExe = ROOT + "../nextgen-languages/affinescript/_build/default/bin/main.exe";
     try { await Deno.stat(siblingExe); compilerCmd = siblingExe; } catch {}
+  }
+  if (!compilerCmd) {
+    const ecosystemExe = ROOT + "../../developer-ecosystem/nextgen-languages/affinescript/_build/default/bin/main.exe";
+    try { await Deno.stat(ecosystemExe); compilerCmd = ecosystemExe; } catch {}
   }
 
   if (!compilerCmd) {

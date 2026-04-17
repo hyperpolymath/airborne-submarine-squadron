@@ -20,7 +20,7 @@ PID_FILE="/tmp/airborne-server.pid"
 PORT_FILE="/tmp/airborne-server.port"
 GOSSAMER_PID_FILE="/tmp/airborne-gossamer.pid"
 GOSSAMER_SERVER_PID_FILE="/tmp/airborne-gossamer-server.pid"
-WASM_FILE="$SCRIPT_DIR/build/airborne-final-working.wasm"
+WASM_FILE="$SCRIPT_DIR/build/airborne-submarine-squadron.wasm"
 WEB_DIR="$SCRIPT_DIR"
 TRAY_BIN="$SCRIPT_DIR/tray/target/release/airborne-tray"
 
@@ -46,6 +46,13 @@ should_auto_open() {
     [ "${AIRBORNE_NO_OPEN:-0}" != "1" ] || return 1
     command -v xdg-open >/dev/null 2>&1 || return 1
     [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]
+}
+
+warmup_affinescript_compiler() {
+    [ "${AFFINESCRIPT_AUTO_UPDATE_ON_STARTUP:-1}" = "1" ] || return 0
+    if [ -x "$SCRIPT_DIR/scripts/ensure_affinescript.sh" ]; then
+        "$SCRIPT_DIR/scripts/ensure_affinescript.sh" --warmup >/dev/null 2>&1 || true
+    fi
 }
 
 start_server() {
@@ -193,6 +200,7 @@ stop_server() {
 }
 
 launch_browser() {
+    warmup_affinescript_compiler
     local port
     port=$(start_server)
 
@@ -240,6 +248,7 @@ launch_tray() {
 }
 
 launch_gossamer() {
+    warmup_affinescript_compiler
     # Use run.js as the canonical launcher — it handles port management,
     # opens the Gossamer HTML entry point, and cleans up on exit.
     if command -v deno >/dev/null 2>&1; then
@@ -251,6 +260,7 @@ launch_gossamer() {
 }
 
 launch_debug() {
+    warmup_affinescript_compiler
     # Same as launch_gossamer but with --debug: no cache, ?debug=1 in URL,
     # on-screen diagnostics turned on in the game JS.
     if command -v deno >/dev/null 2>&1; then
