@@ -24,6 +24,52 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+const WASM_ABI = (typeof window !== 'undefined' && window.AirborneWasmABI)
+  ? window.AirborneWasmABI
+  : {
+      ABI_VERSION: "fallback",
+      ABI_HASH: "fallback",
+      STATE_FIELD_COUNT: 29,
+      INPUT_FIELD_COUNT: 5,
+      STEP_STATE_ARG_COUNT: 34,
+      SNAPSHOT_INDEX: Object.freeze({ tick: 0, score: 23, kills: 24 }),
+      validateExports(exportsObj) {
+        if (!exportsObj || typeof exportsObj !== "object") {
+          return { ok: false, error: "WASM exports object missing" };
+        }
+        if (typeof exportsObj.memory !== "object"
+            || typeof exportsObj.init_state !== "function"
+            || typeof exportsObj.step_state !== "function") {
+          return { ok: false, error: "required WASM exports missing" };
+        }
+        if (exportsObj.init_state.length !== 0 || exportsObj.step_state.length !== 34) {
+          return { ok: false, error: "unexpected WASM export arity" };
+        }
+        return { ok: true };
+      },
+      decodeSnapshot(memory, ptr) {
+        const view = new DataView(memory.buffer);
+        const first = view.getInt32(ptr, true);
+        const second = view.getInt32(ptr + 4, true);
+        const hasHeader = second === 29 && first >= 0 && first < 64;
+        const payloadPtr = hasHeader ? ptr + 8 : ptr;
+        return Array.from({ length: 29 }, (_, idx) => view.getInt32(payloadPtr + idx * 4, true));
+      },
+      validateSnapshot(snapshot) {
+        return Array.isArray(snapshot) && snapshot.length === 29 && snapshot.every(Number.isInteger);
+      },
+      getStartupDiagnostics(snapshot) {
+        return {
+          version: "fallback",
+          hash: "fallback",
+          stateFields: 29,
+          inputFields: 5,
+          stepStateArgs: 34,
+          initTick: Array.isArray(snapshot) ? snapshot[0] : null,
+        };
+      },
+    };
+
 // --- Constants ---
 const W = 800, H = 600;
 const GRAVITY = 0.15;
@@ -2067,12 +2113,23 @@ async function init() {
         // Provide a no-op fd_write stub — the WASM only uses it for println().
         wasi_snapshot_preview1: { fd_write: () => 0 },
       });
+
+      const abiCheck = WASM_ABI.validateExports(instance.exports);
+      if (!abiCheck.ok) {
+        throw new Error(`ABI mismatch: ${abiCheck.error}`);
+      }
+
       world.wasm = instance.exports;
-      // init_state() returns a pointer to a [tag, len=29, ...fields] array in
-      // WASM linear memory.  Slice off the two-word header to get 29 state fields.
       const ptr = world.wasm.init_state();
-      const view = new DataView(world.wasm.memory.buffer);
-      world.wasmState = Array.from({ length: 31 }, (_, i) => view.getInt32(ptr + i * 4, true)).slice(2);
+      world.wasmState = WASM_ABI.decodeSnapshot(world.wasm.memory, ptr);
+      if (!WASM_ABI.validateSnapshot(world.wasmState)) {
+        throw new Error(`ABI mismatch: init_state returned invalid snapshot length ${world.wasmState.length}`);
+      }
+      const abiDiag = WASM_ABI.getStartupDiagnostics(world.wasmState);
+      console.info(
+        `[ASS] WASM ABI v${abiDiag.version} hash ${abiDiag.hash} `
+        + `fields=${abiDiag.stateFields} inputs=${abiDiag.inputFields} args=${abiDiag.stepStateArgs}`
+      );
       console.info('[ASS] WASM co-processor ready — init_state ptr:', ptr);
     } catch (e) {
       world.wasm = null;
@@ -2765,6 +2822,9 @@ function update(dt) {
   if (world.wasm && world.wasmState) {
     try {
       const s = world.wasmState;
+      if (!WASM_ABI.validateSnapshot(s)) {
+        throw new Error(`step_state input snapshot invalid length ${s.length}`);
+      }
       const thrustX    = keys['ArrowRight'] ? 1 : keys['ArrowLeft'] ? -1 : 0;
       const thrustY    = keys['ArrowDown']  ? 1 : keys['ArrowUp']   ? -1 : 0;
       const fire       = (keys['Control'] ? 1 : 0);
@@ -2773,12 +2833,22 @@ function update(dt) {
         ...s,              // 29 state fields
         thrustX, thrustY, fire, fireAlt, 0  // 5 input fields (toggle_env always 0)
       );
-      const view = new DataView(world.wasm.memory.buffer);
-      world.wasmState  = Array.from({ length: 31 }, (_, i) => view.getInt32(ptr + i * 4, true)).slice(2);
-      world.wasmTick   = world.wasmState[0];   // tick counter
-      world.wasmScore  = world.wasmState[23];  // score
-      world.wasmKills  = world.wasmState[24];  // kills
-    } catch (_) { /* non-fatal: JS game continues unaffected */ }
+      const next = WASM_ABI.decodeSnapshot(world.wasm.memory, ptr);
+      if (!WASM_ABI.validateSnapshot(next)) {
+        throw new Error(`step_state output snapshot invalid length ${next.length}`);
+      }
+      world.wasmState  = next;
+      world.wasmTick   = next[WASM_ABI.SNAPSHOT_INDEX.tick];
+      world.wasmScore  = next[WASM_ABI.SNAPSHOT_INDEX.score];
+      world.wasmKills  = next[WASM_ABI.SNAPSHOT_INDEX.kills];
+    } catch (e) {
+      world.wasm = null;
+      world.wasmState = null;
+      world.wasmTick = undefined;
+      world.wasmScore = undefined;
+      world.wasmKills = undefined;
+      console.warn(`[ASS] WASM co-processor disabled due to ABI mismatch: ${e.message}`);
+    }
   }
 
   handleSunBurn(dt);

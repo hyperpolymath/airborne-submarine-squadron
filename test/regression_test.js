@@ -175,3 +175,27 @@ Deno.test("regression #011: main.affine step_state keeps 34-arg bridge signature
   assert(src.includes("input_toggle_env: Int"),
     "step_state must include 5 input fields");
 });
+
+// ── #012: Runtime ABI constants + fail-fast diagnostics wired in JS bridge ──
+// Bug: ABI shape lived only in comments, so drift could silently continue.
+// Fixed: shared gossamer/wasm_abi.js constants + startup/export validation.
+Deno.test("regression #012: app_gossamer consumes shared wasm ABI contract and diagnostics", async () => {
+  const abi = await Deno.readTextFile(ROOT + "gossamer/wasm_abi.js");
+  const app = await Deno.readTextFile(ROOT + "gossamer/app_gossamer.js");
+
+  assert(abi.includes("const ABI_VERSION = \"1.0.0\""),
+    "wasm_abi.js must pin ABI version");
+  assert(abi.includes("const STEP_STATE_ARG_COUNT = STATE_FIELD_COUNT + INPUT_FIELD_COUNT"),
+    "wasm_abi.js must derive step_state argument count");
+  assert(abi.includes("validateExports"),
+    "wasm_abi.js must expose export validation");
+  assert(abi.includes("decodeSnapshot"),
+    "wasm_abi.js must expose snapshot decoder");
+
+  assert(app.includes("WASM_ABI.validateExports"),
+    "app_gossamer.js must validate WASM exports at startup");
+  assert(app.includes("WASM_ABI.getStartupDiagnostics"),
+    "app_gossamer.js must emit ABI startup diagnostics");
+  assert(app.includes("WASM co-processor disabled due to ABI mismatch"),
+    "app_gossamer.js must fail-fast and disable WASM on ABI mismatch");
+});

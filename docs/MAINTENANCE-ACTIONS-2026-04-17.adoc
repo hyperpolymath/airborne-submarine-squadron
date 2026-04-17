@@ -54,13 +54,21 @@ for Gossamer, typed-wasm, and AffineScript.
 
 == Perfective
 
-* Promote ABI constants from comments into runtime constants shared by JS HUD/WASM bridge.
-* Add startup diagnostics that print ABI version/hash and fail-fast on mismatch.
+Completed in this pass:
+
+* Promoted ABI constants from comments into runtime constants shared by JS HUD/WASM bridge
+  via `gossamer/wasm_abi.js`.
+* Added startup diagnostics that print ABI version/hash and fail-fast on mismatch in
+  `gossamer/app_gossamer.js`.
+* Added event taxonomy docs for gameplay notifications, multiplayer control events,
+  and ops alerts in `docs/EVENT-TAXONOMY.md`.
+
+Remaining:
+
 * Split remaining monolith sections in `app_gossamer.js` into stable, test-covered modules.
 * Add replay fixtures for deterministic tick-by-tick validation of JS vs WASM co-processor drift.
 * Add stricter source-to-artifact provenance check (embed compiler+contract metadata in artifact manifest).
 * Extend CI to run cross-repo dogfood checks when sibling repos are present.
-* Add event taxonomy docs for gameplay notifications, multiplayer control events, and ops alerts.
 
 == Burble/Groove Event Boundary
 

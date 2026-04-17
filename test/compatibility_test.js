@@ -103,3 +103,13 @@ Deno.test("compat: launcher.sh supports --browser, --gossamer, --install", async
   assert(text.includes("--gossamer"), "Must support --gossamer mode");
   assert(text.includes("--install"), "Must support --install mode");
 });
+
+// ── 9. Shared WASM ABI contract script is loaded by both entry points ──
+Deno.test("compat: HTML entry points load gossamer/wasm_abi.js", async () => {
+  const rootHtml = await Deno.readTextFile(ROOT + "index.html");
+  const gossamerHtml = await Deno.readTextFile(ROOT + "gossamer/index_gossamer.html");
+  assert(rootHtml.includes("gossamer/wasm_abi.js"),
+    "index.html must load gossamer/wasm_abi.js");
+  assert(gossamerHtml.includes("wasm_abi.js"),
+    "gossamer/index_gossamer.html must load wasm_abi.js");
+});

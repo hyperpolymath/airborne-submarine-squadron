@@ -139,10 +139,10 @@ One `unsafe` block exists: `libc::kill(pid, 0)` to check process liveness via si
 This section is the current maintainers' list for "develop this repo further"
 work. Source of truth is `docs/MAINTENANCE-ACTIONS-2026-04-17.adoc`.
 
-- Promote ABI constants from comments into runtime constants shared by JS HUD/WASM bridge.
-- Add startup diagnostics that print ABI version/hash and fail-fast on mismatch.
+- [x] Promote ABI constants from comments into runtime constants shared by JS HUD/WASM bridge (`gossamer/wasm_abi.js`).
+- [x] Add startup diagnostics that print ABI version/hash and fail-fast on mismatch (wired in `gossamer/app_gossamer.js`).
 - Split remaining monolith sections in `app_gossamer.js` into stable, test-covered modules.
 - Add replay fixtures for deterministic tick-by-tick validation of JS vs WASM co-processor drift.
 - Add stricter source-to-artifact provenance check (embed compiler+contract metadata in artifact manifest).
 - Extend CI to run cross-repo dogfood checks when sibling repos are present.
-- Add event taxonomy docs for gameplay notifications, multiplayer control events, and ops alerts.
+- [x] Add event taxonomy docs for gameplay notifications, multiplayer control events, and ops alerts (`docs/EVENT-TAXONOMY.md`).
