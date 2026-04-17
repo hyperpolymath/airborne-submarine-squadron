@@ -1,317 +1,512 @@
-// Airborne Submarine Squadron — Frontier Engine v0.8
 // SPDX-License-Identifier: AGPL-3.0-or-later
-
-// --- Local Utilities ---
-
-fn map[T, U](arr: Array[T], f: T -> U) -> Array[U] {
-    let result: Array[U] = [];
-    for x in arr {
-        result = result ++ [f(x)];
-    };
-    return result; 
-}
-
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
 //
-// [CRITICAL] ARCHITECTURE MANDATE:
-// 1. Logic MUST stay in AffineScript. NEVER transpile to JavaScript.
-// 2. Use Row Polymorphism for modular systems (Physics, Health, etc).
-// 3. Use Algebraic Effects (Engine) for rendering/SFX requests.
-// 4. Use Phantom Types for Submarine state lifecycle (Flying, Diving).
+// Airborne Submarine Squadron (AffineScript)
+// Stable bridge-focused implementation for JS <-> WASM integration.
 
-// --- Behavioral Effects (Requests to Gossamer/JS) ---
-effect Engine {
-    fn play_sfx(id: String);
-    fn spawn_particle(x: Float, y: Float, kind: String);
-    fn log(msg: String);
-}
+// --- Core Types -------------------------------------------------------------
 
-// --- Structural Capabilities (Row Polymorphism) ---
-// These systems can operate on ANY entity that has these fields.
-type Physics = { x: Float, y: Float, vx: Float, vy: Float };
-type Health  = { health: Int, max_health: Int };
-type Combat  = { ammo: Int, cooldown: Int };
+type Environment = Int;
 
-// --- Linear State Lifecycle (Phantom Types) ---
-type State = Unit;
-type Flying = State;
-type Diving = State;
-type Ejected = State;
-
-// --- Hostage & Mission Systems ---
-enum HostageStatus { Waiting, Rescued, Lost }
-
-type Hostage = { 
-    id: Int, 
-    x: Float, 
-    y: Float, 
-    status: HostageStatus,
-    timer: Int // Refined: Int where (x >= 0)
-};
-
-type Enemy = {
-    x: Float,
-    y: Float,
-    health: Int,
-    active: Bool
-};
-
-enum MissionType { Strike, Escort, Rescue }
-
-type Mission = {
-    kind: MissionType,
-    objective_count: Int,
-    progress: Int,
-    completed: Bool
-};
-
-// --- Core Entity Types ---
-type Submarine[S] = {
-    pos: Physics,
-    vitality: Health,
-    weaponry: Combat,
-    is_afterburning: Bool,
-    is_stabilized: Bool
-};
-
-type World[S] = {
-    tick: Int,
-    sub: Submarine[S],
-    enemies: Array[Enemy],
-    hostages: Array[Hostage],
-    env_water_line: Float,
-    score: Int,
-    kills: Int,
-    mission: Mission
+type Submarine = {
+  x: Int,
+  y: Int,
+  vx: Int,
+  vy: Int,
+  health: Int
 };
 
 type Input = {
-    thrust_x: Float,
-    thrust_y: Float,
-    fire: Bool,
-    fire_alt: Bool,
-    toggle_env: Bool
+  thrust_x: Int,
+  thrust_y: Int,
+  fire: Bool,
+  fire_alt: Bool,
+  toggle_env: Bool
 };
 
-// --- Initialization Logic ---
+type World = {
+  tick: Int,
+  env: Environment,
+  sub: Submarine,
 
-fn init_physics(x: Float, y: Float) -> Physics {
-    return { x: x, y: y, vx: 0.0, vy: 0.0 };
-}
+  ammo: Int,
+  cooldown: Int,
 
-fn init_health(h: Int) -> Health {
-    return { health: h, max_health: h };
-}
+  proj_a_active: Bool,
+  proj_a_x: Int,
+  proj_a_y: Int,
+  proj_b_active: Bool,
+  proj_b_x: Int,
+  proj_b_y: Int,
 
-fn init_combat() -> Combat {
-    return { ammo: 200, cooldown: 0 };
-}
+  enemy1_active: Bool,
+  enemy1_x: Int,
+  enemy1_y: Int,
+  enemy1_hp: Int,
+  enemy2_active: Bool,
+  enemy2_x: Int,
+  enemy2_y: Int,
+  enemy2_hp: Int,
 
-fn init_submarine() -> Submarine[Flying] {
-    return {
-        pos: init_physics(400.0, 200.0),
-        vitality: init_health(100),
-        weaponry: init_combat(),
-        is_afterburning: false,
-        is_stabilized: false
-    };
-}
+  score: Int,
+  kills: Int,
+  mission_total: Int,
+  mission_ticks: Int,
+  mission_complete: Bool,
+  mission_failed: Bool
+};
 
-fn init_mission() -> Mission {
-    return {
-        kind: MissionType::Strike,
-        objective_count: 4,
-        progress: 0,
-        completed: false
-    };
-}
-
-// --- Entity Logic ---
-
-fn step_enemy(enemy: Enemy, water_line: Float) -> Enemy {
-    if (enemy.active) {
-        let speed: Float = 2.0;
-        // Simple wrap or deactivate
-        return { ..enemy, x: enemy.x - speed, active: true };
-    };
-    return enemy;
-}
-
-fn spawn_enemy(tick: Int, id: Int) -> Enemy {
-    let x_pos: Float = 850.0;
-    return { x: x_pos, y: 200.0 + float(id * 50), health: 50, active: true };
-}
-
-fn create_world() -> World[Flying] {
-    return {
-        tick: 0,
-        sub: init_submarine(),
-        enemies: [spawn_enemy(0, 0), spawn_enemy(0, 1)],
-        hostages: [{ id: 0, x: 600.0, y: 510.0, status: HostageStatus::Waiting, timer: 1000 }],
-        env_water_line: 420.0,
-        score: 0,
-        kills: 0,
-        mission: init_mission()
-    };
-}
-
-// --- Input Parsing ---
-
-fn parse_input(input: Array[Int]) -> Input {
-    return {
-        thrust_x: float(input[0]),
-        thrust_y: float(input[1]),
-        fire: input[2] != 0,
-        fire_alt: input[3] != 0,
-        toggle_env: input[4] != 0
-    };
-}
-
-// --- Simulation Systems ---
-
-// Physics System: Works on any record with physics fields
-fn apply_gravity(p: {y: Float, vy: Float..r}) -> {y: Float, vy: Float..r} {
-    let gravity: Float = 0.15;
-    return { ..p, vy: p.vy + gravity };
-}
-
-// Buoyancy System: Integrated with Row Polymorphism
-fn apply_buoyancy(p: {y: Float, vy: Float..r}, water_line: Float) -> {y: Float, vy: Float..r} {
-    if p.y > water_line {
-        let buoyancy: Float = 0.25;
-        return { ..p, vy: p.vy - buoyancy };
-    } else {
-        return p;
-    };
-}
-
-// Combat System: Effect-enabled for behavioral modularity
-fn fire_torpedo(pos: Physics, c: Combat) -> Combat -{ Engine }-> Combat {
-    if c.ammo > 0 && c.cooldown == 0 {
-        Engine.play_sfx("torpedo_launch");
-        Engine.spawn_particle(pos.x, pos.y, "bubble_trail");
-        return { ..c, ammo: c.ammo - 1, cooldown: 15 };
-    } else {
-        return c;
-    };
-}
-
-// Mission System: Safe state transitions
-fn rescue_hostage(sub: Physics, h: Hostage) -> (Hostage, Int) {
-    let range: Float = 50.0;
-    // Note: Use Math.hypot once implemented in stdlib
-    let dx: Float = sub.x - h.x;
-    let dy: Float = sub.y - h.y;
-    if dx * dx + dy * dy < range * range {
-        return ({ ..h, status: HostageStatus::Rescued }, 500);
-    } else {
-        return (h, 0);
-    };
-}
-
-fn apply_physics[S](sub: Submarine[S], water_line: Float) -> Submarine[S] {
-    let p1 = apply_gravity(sub.pos);
-    let p2 = apply_buoyancy(p1, water_line);
-    
-    let drag: Float = 0.98;
-    let p3 = { 
-        ..p2,
-        vx: p2.vx * drag,
-        vy: p2.vy * drag,
-        x: p2.x + p2.vx, 
-        y: p2.y + p2.vy
-    };
-    
-    return { ..sub, pos: p3 };
-}
-
-fn step_world[S](w: World[S], input: Input) -> World[S] -{ Engine }-> World[S] {
-    // 1. Physics & Input
-    let thrust_mag: Float = 0.35;
-    let next_vx: Float = w.sub.pos.vx + input.thrust_x * thrust_mag;
-    let next_vy: Float = w.sub.pos.vy + input.thrust_y * thrust_mag;
-    let sub_with_input = { ..w.sub, pos: { ..w.sub.pos, vx: next_vx, vy: next_vy } };
-    let next_sub = apply_physics(sub_with_input, w.env_water_line);
-
-    // 2. Combat
-    let next_weaponry: Combat = if (input.fire) {
-        fire_torpedo(next_sub.pos, next_sub.weaponry)
-    } else {
-        let c: Combat = next_sub.weaponry;
-        if (c.cooldown > 0) { { ..c, cooldown: c.cooldown - 1 } } else { c };
-    };
-
-    // 3. Enemies
-    let next_enemies = map(w.enemies, (|e| step_enemy(e, w.env_water_line)));
-
-    // 4. Hostages
-    let mut score_gain: Int = 0;
-    let next_hostages = map(w.hostages, (|h| {
-        let result = rescue_hostage(next_sub.pos, h);
-        score_gain = score_gain + result.1;
-        return result.0;
-    }));
-
-    return {
-        ..w,
-        tick: w.tick + 1,
-        sub: { ..next_sub, weaponry: next_weaponry },
-        enemies: next_enemies,
-        hostages: next_hostages,
-        score: w.score + score_gain
-    };
-}
-
-// --- Snapshot Logic (Frontend Compatibility) ---
+// --- Small Helpers ----------------------------------------------------------
 
 fn bool_to_int(b: Bool) -> Int {
-    if b { return 1; } else { return 0; };
+  if b {
+    return 1;
+  } else {
+    return 0;
+  };
 }
 
-fn build_snapshot(w: World[Flying]) -> Array[Int] {
-    let e1 = w.enemies[0];
-    let e2 = w.enemies[1];
-    
-    return [
-        29,
-        w.tick,
-        0, // env (Air)
-        int(w.sub.pos.x),
-        int(w.sub.pos.y),
-        int(w.sub.pos.vx),
-        int(w.sub.pos.vy),
-        w.sub.vitality.health,
-        w.sub.weaponry.ammo,
-        w.sub.weaponry.cooldown,
-        0, 0, 0, // Proj A
-        0, 0, 0, // Proj B
-        bool_to_int(e1.active), int(e1.x), int(e1.y), e1.health,
-        bool_to_int(e2.active), int(e2.x), int(e2.y), e2.health,
-        w.score,
-        w.kills,
-        w.mission.objective_count,
-        360, // mission_ticks (Legacy constant)
-        bool_to_int(w.mission.completed),
-        0 // mission_failed
-    ];
+fn int_to_bool(v: Int) -> Bool {
+  return v != 0;
 }
 
-// --- Persistent Global State ---
+fn clamp(v: Int, lo: Int, hi: Int) -> Int {
+  if v < lo {
+    return lo;
+  } else if v > hi {
+    return hi;
+  } else {
+    return v;
+  };
+}
 
-pub const top_i: Int = 42;
+fn abs(v: Int) -> Int {
+  if v < 0 {
+    return -v;
+  } else {
+    return v;
+  };
+}
 
-pub const current_world: World[Flying] = create_world();
+fn create_world() -> World {
+  return {
+    tick: 0,
+    env: 0,
+    sub: { x: 400, y: 200, vx: 0, vy: 0, health: 100 },
 
-// --- Entry Points (WASM Interface) ---
+    ammo: 200,
+    cooldown: 0,
 
-// init_state: Re-initializes the global world and returns initial snapshot
+    proj_a_active: false,
+    proj_a_x: 0,
+    proj_a_y: 0,
+    proj_b_active: false,
+    proj_b_x: 0,
+    proj_b_y: 0,
+
+    enemy1_active: true,
+    enemy1_x: 760,
+    enemy1_y: 220,
+    enemy1_hp: 50,
+    enemy2_active: true,
+    enemy2_x: 740,
+    enemy2_y: 280,
+    enemy2_hp: 50,
+
+    score: 0,
+    kills: 0,
+    mission_total: 4,
+    mission_ticks: 360,
+    mission_complete: false,
+    mission_failed: false
+  };
+}
+
+// Keep canonical 29-field snapshot layout for runtime compatibility.
+fn build_snapshot(w: World) -> Array[Int] {
+  return [
+    w.tick,
+    w.env,
+    w.sub.x,
+    w.sub.y,
+    w.sub.vx,
+    w.sub.vy,
+    w.sub.health,
+    w.ammo,
+    w.cooldown,
+    bool_to_int(w.proj_a_active),
+    w.proj_a_x,
+    w.proj_a_y,
+    bool_to_int(w.proj_b_active),
+    w.proj_b_x,
+    w.proj_b_y,
+    bool_to_int(w.enemy1_active),
+    w.enemy1_x,
+    w.enemy1_y,
+    w.enemy1_hp,
+    bool_to_int(w.enemy2_active),
+    w.enemy2_x,
+    w.enemy2_y,
+    w.enemy2_hp,
+    w.score,
+    w.kills,
+    w.mission_total,
+    w.mission_ticks,
+    bool_to_int(w.mission_complete),
+    bool_to_int(w.mission_failed)
+  ];
+}
+
+fn next_env(env: Environment, tick: Int, toggle_env: Bool) -> Environment {
+  if toggle_env {
+    if env == 0 {
+      return 1;
+    } else {
+      return 0;
+    };
+  } else if tick % 120 == 0 {
+    if env == 0 {
+      return 1;
+    } else {
+      return 0;
+    };
+  } else {
+    return env;
+  };
+}
+
+fn apply_input(sub: Submarine, input: Input) -> Submarine {
+  let vx = clamp(sub.vx + input.thrust_x, -20, 20);
+  let vy = clamp(sub.vy + input.thrust_y, -20, 20);
+  return {
+    x: sub.x,
+    y: sub.y,
+    vx: vx,
+    vy: vy,
+    health: sub.health
+  };
+}
+
+fn integrate_submarine(sub: Submarine, env: Environment) -> Submarine {
+  let gravity = if env == 0 { 1 } else { -1 };
+  let vx_drag = if sub.vx > 0 {
+    sub.vx - 1
+  } else if sub.vx < 0 {
+    sub.vx + 1
+  } else {
+    0
+  };
+  let vy_next = clamp(sub.vy + gravity, -20, 20);
+  return {
+    x: clamp(sub.x + vx_drag, 0, 799),
+    y: clamp(sub.y + vy_next, 0, 520),
+    vx: vx_drag,
+    vy: vy_next,
+    health: sub.health
+  };
+}
+
+fn step_projectile(active: Bool, x: Int, y: Int, vx: Int, vy: Int) -> (Bool, Int, Int) {
+  if active {
+    let nx = x + vx;
+    let ny = y + vy;
+    if nx < -20 || nx > 820 || ny < -20 || ny > 620 {
+      return (false, nx, ny);
+    } else {
+      return (true, nx, ny);
+    };
+  } else {
+    return (false, x, y);
+  };
+}
+
+fn step_enemy(active: Bool, x: Int, y: Int, hp: Int, speed: Int) -> (Bool, Int, Int, Int) {
+  if active {
+    let nx = x - speed;
+    if nx < -20 {
+      return (false, nx, y, hp);
+    } else {
+      return (true, nx, y, hp);
+    };
+  } else {
+    return (false, x, y, hp);
+  };
+}
+
+fn projectile_hits_enemy(px: Int, py: Int, ex: Int, ey: Int) -> Bool {
+  let dx = abs(px - ex);
+  let dy = abs(py - ey);
+  return dx < 10 && dy < 10;
+}
+
+fn step_world(w: World, input: Input) -> World {
+  let tick2 = w.tick + 1;
+  let env2 = next_env(w.env, tick2, input.toggle_env);
+
+  let sub1 = apply_input(w.sub, input);
+  let sub2 = integrate_submarine(sub1, env2);
+
+  let cooldown1 = if w.cooldown > 0 { w.cooldown - 1 } else { 0 };
+
+  let can_fire = cooldown1 == 0 && w.ammo > 0;
+  let fire_a = input.fire && can_fire && !w.proj_a_active;
+  let ammo_after_a = if fire_a { w.ammo - 1 } else { w.ammo };
+  let fire_b = input.fire_alt && cooldown1 == 0 && ammo_after_a > 0 && !w.proj_b_active;
+  let ammo2 = if fire_b { ammo_after_a - 1 } else { ammo_after_a };
+  let cooldown2 = if fire_a || fire_b { 8 } else { cooldown1 };
+
+  let proj_a_active0 = if fire_a { true } else { w.proj_a_active };
+  let proj_a_x0 = if fire_a { sub2.x + 12 } else { w.proj_a_x };
+  let proj_a_y0 = if fire_a { sub2.y } else { w.proj_a_y };
+  let proj_b_active0 = if fire_b { true } else { w.proj_b_active };
+  let proj_b_x0 = if fire_b { sub2.x + 12 } else { w.proj_b_x };
+  let proj_b_y0 = if fire_b { sub2.y + 4 } else { w.proj_b_y };
+
+  let proj_a_step = step_projectile(proj_a_active0, proj_a_x0, proj_a_y0, 7, 0);
+  let proj_a_active1 = proj_a_step.0;
+  let proj_a_x1 = proj_a_step.1;
+  let proj_a_y1 = proj_a_step.2;
+
+  let proj_b_step = step_projectile(proj_b_active0, proj_b_x0, proj_b_y0, 7, 0);
+  let proj_b_active1 = proj_b_step.0;
+  let proj_b_x1 = proj_b_step.1;
+  let proj_b_y1 = proj_b_step.2;
+
+  let enemy1_spawn = !w.enemy1_active && tick2 % 140 == 1;
+  let enemy1_active0 = if enemy1_spawn { true } else { w.enemy1_active };
+  let enemy1_x0 = if enemy1_spawn { 760 } else { w.enemy1_x };
+  let enemy1_y0 = if enemy1_spawn { 220 } else { w.enemy1_y };
+  let enemy1_hp0 = if enemy1_spawn { 50 } else { w.enemy1_hp };
+
+  let enemy2_spawn = !w.enemy2_active && tick2 % 190 == 1;
+  let enemy2_active0 = if enemy2_spawn { true } else { w.enemy2_active };
+  let enemy2_x0 = if enemy2_spawn { 740 } else { w.enemy2_x };
+  let enemy2_y0 = if enemy2_spawn { 280 } else { w.enemy2_y };
+  let enemy2_hp0 = if enemy2_spawn { 50 } else { w.enemy2_hp };
+
+  let enemy1_step = step_enemy(enemy1_active0, enemy1_x0, enemy1_y0, enemy1_hp0, 2);
+  let enemy1_active1 = enemy1_step.0;
+  let enemy1_x1 = enemy1_step.1;
+  let enemy1_y1 = enemy1_step.2;
+  let enemy1_hp1 = enemy1_step.3;
+
+  let enemy2_step = step_enemy(enemy2_active0, enemy2_x0, enemy2_y0, enemy2_hp0, 1);
+  let enemy2_active1 = enemy2_step.0;
+  let enemy2_x1 = enemy2_step.1;
+  let enemy2_y1 = enemy2_step.2;
+  let enemy2_hp1 = enemy2_step.3;
+
+  let hit_enemy1 = enemy1_active1 && ((proj_a_active1 && projectile_hits_enemy(proj_a_x1, proj_a_y1, enemy1_x1, enemy1_y1)) || (proj_b_active1 && projectile_hits_enemy(proj_b_x1, proj_b_y1, enemy1_x1, enemy1_y1)));
+  let hit_enemy2 = enemy2_active1 && ((proj_a_active1 && projectile_hits_enemy(proj_a_x1, proj_a_y1, enemy2_x1, enemy2_y1)) || (proj_b_active1 && projectile_hits_enemy(proj_b_x1, proj_b_y1, enemy2_x1, enemy2_y1)));
+
+  let enemy1_active2 = if hit_enemy1 { false } else { enemy1_active1 };
+  let enemy1_hp2 = if hit_enemy1 { 0 } else { enemy1_hp1 };
+  let enemy2_active2 = if hit_enemy2 { false } else { enemy2_active1 };
+  let enemy2_hp2 = if hit_enemy2 { 0 } else { enemy2_hp1 };
+
+  let proj_a_active2 = if hit_enemy1 || hit_enemy2 { false } else { proj_a_active1 };
+  let proj_b_active2 = if hit_enemy1 || hit_enemy2 { false } else { proj_b_active1 };
+
+  let kills_gain = bool_to_int(hit_enemy1) + bool_to_int(hit_enemy2);
+  let score_gain = kills_gain * 100;
+  let kills2 = w.kills + kills_gain;
+  let score2 = w.score + score_gain;
+
+  let mission_complete2 = kills2 >= w.mission_total;
+  let mission_failed2 = if mission_complete2 {
+    false
+  } else {
+    tick2 > w.mission_ticks
+  };
+
+  return {
+    tick: tick2,
+    env: env2,
+    sub: sub2,
+
+    ammo: ammo2,
+    cooldown: cooldown2,
+
+    proj_a_active: proj_a_active2,
+    proj_a_x: proj_a_x1,
+    proj_a_y: proj_a_y1,
+    proj_b_active: proj_b_active2,
+    proj_b_x: proj_b_x1,
+    proj_b_y: proj_b_y1,
+
+    enemy1_active: enemy1_active2,
+    enemy1_x: enemy1_x1,
+    enemy1_y: enemy1_y1,
+    enemy1_hp: enemy1_hp2,
+    enemy2_active: enemy2_active2,
+    enemy2_x: enemy2_x1,
+    enemy2_y: enemy2_y1,
+    enemy2_hp: enemy2_hp2,
+
+    score: score2,
+    kills: kills2,
+    mission_total: w.mission_total,
+    mission_ticks: w.mission_ticks,
+    mission_complete: mission_complete2,
+    mission_failed: mission_failed2
+  };
+}
+
+fn world_from_state(
+  state_tick: Int,
+  state_env: Int,
+  state_sub_x: Int,
+  state_sub_y: Int,
+  state_sub_vx: Int,
+  state_sub_vy: Int,
+  state_sub_hp: Int,
+  state_sub_ammo: Int,
+  state_sub_cooldown: Int,
+  state_proj_a_alive: Int,
+  state_proj_a_x: Int,
+  state_proj_a_y: Int,
+  state_proj_b_alive: Int,
+  state_proj_b_x: Int,
+  state_proj_b_y: Int,
+  state_enemy1_alive: Int,
+  state_enemy1_x: Int,
+  state_enemy1_y: Int,
+  state_enemy1_hp: Int,
+  state_enemy2_alive: Int,
+  state_enemy2_x: Int,
+  state_enemy2_y: Int,
+  state_enemy2_hp: Int,
+  state_score: Int,
+  state_kills: Int,
+  state_mission_total: Int,
+  state_mission_ticks: Int,
+  state_mission_complete: Int,
+  state_mission_failed: Int
+) -> World {
+  return {
+    tick: state_tick,
+    env: state_env,
+    sub: {
+      x: state_sub_x,
+      y: state_sub_y,
+      vx: state_sub_vx,
+      vy: state_sub_vy,
+      health: state_sub_hp
+    },
+
+    ammo: state_sub_ammo,
+    cooldown: state_sub_cooldown,
+
+    proj_a_active: int_to_bool(state_proj_a_alive),
+    proj_a_x: state_proj_a_x,
+    proj_a_y: state_proj_a_y,
+    proj_b_active: int_to_bool(state_proj_b_alive),
+    proj_b_x: state_proj_b_x,
+    proj_b_y: state_proj_b_y,
+
+    enemy1_active: int_to_bool(state_enemy1_alive),
+    enemy1_x: state_enemy1_x,
+    enemy1_y: state_enemy1_y,
+    enemy1_hp: state_enemy1_hp,
+    enemy2_active: int_to_bool(state_enemy2_alive),
+    enemy2_x: state_enemy2_x,
+    enemy2_y: state_enemy2_y,
+    enemy2_hp: state_enemy2_hp,
+
+    score: state_score,
+    kills: state_kills,
+    mission_total: state_mission_total,
+    mission_ticks: state_mission_ticks,
+    mission_complete: int_to_bool(state_mission_complete),
+    mission_failed: int_to_bool(state_mission_failed)
+  };
+}
+
 fn init_state() -> Array[Int] {
-    current_world = create_world();
-    return build_snapshot(current_world);
+  return build_snapshot(create_world());
 }
 
-// step_state: Processes input on the global world and returns updated snapshot
-fn step_state(input: Array[Int]) -> Array[Int] -{ Engine }-> Array[Int] {
-    let i = parse_input(input);
-    current_world = step_world(current_world, i);
-    return build_snapshot(current_world);
+// Stable JS↔WASM ABI: 29 state fields + 5 input fields (34 ints total).
+fn step_state(
+  state_tick: Int,
+  state_env: Int,
+  state_sub_x: Int,
+  state_sub_y: Int,
+  state_sub_vx: Int,
+  state_sub_vy: Int,
+  state_sub_hp: Int,
+  state_sub_ammo: Int,
+  state_sub_cooldown: Int,
+  state_proj_a_alive: Int,
+  state_proj_a_x: Int,
+  state_proj_a_y: Int,
+  state_proj_b_alive: Int,
+  state_proj_b_x: Int,
+  state_proj_b_y: Int,
+  state_enemy1_alive: Int,
+  state_enemy1_x: Int,
+  state_enemy1_y: Int,
+  state_enemy1_hp: Int,
+  state_enemy2_alive: Int,
+  state_enemy2_x: Int,
+  state_enemy2_y: Int,
+  state_enemy2_hp: Int,
+  state_score: Int,
+  state_kills: Int,
+  state_mission_total: Int,
+  state_mission_ticks: Int,
+  state_mission_complete: Int,
+  state_mission_failed: Int,
+  input_thrust_x: Int,
+  input_thrust_y: Int,
+  input_fire: Int,
+  input_fire_alt: Int,
+  input_toggle_env: Int
+) -> Array[Int] {
+  let world = world_from_state(
+    state_tick,
+    state_env,
+    state_sub_x,
+    state_sub_y,
+    state_sub_vx,
+    state_sub_vy,
+    state_sub_hp,
+    state_sub_ammo,
+    state_sub_cooldown,
+    state_proj_a_alive,
+    state_proj_a_x,
+    state_proj_a_y,
+    state_proj_b_alive,
+    state_proj_b_x,
+    state_proj_b_y,
+    state_enemy1_alive,
+    state_enemy1_x,
+    state_enemy1_y,
+    state_enemy1_hp,
+    state_enemy2_alive,
+    state_enemy2_x,
+    state_enemy2_y,
+    state_enemy2_hp,
+    state_score,
+    state_kills,
+    state_mission_total,
+    state_mission_ticks,
+    state_mission_complete,
+    state_mission_failed
+  );
+
+  let input = {
+    thrust_x: input_thrust_x,
+    thrust_y: input_thrust_y,
+    fire: int_to_bool(input_fire),
+    fire_alt: int_to_bool(input_fire_alt),
+    toggle_env: int_to_bool(input_toggle_env)
+  };
+
+  let updated = step_world(world, input);
+  return build_snapshot(updated);
+}
+
+fn main() -> Array[Int] {
+  return init_state();
 }

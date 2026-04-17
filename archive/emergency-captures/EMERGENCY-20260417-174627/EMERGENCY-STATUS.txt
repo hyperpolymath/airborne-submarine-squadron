@@ -1,0 +1,23 @@
+ D .npmignore
+ M Justfile
+ M build.sh
+ M deno.lock
+ M gossamer/app_gossamer.js
+ M gossamer/enemies.js
+ M gossamer/index_gossamer.html
+ M gossamer/launch.sh
+ M index.html
+ M launcher.sh
+ D package.json
+ M run.js
+ M src/main.affine
+ M test/compatibility_test.js
+ M test/contract_test.js
+ M test/regression_test.js
+ M test/smoke_test.js
+?? EMERGENCY-NOTICE.md
+?? EMERGENCY-STATUS.txt
+?? EMERGENCY.diff
+?? RECOVERY-TOKEN.txt
+?? gossamer/camera_layers.js
+?? scripts/

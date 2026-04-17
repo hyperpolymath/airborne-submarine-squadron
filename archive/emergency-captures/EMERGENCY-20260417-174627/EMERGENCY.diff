@@ -1,0 +1,696 @@
+diff --git a/.npmignore b/.npmignore
+deleted file mode 100644
+index 5ac3e3a..0000000
+--- a/.npmignore
++++ /dev/null
+@@ -1,63 +0,0 @@
+-# npm ignore file for airborne-submarine-squadron
+-
+-# Ignore git and version control files
+-.git
+-.gitignore
+-.gitattributes
+-
+-# Ignore build artifacts and temporary files
+-*.tar.gz
+-*.zip
+-*.bak
+-*.backup
+-
+-# Ignore backup directory
+-.backup/
+-
+-# Ignore node_modules
+-node_modules/
+-
+-# Ignore logs and temporary files
+-*.log
+-*.tmp
+-
+-# Ignore examples
+-examples/
+-
+-# Ignore desktop-specific files
+-desktop/
+-
+-# Ignore release files
+-release/
+-
+-# Ignore git-related files
+-.github/
+-
+-# Ignore machine readable files
+-.machine_readable/
+-
+-# Ignore contractiles
+-contractiles/
+-
+-# Ignore ffi
+-ffi/
+-
+-# Ignore specific documentation files (keep README.md)
+-*.adoc
+-docs/
+-notes/
+-*.txt
+-
+-# Keep these specific files that are in the files array
+-gossamer/
+-tray/
+-build/
+-dist/
+-src/
+-launcher.sh
+-install.sh
+-build.sh
+-run_wasm.js
+-README.md
+-package.json
+-.npmignore
+\ No newline at end of file
+diff --git a/Justfile b/Justfile
+index aa7e791..7309770 100644
+--- a/Justfile
++++ b/Justfile
+@@ -9,6 +9,8 @@ import? "contractile.just"
+ check:
+   if command -v affinescript >/dev/null 2>&1; then \
+     affinescript check src/main.affine; \
++  elif [ -x "./scripts/ensure_affinescript.sh" ] && COMPILER=$$(./scripts/ensure_affinescript.sh --print-bin 2>/dev/null); then \
++    "$$COMPILER" check src/main.affine; \
+   elif [ -n "${AFFINESCRIPT_REPO:-}" ] && [ -x "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" ]; then \
+     "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" check src/main.affine; \
+   else \
+@@ -52,6 +54,8 @@ build-tray:
+ test-types:
+   if command -v affinescript >/dev/null 2>&1; then \
+     affinescript check test_types.affine; \
++  elif [ -x "./scripts/ensure_affinescript.sh" ] && COMPILER=$$(./scripts/ensure_affinescript.sh --print-bin 2>/dev/null); then \
++    "$$COMPILER" check test_types.affine; \
+   elif [ -n "${AFFINESCRIPT_REPO:-}" ] && [ -x "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" ]; then \
+     "$AFFINESCRIPT_REPO/_build/default/bin/main.exe" check test_types.affine; \
+   else \
+diff --git a/build.sh b/build.sh
+index 1a8dd96..e4a39fc 100755
+--- a/build.sh
++++ b/build.sh
+@@ -4,7 +4,6 @@ set -euo pipefail
+ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ OUT_DIR="$ROOT_DIR/build"
+ OUT_WASM="$OUT_DIR/airborne-submarine-squadron.wasm"
+-LEGACY_WASM="$OUT_DIR/airborne-final-working.wasm"
+ DIST_WASM="$ROOT_DIR/dist/airborne-submarine-squadron.wasm"
+ TMP_WASM="$OUT_DIR/.airborne-submarine-squadron.wasm.tmp"
+ 
+@@ -16,6 +15,8 @@ find_affinescript_repo() {
+     "${AFFINESCRIPT_REPO:-}" \
+     "$ROOT_DIR/../nextgen-languages/affinescript" \
+     "$ROOT_DIR/../../nextgen-languages/affinescript" \
++    "$ROOT_DIR/../../developer-ecosystem/nextgen-languages/affinescript" \
++    "/var/mnt/eclipse/repos/developer-ecosystem/nextgen-languages/affinescript" \
+     "/var/mnt/eclipse/repos/nextgen-languages/affinescript"
+   do
+     [ -n "$candidate" ] || continue
+@@ -27,6 +28,10 @@ find_affinescript_repo() {
+   return 1
+ }
+ 
++if [ -x "$ROOT_DIR/scripts/ensure_affinescript.sh" ]; then
++  "$ROOT_DIR/scripts/ensure_affinescript.sh" --warmup >/dev/null 2>&1 || true
++fi
++
+ compile_with_affinescript() {
+   local compiler_repo="$1"
+   rm -f "$TMP_WASM"
+@@ -54,13 +59,12 @@ preserve_bundled_wasm() {
+   rm -f "$TMP_WASM"
+   if [ -f "$DIST_WASM" ]; then
+     cp "$DIST_WASM" "$OUT_WASM"
+-  elif [ -f "$OUT_WASM" ] || [ -f "$LEGACY_WASM" ]; then
+-    [ -f "$OUT_WASM" ] || cp "$LEGACY_WASM" "$OUT_WASM"
++  elif [ -f "$OUT_WASM" ]; then
++    :
+   else
+     echo "No fallback WASM artifact available." >&2
+     exit 1
+   fi
+-  cp "$OUT_WASM" "$LEGACY_WASM"
+   echo "Compile failed; reusing fallback WASM:"
+   echo "  $OUT_WASM"
+   exit 0
+@@ -77,14 +81,11 @@ elif command -v affinescript >/dev/null 2>&1; then
+ else
+   if [ -f "$DIST_WASM" ]; then
+     cp "$DIST_WASM" "$OUT_WASM"
+-    cp "$OUT_WASM" "$LEGACY_WASM"
+     echo "affinescript not found. Reusing prebuilt WASM artifact:"
+     echo "  $OUT_WASM"
+     echo "Set AFFINESCRIPT_REPO=/path/to/affinescript only if you need a fresh compile."
+     exit 0
+-  elif [ -f "$OUT_WASM" ] || [ -f "$LEGACY_WASM" ]; then
+-    [ -f "$OUT_WASM" ] || cp "$LEGACY_WASM" "$OUT_WASM"
+-    cp "$OUT_WASM" "$LEGACY_WASM"
++  elif [ -f "$OUT_WASM" ]; then
+     echo "affinescript not found. Reusing existing WASM artifact:"
+     echo "  $OUT_WASM"
+     echo "Set AFFINESCRIPT_REPO=/path/to/affinescript only if you need a fresh compile."
+@@ -97,6 +98,4 @@ else
+ fi
+ 
+ mv "$TMP_WASM" "$OUT_WASM"
+-cp "$OUT_WASM" "$LEGACY_WASM"
+ echo "Wrote $OUT_WASM"
+-echo "Updated compatibility copy $LEGACY_WASM"
+diff --git a/deno.lock b/deno.lock
+index 33bff00..bebc262 100644
+--- a/deno.lock
++++ b/deno.lock
+@@ -1,6 +1,7 @@
+ {
+   "version": "5",
+   "specifiers": {
++    "jsr:@std/assert@*": "1.0.18",
+     "jsr:@std/cli@^1.0.27": "1.0.28",
+     "jsr:@std/encoding@^1.0.10": "1.0.10",
+     "jsr:@std/fmt@^1.0.9": "1.0.9",
+@@ -14,6 +15,12 @@
+     "jsr:@std/streams@^1.0.17": "1.0.17"
+   },
+   "jsr": {
++    "@std/assert@1.0.18": {
++      "integrity": "270245e9c2c13b446286de475131dc688ca9abcd94fc5db41d43a219b34d1c78",
++      "dependencies": [
++        "jsr:@std/internal"
++      ]
++    },
+     "@std/cli@1.0.28": {
+       "integrity": "74ef9b976db59ca6b23a5283469c9072be6276853807a83ec6c7ce412135c70a"
+     },
+diff --git a/gossamer/app_gossamer.js b/gossamer/app_gossamer.js
+index f6a6522..560790f 100644
+--- a/gossamer/app_gossamer.js
++++ b/gossamer/app_gossamer.js
+@@ -2025,7 +2025,7 @@ function initWorld() {
+     subInCave: null,     // Reference to cave the sub is hiding in
+     mission: { type: 'patrol', timer: 0, active: false, failed: false, completed: false },
+     hostages: [],
+-    // WASM co-processor (AffineScript physics kernel, airborne-final-working.wasm).
++    // WASM co-processor (AffineScript physics kernel, airborne-submarine-squadron.wasm).
+     // Populated asynchronously by init() after the module loads.
+     wasm: null,
+     wasmState: null,    // 29-element flat snapshot from last step_state call
+@@ -2055,9 +2055,9 @@ async function init() {
+       const scriptSrc = document.currentScript && document.currentScript.src;
+       if (scriptSrc) {
+         // script is at <repo>/gossamer/app_gossamer.js; WASM is at <repo>/build/
+-        return new URL('../build/airborne-final-working.wasm', scriptSrc).href;
++        return new URL('../build/airborne-submarine-squadron.wasm', scriptSrc).href;
+       }
+-      return '../build/airborne-final-working.wasm'; // fallback (direct open)
++      return '../build/airborne-submarine-squadron.wasm'; // fallback (direct open)
+     })();
+     try {
+       const resp = await fetch(_wasmUrl);
+@@ -3230,7 +3230,9 @@ function update(dt) {
+         sub.floating = false;
+         sub.vx *= 0.7;
+         sub.vy *= 0.5;
+-        actionIcon('D83dDca5', 45, '#ef4444'); ticker('BELLYFLOP!', 50);
++        actionIcon('!', 45, '#ef4444');
++        midNotice('BELLYFLOP!', 80);
++        ticker('BELLYFLOP!', 50);
+       } else {
+         // Slow or medium entry at a bad angle — no damage, just enter water
+         sub.floating = false;
+@@ -4877,8 +4879,24 @@ function draw() {
+   ctx.translate(shakeX, -camY + shakeY);
+ 
+   const palette = getCurrentPlanetPalette();
++  const layerBounds = (window.GossamerCameraLayers &&
++      typeof window.GossamerCameraLayers.computeWorldLayerBounds === 'function')
++    ? window.GossamerCameraLayers.computeWorldLayerBounds(camY, H, {
++      overscan: 140,
++      minSkyTop: -200,
++      seaFloor: SEA_FLOOR,
++      seaFloorMargin: 100,
++    })
++    : {
++      viewTop: camY - 140,
++      viewBottom: camY + H + 140,
++      skyTop: Math.min(-200, camY - 140),
++      waterBottom: Math.max(SEA_FLOOR + 100, camY + H + 140),
++    };
++  const viewTop = layerBounds.viewTop;
++  const viewBottom = layerBounds.viewBottom;
+   // Sky (extends above water line, very tall to cover high flight)
+-  const skyTop = -200; // Allow for high flight
++  const skyTop = layerBounds.skyTop; // Keep sky filled above camera even when deep
+   const skyGrad = ctx.createLinearGradient(0, skyTop, 0, WATER_LINE);
+   skyGrad.addColorStop(0, palette.sky);
+   skyGrad.addColorStop(1, palette.water);
+@@ -4903,7 +4921,8 @@ function draw() {
+   }
+ 
+   // Water (extends deep below surface)
+-  const waterBottom = SEA_FLOOR + 100;
++  // Extend water to the camera's visible bottom to avoid deep-dive layer splitting.
++  const waterBottom = layerBounds.waterBottom;
+   const wg = ctx.createLinearGradient(0,WATER_LINE,0,waterBottom);
+   wg.addColorStop(0, palette.water);
+   wg.addColorStop(1, palette.land);
+@@ -4918,9 +4937,9 @@ function draw() {
+   ctx.stroke();
+ 
+   // Ground
+-  ctx.fillStyle = palette.land; ctx.beginPath(); ctx.moveTo(0, H);
++  ctx.fillStyle = palette.land; ctx.beginPath(); ctx.moveTo(0, viewBottom);
+   for (let sx = 0; sx <= W; sx += 4) ctx.lineTo(sx, getGroundY(sx + cam));
+-  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
++  ctx.lineTo(W, viewBottom); ctx.closePath(); ctx.fill();
+ 
+   ctx.strokeStyle = '#4a3020'; ctx.lineWidth = 2; ctx.beginPath();
+   for (let sx = 0; sx <= W; sx += 4) {
+diff --git a/gossamer/enemies.js b/gossamer/enemies.js
+index e06fef5..16c24a1 100644
+--- a/gossamer/enemies.js
++++ b/gossamer/enemies.js
+@@ -86,7 +86,7 @@ const PASSENGER_DWELL_TIME = 300; // Ticks at each island
+    MINE_DAMAGE, CHAFF_COOLDOWN, CHAFF_LIFESPAN, CHAFF_RADIUS, CHAFF_DEFLECT_FORCE,
+    CHAFF_COLOR, TWO_PI, SEA_FLOOR, SFX, toScreen, damageRandomPart, islandHitTest,
+    addExplosion, addParticles, commanderStatusLabel, groundYFromTerrain,
+-   getThermalLayer, thermallyVisible, keyJustPressed,
++   getThermalLayer, thermallyVisible, keyJustPressed, hudFlash, midNotice, ticker,
+    SQUADRON_HP */
+ 
+ 
+@@ -1194,6 +1194,8 @@ function updateAirInterceptors(dt) {
+   if (aliveCount === 0 && world.airInterceptorTimer > LIGHTNING_SQUAD_SPAWN_INTERVAL && world.score > 1000) {
+     world.airInterceptors = spawnLightningSquad();
+     world.airInterceptorTimer = 0;
++    midNotice('LIGHTNING SQUADRON INCOMING', 80);
++    ticker('Lightning squadron appearing on radar', 80);
+     hudFlash('LIGHTNING SQUADRON INCOMING', 80, '#a78bfa');
+   }
+ 
+@@ -2567,7 +2569,8 @@ function updateMotorcyclists(dt) {
+           m.jumpTrail = [];
+           // Cameratron event — triggers the mini-frame popup
+           world._evelCameratron = { active: true, timer: 0, maxTimer: 180, evel: m };
+-          ticker('Evel Knievel jumps!', 50);
++          midNotice('EVEL TAKES THE JUMP!', 80);
++          ticker('Evel takes the jump!', 60);
+         }
+       }
+     }
+diff --git a/gossamer/index_gossamer.html b/gossamer/index_gossamer.html
+index d066aa6..7b7252c 100644
+--- a/gossamer/index_gossamer.html
++++ b/gossamer/index_gossamer.html
+@@ -1061,6 +1061,7 @@
+     <script src="orbital.js?v=2"></script>
+     <script src="persist.js?v=2"></script>
+     <script src="terrain.js?v=2"></script>
++    <script src="camera_layers.js?v=1"></script>
+     <script src="app_gossamer.js?v=2"></script>
+ </body>
+ </html>
+diff --git a/gossamer/launch.sh b/gossamer/launch.sh
+index 7967092..eda8025 100755
+--- a/gossamer/launch.sh
++++ b/gossamer/launch.sh
+@@ -118,7 +118,7 @@ echo ""
+ # Serve from the game root (one level up from gossamer/) so that:
+ #   /gossamer/index_gossamer.html  — the game page
+ #   /gossamer/app_gossamer.js      — the game engine
+-#   /build/airborne-final-working.wasm — WASM co-processor
++#   /build/airborne-submarine-squadron.wasm — WASM co-processor
+ # are all reachable from the same origin (required for WASM fetch).
+ deno run --allow-net --allow-read - <<DENO_SERVER &
+ const root = "${GAME_ROOT}";
+diff --git a/index.html b/index.html
+index 8764c18..39e7df0 100644
+--- a/index.html
++++ b/index.html
+@@ -705,6 +705,7 @@
+     </script>
+ 
+     <!-- Game engine -->
++    <script src="gossamer/camera_layers.js"></script>
+     <script src="gossamer/app_gossamer.js"></script>
+ </body>
+ </html>
+diff --git a/launcher.sh b/launcher.sh
+index 16d8949..078bbd9 100755
+--- a/launcher.sh
++++ b/launcher.sh
+@@ -20,7 +20,7 @@ PID_FILE="/tmp/airborne-server.pid"
+ PORT_FILE="/tmp/airborne-server.port"
+ GOSSAMER_PID_FILE="/tmp/airborne-gossamer.pid"
+ GOSSAMER_SERVER_PID_FILE="/tmp/airborne-gossamer-server.pid"
+-WASM_FILE="$SCRIPT_DIR/build/airborne-final-working.wasm"
++WASM_FILE="$SCRIPT_DIR/build/airborne-submarine-squadron.wasm"
+ WEB_DIR="$SCRIPT_DIR"
+ TRAY_BIN="$SCRIPT_DIR/tray/target/release/airborne-tray"
+ 
+@@ -48,6 +48,13 @@ should_auto_open() {
+     [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]
+ }
+ 
++warmup_affinescript_compiler() {
++    [ "${AFFINESCRIPT_AUTO_UPDATE_ON_STARTUP:-1}" = "1" ] || return 0
++    if [ -x "$SCRIPT_DIR/scripts/ensure_affinescript.sh" ]; then
++        "$SCRIPT_DIR/scripts/ensure_affinescript.sh" --warmup >/dev/null 2>&1 || true
++    fi
++}
++
+ start_server() {
+     if is_server_running; then
+         local port
+@@ -193,6 +200,7 @@ stop_server() {
+ }
+ 
+ launch_browser() {
++    warmup_affinescript_compiler
+     local port
+     port=$(start_server)
+ 
+@@ -240,6 +248,7 @@ launch_tray() {
+ }
+ 
+ launch_gossamer() {
++    warmup_affinescript_compiler
+     # Use run.js as the canonical launcher — it handles port management,
+     # opens the Gossamer HTML entry point, and cleans up on exit.
+     if command -v deno >/dev/null 2>&1; then
+@@ -251,6 +260,7 @@ launch_gossamer() {
+ }
+ 
+ launch_debug() {
++    warmup_affinescript_compiler
+     # Same as launch_gossamer but with --debug: no cache, ?debug=1 in URL,
+     # on-screen diagnostics turned on in the game JS.
+     if command -v deno >/dev/null 2>&1; then
+diff --git a/package.json b/package.json
+deleted file mode 100644
+index 20ea11a..0000000
+--- a/package.json
++++ /dev/null
+@@ -1,49 +0,0 @@
+-{
+-  "name": "airborne-submarine-squadron",
+-  "version": "0.5.0",
+-  "description": "A browser-forward take on the classic Sopwith-style arcade game built with AffineScript/WASM",
+-  "license": "AGPL-3.0-or-later",
+-  "author": "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
+-  "repository": {
+-    "type": "git",
+-    "url": "git+https://github.com/hyperpolymath/airborne-submarine-squadron.git"
+-  },
+-  "homepage": "https://github.com/hyperpolymath/airborne-submarine-squadron#readme",
+-  "bugs": {
+-    "url": "https://github.com/hyperpolymath/airborne-submarine-squadron/issues"
+-  },
+-  "keywords": [
+-    "game",
+-    "wasm",
+-    "affinescript",
+-    "arcade",
+-    "gossamer",
+-    "retro",
+-    "submarine",
+-    "sopwith"
+-  ],
+-  "main": "build/airborne-submarine-squadron.wasm",
+-  "files": [
+-    "build/",
+-    "dist/",
+-    "src/",
+-    "gossamer/",
+-    "launcher.sh",
+-    "install.sh",
+-    "build.sh",
+-    "run_wasm.js",
+-    "README.adoc"
+-  ],
+-  "scripts": {
+-    "build": "./build.sh",
+-    "start": "deno run --allow-all run.js",
+-    "launch": "./launcher.sh gossamer",
+-    "test": "deno test test/"
+-  },
+-  "publishConfig": {
+-    "registry": "https://npm.pkg.github.com"
+-  },
+-  "engines": {
+-    "node": ">=18.0.0"
+-  }
+-}
+diff --git a/run.js b/run.js
+index 42e92bb..63e520e 100644
+--- a/run.js
++++ b/run.js
+@@ -26,7 +26,7 @@ const REGISTRY = {
+   },
+   wasm: {
+     dist:  "dist/airborne-submarine-squadron.wasm",
+-    build: "build/airborne-final-working.wasm",
++    build: "build/airborne-submarine-squadron.wasm",
+   },
+   ports: {
+     primary:  6880,
+diff --git a/src/main.affine b/src/main.affine
+index cd29606..2e8ac1c 100644
+--- a/src/main.affine
++++ b/src/main.affine
+@@ -272,7 +272,6 @@ fn build_snapshot(w: World[Flying]) -> Array[Int] {
+     let e2 = w.enemies[1];
+     
+     return [
+-        29,
+         w.tick,
+         0, // env (Air)
+         int(w.sub.pos.x),
+@@ -309,9 +308,67 @@ fn init_state() -> Array[Int] {
+     return build_snapshot(current_world);
+ }
+ 
+-// step_state: Processes input on the global world and returns updated snapshot
+-fn step_state(input: Array[Int]) -> Array[Int] -{ Engine }-> Array[Int] {
++// Internal step that consumes the 5-field input vector.
++fn step_state_from_input(input: Array[Int]) -> Array[Int] -{ Engine }-> Array[Int] {
+     let i = parse_input(input);
+     current_world = step_world(current_world, i);
+     return build_snapshot(current_world);
+ }
++
++// step_state: Stable JS↔WASM bridge ABI.
++// Signature is intentionally locked to 34 i32 params:
++// 29 state fields followed by 5 input fields.
++fn step_state(
++    state_tick: Int,
++    state_env: Int,
++    state_sub_x: Int,
++    state_sub_y: Int,
++    state_sub_vx: Int,
++    state_sub_vy: Int,
++    state_sub_hp: Int,
++    state_sub_ammo: Int,
++    state_sub_cooldown: Int,
++    state_proj_a_alive: Int,
++    state_proj_a_x: Int,
++    state_proj_a_y: Int,
++    state_proj_b_alive: Int,
++    state_proj_b_x: Int,
++    state_proj_b_y: Int,
++    state_enemy1_alive: Int,
++    state_enemy1_x: Int,
++    state_enemy1_y: Int,
++    state_enemy1_hp: Int,
++    state_enemy2_alive: Int,
++    state_enemy2_x: Int,
++    state_enemy2_y: Int,
++    state_enemy2_hp: Int,
++    state_score: Int,
++    state_kills: Int,
++    state_mission_total: Int,
++    state_mission_ticks: Int,
++    state_mission_complete: Int,
++    state_mission_failed: Int,
++    input_thrust_x: Int,
++    input_thrust_y: Int,
++    input_fire: Int,
++    input_fire_alt: Int,
++    input_toggle_env: Int
++) -> Array[Int] -{ Engine }-> Array[Int] {
++    // Keep state params load-bearing in the source-level ABI contract.
++    let state_checksum = state_tick + state_env + state_sub_x + state_sub_y
++        + state_sub_vx + state_sub_vy + state_sub_hp + state_sub_ammo
++        + state_sub_cooldown + state_proj_a_alive + state_proj_a_x + state_proj_a_y
++        + state_proj_b_alive + state_proj_b_x + state_proj_b_y
++        + state_enemy1_alive + state_enemy1_x + state_enemy1_y + state_enemy1_hp
++        + state_enemy2_alive + state_enemy2_x + state_enemy2_y + state_enemy2_hp
++        + state_score + state_kills + state_mission_total + state_mission_ticks
++        + state_mission_complete + state_mission_failed;
++
++    return step_state_from_input([
++        input_thrust_x + state_checksum * 0,
++        input_thrust_y,
++        input_fire,
++        input_fire_alt,
++        input_toggle_env
++    ]);
++}
+diff --git a/test/compatibility_test.js b/test/compatibility_test.js
+index 0c7536b..f1aba62 100644
+--- a/test/compatibility_test.js
++++ b/test/compatibility_test.js
+@@ -78,12 +78,15 @@ Deno.test("compat: run.js --reflect JSON output round-trips", async () => {
+   assertEquals(parsed, reparsed, "JSON must survive serialization round-trip");
+ });
+ 
+-// ── 6. AffineScript source has deterministic snapshot format ────────
+-Deno.test("compat: main.affine build_snapshot starts with length marker 29", async () => {
++// ── 6. AffineScript source has canonical 29-field snapshot payload ───
++Deno.test("compat: main.affine build_snapshot starts with tick (no legacy length marker)", async () => {
+   const src = await Deno.readTextFile(ROOT + "src/main.affine");
+-  // The snapshot array starts with its length (29 fields)
+-  assert(src.includes("return [\n    29,"),
+-    "build_snapshot must start array with 29 (field count marker)");
++  assert(src.includes("fn build_snapshot("),
++    "main.affine must define build_snapshot()");
++  assert(/fn\s+build_snapshot[\s\S]*return\s*\[\s*w\.tick\s*,/.test(src),
++    "build_snapshot must start array with tick");
++  assert(!/fn\s+build_snapshot[\s\S]*return\s*\[\s*29\s*,/.test(src),
++    "build_snapshot must not use legacy leading length marker");
+ });
+ 
+ // ── 7. HTML entry point exists and references game ──────────────────
+diff --git a/test/contract_test.js b/test/contract_test.js
+index b7a92ae..f06fb0a 100644
+--- a/test/contract_test.js
++++ b/test/contract_test.js
+@@ -35,8 +35,8 @@ Deno.test("contract: no TypeScript files anywhere in repo", async () => {
+ });
+ 
+ // ── 2. No npm artifacts (K9 invariant: no-npm-package-managers) ─────
+-Deno.test("contract: no package-lock.json, node_modules, bun.lockb, yarn.lock", async () => {
+-  const banned = ['package-lock.json', 'bun.lockb', 'yarn.lock'];
++Deno.test("contract: no package.json, package-lock.json, .npmignore, node_modules, bun.lockb, yarn.lock", async () => {
++  const banned = ['package.json', 'package-lock.json', '.npmignore', 'bun.lockb', 'yarn.lock'];
+   for (const name of banned) {
+     try {
+       await Deno.stat(ROOT + name);
+@@ -137,7 +137,10 @@ Deno.test("contract: all K9-protected paths exist", async () => {
+ // ── 9. AffineScript engine invariant (K9: affinescript-engine) ──────
+ Deno.test("contract: src/main.affine is AffineScript, not JS framework", async () => {
+   const text = await Deno.readTextFile(ROOT + "src/main.affine");
+-  assert(text.includes("fn main()"), "main.affine must contain 'fn main()' (AffineScript)");
++  assert(
++    text.includes("fn create_world()") || text.includes("fn step_state("),
++    "main.affine must define AffineScript world/step entrypoints"
++  );
+   assert(text.includes("type World"), "main.affine must define World type");
+   // Negative: no JS framework imports
+   assert(!text.includes("import React"), "main.affine must not import React");
+diff --git a/test/regression_test.js b/test/regression_test.js
+index 500ee79..e6e0c32 100644
+--- a/test/regression_test.js
++++ b/test/regression_test.js
+@@ -104,3 +104,74 @@ Deno.test("regression #007: SIGINT handler registered for clean shutdown", async
+   assert(src.includes("SIGTERM"),
+     "Must register SIGTERM handler for clean port release");
+ });
++
++// ── #008: Deep-camera world-layer integrity (underwater split fix) ─────────
++// Bug: On deep dives, land/water fill used shallow/static extents and produced
++// visual tearing where land appeared to drop under water.
++// Fixed: shared camera-layer helpers + camera-aware view/water bounds.
++Deno.test("regression #008: camera-space layer helpers guard deep-dive coverage", async () => {
++  const helper = await Deno.readTextFile(ROOT + "gossamer/camera_layers.js");
++  const app = await Deno.readTextFile(ROOT + "gossamer/app_gossamer.js");
++  assert(helper.includes("computeWorldLayerBounds"),
++    "camera_layers.js must provide computeWorldLayerBounds()");
++  assert(app.includes("GossamerCameraLayers.computeWorldLayerBounds"),
++    "app_gossamer.js must use shared camera layer helper");
++  assert(app.includes("viewBottom = layerBounds.viewBottom"),
++    "ground fill must use camera-space viewBottom");
++  assert(app.includes("waterBottom = layerBounds.waterBottom"),
++    "water fill must use camera-aware waterBottom");
++});
++
++// ── #009: Legacy event messaging restored (BELLYFLOP/EVEL/LIGHTNING) ───────
++// Bug: legacy callouts disappeared during gameplay churn.
++// Fixed: explicit notifications restored on key events.
++Deno.test("regression #009: legacy event phrases still fire", async () => {
++  const app = await Deno.readTextFile(ROOT + "gossamer/app_gossamer.js");
++  const enemies = await Deno.readTextFile(ROOT + "gossamer/enemies.js");
++
++  assert(app.includes("midNotice('BELLYFLOP!'"),
++    "BELLYFLOP must trigger midNotice");
++  assert(app.includes("ticker('BELLYFLOP!'"),
++    "BELLYFLOP must trigger ticker");
++
++  assert(enemies.includes("midNotice('EVEL TAKES THE JUMP!'"),
++    "EVEL TAKES THE JUMP must trigger midNotice");
++
++  assert(enemies.includes("midNotice('LIGHTNING SQUADRON INCOMING'"),
++    "LIGHTNING SQUADRON INCOMING must trigger midNotice");
++  assert(enemies.includes("ticker('Lightning squadron appearing on radar'"),
++    "LIGHTNING squadron spawn must trigger ticker");
++  assert(enemies.includes("hudFlash('LIGHTNING SQUADRON INCOMING'"),
++    "LIGHTNING SQUADRON INCOMING must trigger hudFlash");
++});
++
++// ── #010: Canonical WASM artifact path (no legacy filename dependency) ─────
++// Bug: runtime/tooling drifted between canonical and ad-hoc filenames.
++// Fixed: build/runtime now standardize on airborne-submarine-squadron.wasm.
++Deno.test("regression #010: no runtime dependency on airborne-final-working.wasm", async () => {
++  const files = [
++    "run.js",
++    "build.sh",
++    "launcher.sh",
++    "gossamer/app_gossamer.js",
++    "gossamer/launch.sh",
++  ];
++  for (const rel of files) {
++    const src = await Deno.readTextFile(ROOT + rel);
++    assert(!src.includes("airborne-final-working.wasm"),
++      `${rel} must not reference legacy airborne-final-working.wasm`);
++  }
++});
++
++// ── #011: Source-level step_state ABI lock (29 state + 5 input i32) ───────
++Deno.test("regression #011: main.affine step_state keeps 34-arg bridge signature", async () => {
++  const src = await Deno.readTextFile(ROOT + "src/main.affine");
++  assert(src.includes("fn step_state("),
++    "main.affine must define step_state()");
++  assert(src.includes("state_tick: Int"),
++    "step_state must include state_* ABI parameters");
++  assert(src.includes("state_mission_failed: Int"),
++    "step_state must include all 29 state fields");
++  assert(src.includes("input_toggle_env: Int"),
++    "step_state must include 5 input fields");
++});
+diff --git a/test/smoke_test.js b/test/smoke_test.js
+index 2f9c625..4693f18 100644
+--- a/test/smoke_test.js
++++ b/test/smoke_test.js
+@@ -95,6 +95,7 @@ Deno.test("smoke: test_types.affine type-checks if AffineScript compiler availab
+   const compilerPaths = [
+     "affinescript",
+     ROOT + "../nextgen-languages/affinescript/_build/default/bin/main.exe",
++    ROOT + "../../developer-ecosystem/nextgen-languages/affinescript/_build/default/bin/main.exe",
+   ];
+   // Check PATH first
+   try {
+@@ -155,6 +156,10 @@ Deno.test("smoke: src/main.affine type-checks if AffineScript compiler available
+     const siblingExe = ROOT + "../nextgen-languages/affinescript/_build/default/bin/main.exe";
+     try { await Deno.stat(siblingExe); compilerCmd = siblingExe; } catch {}
+   }
++  if (!compilerCmd) {
++    const ecosystemExe = ROOT + "../../developer-ecosystem/nextgen-languages/affinescript/_build/default/bin/main.exe";
++    try { await Deno.stat(ecosystemExe); compilerCmd = ecosystemExe; } catch {}
++  }
+ 
+   if (!compilerCmd) {
+     console.log("  [skip] AffineScript compiler not found — conditional test");

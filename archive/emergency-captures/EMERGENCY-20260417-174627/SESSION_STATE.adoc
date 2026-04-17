@@ -1,0 +1,34 @@
+= Session State
+:generated: 2026-04-17T16:46:27Z
+:recovery-token: EMERGENCY-20260417-174627
+
+== Goal
+Preserve current working tree and resume safely without losing context.
+
+== Current Task
+Stabilize in-flight changes across gossamer/run/test updates and src/main.affine edits.
+
+== Last Completed Action
+Created full low-credit emergency capture artifact set.
+
+== Next Intended Action
+Resume from src/main.affine, clear parse errors, then rerun regression/compatibility/contract/smoke tests.
+
+== Active Files
+* src/main.affine
+* run.js
+* index.html
+* gossamer/app_gossamer.js
+* gossamer/enemies.js
+* gossamer/index_gossamer.html
+* gossamer/launch.sh
+* test/regression_test.js
+* test/compatibility_test.js
+* test/contract_test.js
+* test/smoke_test.js
+
+== Branch
+main
+
+== Blockers
+* src/main.affine parse errors (expected blocker as of 2026-04-17)
