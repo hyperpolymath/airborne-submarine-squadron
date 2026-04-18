@@ -196,7 +196,7 @@ Current grade: **D (Alpha)** — assessed against CRG v2.0 (see `READINESS.md`).
 
 .Grade D requires:
 * RSR compliance (rhodibot workflows) — _partially met; `hypatia-scan.yml` missing_
-* Test matrix declared and all tests passing — _test files exist; justfile wiring pending_
+* Test matrix declared and all tests passing — _test files exist; Justfile wiring pending_
 * Scope documented — _met_
 
 Failing tests are a D-blocker under CRG v2.0. The path to grade C requires deep annotation and dogfooding as a PanLL game-dev panel target.
@@ -224,7 +224,7 @@ The project includes several test approaches:
 * **Manual Testing**: Playtesting different scenarios
 * **Integration Testing**: `integ.sh` for installation verification
 * **WASM Testing**: Direct execution via wasmtime or Deno
-* **Declared tests**: `test_types.as`, `test_verisimdb_simple.js` — to be wired to justfile
+* **Declared tests**: `test_types.as`, `test_verisimdb_simple.js` — to be wired to Justfile
 
 === Debugging
 

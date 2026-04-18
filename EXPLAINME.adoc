@@ -151,7 +151,7 @@ support is aspirational.
 | `desktop/icons/` | PNG / SVG / ICO icon assets
 | `ffi/` | Zig FFI layer (ABI/FFI standard skeleton)
 | `contractiles/` | Contractile specifications
-| `test/` | Test files (wiring to justfile pending)
+| `test/` | Test files (wiring to Justfile pending)
 | `test_types.as` | AffineScript type smoke tests
 | `test_verisimdb_simple.js` | VeriSimDB smoke test
 | `logs/` | Crash log output directory (gitignored, tracked via .gitkeep)
