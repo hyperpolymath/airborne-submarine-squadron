@@ -109,6 +109,12 @@ The WASM co-processor is loaded asynchronously in `init()`. If it fails to load 
 
 All JS tooling uses Deno. There is no `package-lock.json`, no `node_modules/`, no `npm`. The Deno file server in `launcher.sh` is inlined as a heredoc — no install step required.
 
+### Burble/Groove boundary
+
+ASS treats Burble/Groove as non-authoritative integration surfaces. Canonical
+simulation state stays in the local game loop + Gossamer event bus.
+See `docs/BURBLE-GROOVE-INTEGRATION.adoc` and `docs/EVENT-TAXONOMY.md`.
+
 ## Tray Binary
 
 `tray/src/main.rs` uses `ksni` (KDE StatusNotifierItem) for native Wayland tray support.

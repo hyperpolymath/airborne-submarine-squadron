@@ -62,6 +62,10 @@ Completed in this pass:
   `gossamer/app_gossamer.js`.
 * Added event taxonomy docs for gameplay notifications, multiplayer control events,
   and ops alerts in `docs/EVENT-TAXONOMY.md`.
+* Added ASS-specific Burble/Groove boundary design doc in
+  `docs/BURBLE-GROOVE-INTEGRATION.adoc`.
+* Added compatibility/regression locks for Groove manifest contract shape and
+  signalling transport-only boundary.
 
 Remaining:
 

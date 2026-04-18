@@ -113,3 +113,17 @@ Deno.test("compat: HTML entry points load gossamer/wasm_abi.js", async () => {
   assert(gossamerHtml.includes("wasm_abi.js"),
     "gossamer/index_gossamer.html must load wasm_abi.js");
 });
+
+// ── 10. Groove manifest shape remains explicit and passive ───────────────
+Deno.test("compat: .well-known/groove/manifest.json keeps current ASS contract", async () => {
+  const raw = await Deno.readTextFile(ROOT + ".well-known/groove/manifest.json");
+  const manifest = JSON.parse(raw);
+
+  assertEquals(manifest.service_id, "airborne-submarine-squadron");
+  assertEquals(manifest.groove_version, "1");
+  assertEquals(manifest.mode, "passive");
+  assert(manifest.capabilities && manifest.capabilities.cli,
+    "Manifest must include cli capability");
+  assertEquals(manifest.capabilities.cli.panel_compatible, true,
+    "CLI capability must stay panel compatible");
+});

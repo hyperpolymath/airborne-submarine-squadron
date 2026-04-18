@@ -199,3 +199,14 @@ Deno.test("regression #012: app_gossamer consumes shared wasm ABI contract and d
   assert(app.includes("WASM co-processor disabled due to ABI mismatch"),
     "app_gossamer.js must fail-fast and disable WASM on ABI mismatch");
 });
+
+// ── #013: Signalling layer remains transport-only (no gameplay ownership) ──
+// Bug risk: networking helper drifts into game-state mutation territory.
+// Contract: signalling.js brokers SDP/ICE only; gameplay state stays local.
+Deno.test("regression #013: signalling.js stays transport-only and world-agnostic", async () => {
+  const signalling = await Deno.readTextFile(ROOT + "gossamer/net/signalling.js");
+  assert(signalling.includes("This module does not touch game state"),
+    "signalling.js must keep explicit non-authoritative gameplay boundary");
+  assert(!/\bworld\./.test(signalling),
+    "signalling.js must not directly mutate or read world.* gameplay state");
+});

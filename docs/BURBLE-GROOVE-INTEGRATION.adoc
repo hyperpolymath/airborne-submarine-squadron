@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+= Burble/Groove Integration Boundary (ASS)
+:status: active
+:updated: 2026-04-17
+
+== Purpose
+
+Define what Burble/Groove means *inside this repository* so design decisions
+stay consistent with the current architecture and test contracts.
+
+== Authoritative State Boundary
+
+Canonical gameplay state ownership remains local:
+
+* game loop in `gossamer/app_gossamer.js`
+* Gossamer event bus + HUD/event functions
+* AffineScript WASM co-processor (`src/main.affine` -> `dist/*.wasm`) as deterministic secondary model
+
+Burble/Groove are non-authoritative observers for selected mirrored events.
+
+== Current ASS Reality (Implementation)
+
+* Multiplayer signalling path is local Deno endpoint `/room/:code` in `run.js`.
+* Browser transport handshake is in `gossamer/net/signalling.js` and explicitly
+  does not mutate game state.
+* Groove manifest exists at `.well-known/groove/manifest.json` and is currently
+  `mode: passive` with a CLI capability surface.
+* Event taxonomy and mirror envelope rules live in `docs/EVENT-TAXONOMY.md`.
+
+== Deployment Profiles (ASS-Oriented)
+
+Use Burble topology language for deployment planning, without changing the
+local state boundary:
+
+* Monarchic profile: single local Burble nexus for test/dev admin + voice.
+* Oligarchic profile: trusted multi-nexus federation for game/admin/ops domains.
+* Distributed/serverless profile: peer-first overlay for resilience/privacy,
+  still mirror-only for gameplay event flow.
+
+== Integration Rules
+
+* Do not route canonical simulation state through Burble/Groove.
+* Mirror only selected events (`gameplay.notice.*`, `multiplayer.signal.*`,
+  `ops.*`) with:
+** monotonic event id
+** UTC timestamp
+** local tick value
+* Maintain deterministic local ordering as source of truth.
+* Keep protocol/schema contracts under tests before rollout.
+
+== Cross-Repo Checklist
+
+* Validate `.well-known/groove/manifest.json` against Gossamer groove schema.
+* Add ASS+Burble deployment recipes for monarchic and oligarchic profiles.
+* Keep EPHAPAX type-system transition handling at upstream root repos; no local
+  workaround forks in ASS.
+
+== Out Of Scope For This Repo
+
+* Burble internal topology implementation details (`server/lib/burble/*`).
+* Root language/toolchain semantics migration work (EPHAPAX/compiler internals).
+
+Those belong to the Burble/Gossamer/language upstream repositories.

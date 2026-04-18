@@ -62,6 +62,10 @@ The Gossamer edition now boots a loader, shows retro battle art, draws a live so
 * Update documentation set (README.adoc, explainme.adoc, ROADMAP.adoc)
   to enforce Deno-only runtime and no-npm invariants.
 * Add invariant checks in CI/CD to block npm artifacts (`package.json`, lockfiles, `node_modules/`).
+* Add Burble/Groove schema conformance checks for `.well-known/groove/manifest.json`
+  against the canonical Gossamer manifest schema.
+* Add deployment recipes for ASS + Burble monarchic and oligarchic profiles
+  (admin/ops integration without gameplay state ownership transfer).
 
 == Future Directions
 
