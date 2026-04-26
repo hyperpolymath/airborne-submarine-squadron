@@ -348,8 +348,7 @@ const SUB_PARTS = [
 // Sound engine is provided by sfx.js (loaded before this script in index_gossamer.html).
 
 // --- Input ---
-const keys = {};
-const keyJustPressed = {};
+// `keys` and `keyJustPressed` are declared in controls.js (loaded earlier).
 document.addEventListener('keydown', e => {
   if (!keys[e.key]) keyJustPressed[e.key] = true;
   keys[e.key] = true;
