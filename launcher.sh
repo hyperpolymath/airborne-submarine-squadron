@@ -15,6 +15,11 @@
 
 set -euo pipefail
 
+# Desktop launchers (Terminal=true .desktop entries) start with a stripped
+# PATH that doesn't include user shell rc additions. Restore the toolchain
+# locations so `deno`, `cargo`, etc. resolve regardless of how we're invoked.
+export PATH="$HOME/.opsm/shims:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="/tmp/airborne-server.pid"
 PORT_FILE="/tmp/airborne-server.port"

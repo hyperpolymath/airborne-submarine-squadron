@@ -92,7 +92,7 @@ async function detectPlatform() {
   // Check if Ephapax native runtime is available
   const repoRoot  = new URL(".", import.meta.url).pathname.replace(/\/$/, "");
   const parentDir = repoRoot + "/..";
-  const ephapax   = parentDir + "/nextgen-languages/ephapax/target/release/ephapax";
+  const ephapax   = parentDir + "/developer-ecosystem/nextgen-languages/ephapax/target/release/ephapax";
   const libpath   = parentDir + "/gossamer/src/interface/ffi/zig-out/lib/libgossamer.so";
 
   let nativeAvailable = false;
