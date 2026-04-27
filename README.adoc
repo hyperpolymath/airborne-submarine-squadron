@@ -1,6 +1,11 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025-2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+
 = Airborne Submarine Squadron (ASS)
 
-image:https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg[License: AGPL-3.0-or-later,link=LICENSE]
+image:https://img.shields.io/badge/OpenSSF-Best_Practices-green?logo=opensourcesecurity[OpenSSF Best Practices,link="https://www.bestpractices.dev/en/projects/new?repo_url=https://github.com/hyperpolymath/airborne-submarine-squadron"]
+image:https://img.shields.io/badge/License-AGPL_v3-blue.svg[License: AGPL-3.0,link=LICENSE]
+image:https://api.thegreenwebfoundation.org/greencheckimage/github.com[Green Web,link="https://www.thegreenwebfoundation.org/green-web-check/?url=github.com"]
 
 Airborne Submarine Squadron is a browser-forward take on the classic Sopwith-style arcade, rebuilt on the Gossamer launcher. Features atmosphere flight, underwater combat with thermal layers and caterpillar drive, orbital space navigation, three ship types, two enemy submarine classes, mine chain-cutting, supply drops, hangar defense, and a commander ejection system.
 
