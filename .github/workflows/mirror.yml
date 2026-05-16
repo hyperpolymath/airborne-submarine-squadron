@@ -31,7 +31,7 @@ jobs:
         # Only run when at least one SSH key secret is configured; webfactory
         # rejects empty input with an error otherwise.
         if: env.HAS_GITLAB_SSH == 'true' || env.HAS_BITBUCKET_SSH == 'true'
-        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555
         with:
           ssh-private-key: |
             ${{ secrets.GITLAB_SSH_KEY }}
