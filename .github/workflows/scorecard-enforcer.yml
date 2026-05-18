@@ -1,11 +1,13 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
-# Scorecard enforcer — basic hygiene gate on pull requests.
-# Checks that minimum security hygiene requirements are met before merge.
-
-name: Scorecard Enforcer
+# SPDX-License-Identifier: PMPL-1.0-or-later
+# Prevention workflow - runs OpenSSF Scorecard and fails on low scores
+name: OpenSSF Scorecard Enforcer
 
 on:
-  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday
+  workflow_dispatch:
 
 # Estate guardrail: cancel superseded runs so re-pushes / rebased PR
 # updates do not pile up queued runs against the shared account-wide
@@ -15,59 +17,65 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
-  enforce:
-    name: Security Hygiene Gate
+  scorecard:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write  # For OIDC
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      - name: Basic hygiene checks
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@c6f931105cb2c34c8f901cc885ba1e2e259cf745 # v4
+        with:
+          sarif_file: results.sarif
+
+      - name: Check minimum score
         run: |
-          FAIL=0
+          # Parse score from results
+          SCORE=$(jq -r '.runs[0].tool.driver.properties.score // 0' results.sarif 2>/dev/null || echo "0")
 
-          # SECURITY.md must exist and have content
-          if [ ! -f SECURITY.md ]; then
-            echo "FAIL: SECURITY.md missing"
-            FAIL=$((FAIL + 1))
-          else
-            echo "OK: SECURITY.md present"
-          fi
+          echo "OpenSSF Scorecard Score: $SCORE"
 
-          # LICENSE must exist
-          if [ ! -f LICENSE ] && [ ! -f LICENSE.txt ]; then
-            echo "FAIL: LICENSE / LICENSE.txt missing"
-            FAIL=$((FAIL + 1))
-          else
-            echo "OK: License file present"
-          fi
+          # Minimum acceptable score (0-10 scale)
+          MIN_SCORE=5
 
-          # CONTRIBUTING.md should exist
-          if [ ! -f CONTRIBUTING.md ]; then
-            echo "FAIL: CONTRIBUTING.md missing"
-            FAIL=$((FAIL + 1))
-          else
-            echo "OK: CONTRIBUTING.md present"
-          fi
-
-          # No executable scripts without shebangs (basic check)
-          BAD_SCRIPTS=$(find . -not -path "./.git/*" -name "*.sh" -perm /111 \
-            -exec sh -c '[ "$(head -c 2 "$1")" != "#!" ] && echo "$1"' _ {} \; 2>/dev/null)
-          if [ -n "$BAD_SCRIPTS" ]; then
-            echo "WARN: Shell scripts without shebangs:"
-            echo "$BAD_SCRIPTS"
-            # Warning only, not a hard failure
-          fi
-
-          if [ "$FAIL" -gt 0 ]; then
-            echo ""
-            echo "ERROR: $FAIL hygiene check(s) failed."
-            echo "Resolve these before merging to maintain scorecard score."
+          if [ "$(echo "$SCORE < $MIN_SCORE" | bc -l)" = "1" ]; then
+            echo "::error::Scorecard score $SCORE is below minimum $MIN_SCORE"
             exit 1
           fi
 
-          echo ""
-          echo "All hygiene checks passed."
+  # Check specific high-priority items
+  check-critical:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check SECURITY.md exists
+        run: |
+          if [ ! -f "SECURITY.md" ]; then
+            echo "::error::SECURITY.md is required"
+            exit 1
+          fi
+
+      - name: Check for pinned dependencies
+        run: |
+          # Check workflows for unpinned actions
+          unpinned=$(grep -r "uses:.*@v[0-9]" .github/workflows/*.yml 2>/dev/null | grep -v "#" | head -5 || true)
+          if [ -n "$unpinned" ]; then
+            echo "::warning::Found unpinned actions:"
+            echo "$unpinned"
+          fi
