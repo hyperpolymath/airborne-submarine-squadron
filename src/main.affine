@@ -89,10 +89,10 @@ fn abs(v: Int) -> Int {
 }
 
 fn create_world() -> World {
-  return {
+  return #{
     tick: 0,
     env: 0,
-    sub: { x: 400, y: 200, vx: 0, vy: 0, health: 100 },
+    sub: #{ x: 400, y: 200, vx: 0, vy: 0, health: 100 },
 
     ammo: 200,
     cooldown: 0,
@@ -178,7 +178,7 @@ fn next_env(env: Environment, tick: Int, toggle_env: Bool) -> Environment {
 fn apply_input(sub: Submarine, input: Input) -> Submarine {
   let vx = clamp(sub.vx + input.thrust_x, -20, 20);
   let vy = clamp(sub.vy + input.thrust_y, -20, 20);
-  return {
+  return #{
     x: sub.x,
     y: sub.y,
     vx: vx,
@@ -197,7 +197,7 @@ fn integrate_submarine(sub: Submarine, env: Environment) -> Submarine {
     0
   };
   let vy_next = clamp(sub.vy + gravity, -20, 20);
-  return {
+  return #{
     x: clamp(sub.x + vx_drag, 0, 799),
     y: clamp(sub.y + vy_next, 0, 520),
     vx: vx_drag,
@@ -319,7 +319,7 @@ fn step_world(w: World, input: Input) -> World {
     tick2 > w.mission_ticks
   };
 
-  return {
+  return #{
     tick: tick2,
     env: env2,
     sub: sub2,
@@ -383,10 +383,10 @@ fn world_from_state(
   state_mission_complete: Int,
   state_mission_failed: Int
 ) -> World {
-  return {
+  return #{
     tick: state_tick,
     env: state_env,
-    sub: {
+    sub: #{
       x: state_sub_x,
       y: state_sub_y,
       vx: state_sub_vx,
@@ -495,7 +495,7 @@ fn step_state(
     state_mission_failed
   );
 
-  let input = {
+  let input = #{
     thrust_x: input_thrust_x,
     thrust_y: input_thrust_y,
     fire: int_to_bool(input_fire),
