@@ -86,7 +86,7 @@ invariants:
 
   - id: agpl-license
     rule: "This project is AGPL-3.0-or-later — do not change the license"
-    reason: "Co-developed with son, AGPL chosen deliberately. This is an exception to the normal PMPL-1.0-or-later policy."
+    reason: "Co-developed with son, AGPL chosen deliberately. This is an exception to the normal MPL-2.0 policy."
     severity: critical
 
 protected:

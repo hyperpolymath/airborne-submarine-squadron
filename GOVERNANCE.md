@@ -26,7 +26,7 @@ All contributions must:
 
 ## License
 
-This project is licensed under AGPL-3.0-or-later. This is a deliberate choice for a co-developed project and is an exception to the usual hyperpolymath PMPL-1.0-or-later policy.
+This project is licensed under AGPL-3.0-or-later. This is a deliberate choice for a co-developed project and is an exception to the usual hyperpolymath MPL-2.0 policy.
 
 ## Contact
 

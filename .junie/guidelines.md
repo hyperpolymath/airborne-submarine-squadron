@@ -77,7 +77,7 @@ or contradict deliberate architectural decisions.
 
 **Rule:** This project is AGPL-3.0-or-later — do not change the license
 
-**Why:** Co-developed with son, AGPL chosen deliberately. This is an exception to the normal PMPL-1.0-or-later policy.
+**Why:** Co-developed with son, AGPL chosen deliberately. This is an exception to the normal MPL-2.0 policy.
 
 ## Protected Files and Directories
 

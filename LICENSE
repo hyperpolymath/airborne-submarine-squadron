@@ -14,13 +14,13 @@ COMPONENT LICENSING NOTE
 
 Individual components originally authored solely by Jonathan D.A. Jewell
 (hyperpolymath) are independently governed by the Palimpsest License
-(PMPL-1.0-or-later), with MPL-2.0 as automatic legal fallback until
+(MPL-2.0), with MPL-2.0 as automatic legal fallback until
 PMPL achieves formal recognition. See:
   https://github.com/hyperpolymath/palimpsest-license
 
 When these components are used within this project, the project-level
 AGPL-3.0-or-later applies. When extracted and used independently, the
-component's own PMPL-1.0-or-later / MPL-2.0 terms govern.
+component's own MPL-2.0 / MPL-2.0 terms govern.
 
 ------------------------------------------------------------------------
 
