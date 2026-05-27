@@ -1,54 +1,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Mirror repository to GitLab and Bitbucket on every push to main.
-
-name: Mirror
+name: Mirror to Git Forges
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
+  workflow_dispatch:
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   mirror:
-    name: Mirror to GitLab and Bitbucket
-    runs-on: ubuntu-latest
-    # Evaluate secret presence once at job level. GitHub Actions rejects the
-    # workflow if `secrets.*` is referenced directly inside step-level `if:`
-    # when the secret isn't set on the repo — hoist to an env var instead.
-    env:
-      HAS_GITLAB: ${{ secrets.GITLAB_TOKEN != '' }}
-      HAS_BITBUCKET: ${{ secrets.BITBUCKET_TOKEN != '' }}
-      HAS_GITLAB_SSH: ${{ secrets.GITLAB_SSH_KEY != '' }}
-      HAS_BITBUCKET_SSH: ${{ secrets.BITBUCKET_SSH_KEY != '' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-        with:
-          fetch-depth: 0
-
-      - name: Set up SSH agent
-        # Only run when at least one SSH key secret is configured; webfactory
-        # rejects empty input with an error otherwise.
-        if: env.HAS_GITLAB_SSH == 'true' || env.HAS_BITBUCKET_SSH == 'true'
-        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555
-        with:
-          ssh-private-key: |
-            ${{ secrets.GITLAB_SSH_KEY }}
-            ${{ secrets.BITBUCKET_SSH_KEY }}
-
-      - name: Push to GitLab
-        if: env.HAS_GITLAB == 'true'
-        env:
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-        run: |
-          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@gitlab.com/hyperpolymath/airborne-submarine-squadron.git" 2>/dev/null || true
-          git push gitlab --mirror
-
-      - name: Push to Bitbucket
-        if: env.HAS_BITBUCKET == 'true'
-        env:
-          BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
-        run: |
-          git remote add bitbucket "https://x-token-auth:${BITBUCKET_TOKEN}@bitbucket.org/hyperpolymath/airborne-submarine-squadron.git" 2>/dev/null || true
-          git push bitbucket --mirror
+    uses: hyperpolymath/standards/.github/workflows/mirror-reusable.yml@e6b2884722350515934d443daf23442f2195796f
+    secrets: inherit
