@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MPL-2.0
 # /usr/games/airborne-submarine-squadron — shim that points into the
 # system-installed game tree under /usr/share/.
 set -eu

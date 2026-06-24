@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 // SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
 //
 // smoke_test.js — Blitz smoke tests for Airborne Submarine Squadron.
@@ -27,7 +27,7 @@ Deno.test("smoke: gossamer/app_gossamer.js exists and has >1000 lines", async ()
 // ── 3. Launcher exists with SPDX header ─────────────────────────────
 Deno.test("smoke: run.js exists and has SPDX header", async () => {
   const text = await Deno.readTextFile(ROOT + "run.js");
-  assert(text.startsWith("// SPDX-License-Identifier: AGPL-3.0-or-later"),
+  assert(text.startsWith("// SPDX-License-Identifier: MPL-2.0"),
     "run.js must start with AGPL SPDX header");
 });
 

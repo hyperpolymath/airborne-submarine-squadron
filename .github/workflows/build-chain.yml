@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MPL-2.0
 # AffineScript build-chain gate — validates that build.sh produces a
 # usable WASM artifact under the three supported scenarios:
 #   1. affinescript is on PATH (real compile)

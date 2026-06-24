@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 // Airborne Submarine Squadron — Gossamer desktop game variant.
 //
 // Sopwith-style arcade: a flying submarine over scrolling terrain.

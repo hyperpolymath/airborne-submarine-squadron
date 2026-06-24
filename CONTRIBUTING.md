@@ -277,7 +277,7 @@ When adding a feature, add tests to the appropriate category:
 
 **Test file template:**
 ```javascript
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: CC-BY-SA-4.0
 // your_test.js — Description of what you're testing
 
 import { assertEquals, assert } from "jsr:@std/assert";

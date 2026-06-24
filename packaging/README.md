@@ -1,6 +1,6 @@
 # Packaging — Airborne Submarine Squadron
 
-<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
 
 Packaging manifests for the v3.0 multi-platform deployment roadmap.
 These are scaffolding — the upstream builds still ship from `build.sh`

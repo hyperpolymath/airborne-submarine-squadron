@@ -1,6 +1,6 @@
 # Build Chain — Airborne Submarine Squadron
 
-<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
 
 The game ships a **prebuilt WASM bundle** in `build/` (with legacy copies in
 `dist/` and `build/airborne-final-working.wasm`) so casual playtesters
