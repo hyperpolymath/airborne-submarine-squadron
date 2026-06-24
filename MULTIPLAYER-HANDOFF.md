@@ -235,7 +235,7 @@ authoritative from the server.
 - **No TypeScript**. JavaScript only (some files mention ReScript — ignore
   for now, not wired into the game).
 - **SPDX headers**: every new file starts with
-  `// SPDX-License-Identifier: AGPL-3.0-or-later`
+  `// SPDX-License-Identifier: CC-BY-SA-4.0`
 - **No `npm` / `node_modules`**. Deno's file server is the whole backend.
 - **No build step for the game**. Edit JS → reload browser. WASM is
   pre-built.

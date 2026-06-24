@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MPL-2.0
 # Install Airborne Submarine Squadron desktop shortcut + menu entry.
 
 set -euo pipefail
