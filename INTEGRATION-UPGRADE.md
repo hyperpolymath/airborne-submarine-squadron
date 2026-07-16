@@ -72,7 +72,7 @@ $ ./integ.sh
 === Self-Diagnostic Check ===
 Platform: linux-x86_64
 Location: /var/mnt/eclipse/repos/airborne-submarine-squadron
-Version: 2.0.0
+Version: <version>
 All systems operational
 ```
 
