@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MPL-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Instant sync — lightweight forge propagation on every push to any branch.
 # Keeps GitLab and Bitbucket mirrors up to date without waiting for the main-only mirror.
 
