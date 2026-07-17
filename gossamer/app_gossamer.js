@@ -2585,6 +2585,10 @@ function updateAirEject(dt) {
   // --- Commander descent ---
   ej.pilotX += ej.pilotVx * dt;
   ej.pilotVx *= 0.995; // Wind drag
+  // Same world bounds the sub obeys. The camera clamps to [0, TERRAIN_LENGTH - W],
+  // so a pilot drifting past the edge would sit off the right of the canvas with
+  // the camera unable to follow — invisible for the rest of the descent.
+  ej.pilotX = Math.max(30, Math.min(TERRAIN_LENGTH - 30, ej.pilotX));
 
   if (ej.halo && !ej.chuteOpen) {
     // HALO: freefall fast
