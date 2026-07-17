@@ -1,5 +1,5 @@
 K9!
-# SPDX-License-Identifier: MPL-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # coordination.k9 — AI Coordination Protocol for Airborne Submarine Squadron
 #
 # This file is the single source of truth for all AI agent behaviour.

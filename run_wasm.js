@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Simple WASM runner for Deno
 // Usage: deno run --allow-read run_wasm.js [wasmFile] [functionName]
 
