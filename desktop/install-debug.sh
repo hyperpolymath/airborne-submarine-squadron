@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: MPL-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Install the DEBUG desktop shortcut for Airborne Submarine Squadron.
 # Run once after pulling. Safe to re-run.
 set -euo pipefail

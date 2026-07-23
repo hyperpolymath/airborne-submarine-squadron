@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Airborne Submarine Squadron — Gossamer desktop game variant.
 //
 // Sopwith-style arcade: a flying submarine over scrolling terrain.
@@ -2585,6 +2585,10 @@ function updateAirEject(dt) {
   // --- Commander descent ---
   ej.pilotX += ej.pilotVx * dt;
   ej.pilotVx *= 0.995; // Wind drag
+  // Same world bounds the sub obeys. The camera clamps to [0, TERRAIN_LENGTH - W],
+  // so a pilot drifting past the edge would sit off the right of the canvas with
+  // the camera unable to follow — invisible for the rest of the descent.
+  ej.pilotX = Math.max(30, Math.min(TERRAIN_LENGTH - 30, ej.pilotX));
 
   if (ej.halo && !ej.chuteOpen) {
     // HALO: freefall fast
@@ -2638,10 +2642,6 @@ function updateAirEject(dt) {
       }
     }
   }
-
-  // Camera follows commander
-  const targetCamX = ej.pilotX - W * 0.4;
-  world.cameraX += (targetCamX - world.cameraX) * 0.05 * dt;
 }
 
 function drawAirEject() {
@@ -2869,9 +2869,16 @@ function update(dt) {
     return;
   }
 
-  // --- Camera: smooth follow sub (or pilot when disembarked) ---
-  const camFollowX = sub.disembarked ? sub.pilotX : sub.worldX;
-  const camFollowY = sub.disembarked ? sub.pilotY : sub.y;
+  // --- Camera: smooth follow sub (or pilot when disembarked / ejected) ---
+  // The ejected commander owns the camera for the duration of the bail-out:
+  // the sub is uncrewed and falls away on its own trajectory, so following it
+  // would drag the view off the player. Must stay the single writer of
+  // world.cameraX — a second writer elsewhere fights this one every frame.
+  const ejecting = world.airEject && !world.airEject.dead && !world.airEject.landed
+    ? world.airEject
+    : null;
+  const camFollowX = ejecting ? ejecting.pilotX : sub.disembarked ? sub.pilotX : sub.worldX;
+  const camFollowY = ejecting ? ejecting.pilotY : sub.disembarked ? sub.pilotY : sub.y;
   const targetCamX = camFollowX - W * 0.4;
   world.cameraX += (targetCamX - world.cameraX) * CAMERA_SMOOTH * dt * 4;
   world.cameraX = Math.max(0, Math.min(TERRAIN_LENGTH - W, world.cameraX));

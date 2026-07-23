@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MPL-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # https://securitytxt.org/
 Contact: mailto:6759885+hyperpolymath@users.noreply.github.com
 Expires: 2027-04-03T00:00:00.000Z

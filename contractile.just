@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MPL-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # contractile.just — Airborne Submarine Squadron contractile runner
 # Auto-generated from contractiles/ directory.
 # Re-generate with: contractile gen-just --dir contractiles
