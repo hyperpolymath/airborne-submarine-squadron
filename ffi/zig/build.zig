@@ -1,4 +1,4 @@
-// {{PROJECT}} FFI Build Configuration
+// AIRBORNE_SUBMARINE_SQUADRON FFI Build Configuration
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 const std = @import("std");

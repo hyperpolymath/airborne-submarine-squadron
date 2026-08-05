@@ -1,6 +1,6 @@
 {{~ Aditionally delete this line and fill out the template below ~}}
 
-# {{PROJECT}} ABI/FFI Documentation
+# AIRBORNE_SUBMARINE_SQUADRON ABI/FFI Documentation
 
 ## Overview
 
@@ -247,7 +247,7 @@ gcc -o example example.c -l{{project}} -L./zig-out/lib
 ### From Idris2
 
 ```idris
-import {{PROJECT}}.ABI.Foreign
+import AIRBORNE_SUBMARINE_SQUADRON.ABI.Foreign
 
 main : IO ()
 main = do

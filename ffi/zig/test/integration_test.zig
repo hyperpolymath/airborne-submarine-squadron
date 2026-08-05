@@ -1,4 +1,4 @@
-// {{PROJECT}} Integration Tests
+// AIRBORNE_SUBMARINE_SQUADRON Integration Tests
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // These tests verify that the Zig FFI correctly implements the Idris2 ABI
