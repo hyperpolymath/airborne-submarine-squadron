@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# This workflow is managed by gh actions-lock.
 # Multi-platform test suite — runs blitz tests on Linux + macOS
 name: Test Suite
 
@@ -23,12 +24,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 1
 
       - name: Setup Deno
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+        uses: denoland/setup-deno@v2.0.5
         with:
           deno-version: v2.x
 
@@ -42,7 +43,7 @@ jobs:
         run: deno test --allow-all --coverage=./cov/ test/
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v5
+        uses: codecov/codecov-action@v7.0.0
         with:
           files: ./cov/
           flags: unittests
@@ -55,7 +56,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 1
 
