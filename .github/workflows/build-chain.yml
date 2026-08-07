@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# This workflow is managed by gh actions-lock.
 # AffineScript build-chain gate — validates that build.sh produces a
 # usable WASM artifact under the three supported scenarios:
 #   1. affinescript is on PATH (real compile)
@@ -40,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 1
 
@@ -71,7 +72,7 @@ jobs:
           echo "WASM artifact valid (magic bytes OK)"
 
       - name: Reflect (structural self-check)
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+        uses: denoland/setup-deno@v2.0.5
         with:
           deno-version: v2.x
 
@@ -82,7 +83,7 @@ jobs:
     name: build.sh has documented fallback
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 1
 
