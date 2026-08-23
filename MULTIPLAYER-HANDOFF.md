@@ -232,7 +232,7 @@ authoritative from the server.
 
 ## Code conventions in this repo
 
-- **No TypeScript**. JavaScript only (some files mention ReScript — ignore
+- **No TypeScript**. JavaScript only (some files mention AffineScript — ignore
   for now, not wired into the game).
 - **SPDX headers**: every new file starts with
   `// SPDX-License-Identifier: CC-BY-SA-4.0`
