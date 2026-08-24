@@ -111,7 +111,7 @@ schema_version = "1.0.0"
   (development-practices
     (no-npm "npm, Bun, pnpm, yarn are all banned")
     (no-node "Node.js is banned; use Deno")
-    (no-typescript "TypeScript is banned; use ReScript or vanilla JS")
+    (no-typescript "TypeScript is banned; use AffineScript or vanilla JS")
     (no-tauri "No Tauri/Electron wrappers; browser + tray binary")
     (deno-first "Deno is the preferred JavaScript runtime")
     (vanilla-js "Browser code uses vanilla JavaScript, no frameworks")
