@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # This workflow is managed by gh actions-lock.
+# This workflow is managed by gh actions-lock.
 # AffineScript build-chain gate — validates that build.sh produces a
 # usable WASM artifact under the three supported scenarios:
 #   1. affinescript is on PATH (real compile)

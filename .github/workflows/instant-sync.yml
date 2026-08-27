@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # This workflow is managed by gh actions-lock.
+# This workflow is managed by gh actions-lock.
 # Instant sync — lightweight forge propagation on every push to any branch.
 # Keeps GitLab and Bitbucket mirrors up to date without waiting for the main-only mirror.
 
