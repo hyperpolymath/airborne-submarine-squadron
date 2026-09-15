@@ -8,7 +8,7 @@ workflows:
         - 'denoland/setup-deno@v2.0.5'
     '.github/workflows/codeql-analysis.yml':
         - 'actions/checkout@v7.0.1'
-        - 'github/codeql-action@v4.37.8'
+        - 'github/codeql-action@v4.37.9'
     '.github/workflows/dogfood-gate.yml':
         - 'actions/checkout@v7.0.1'
         - 'hyperpolymath/a2ml-ecosystem@main'
@@ -22,7 +22,7 @@ workflows:
     '.github/workflows/mirror.yml': []
     '.github/workflows/pages.yml':
         - 'actions/checkout@v7.0.1'
-        - 'actions/deploy-pages@v4.0.5'
+        - 'actions/deploy-pages@v5.0.1'
         - 'actions/upload-pages-artifact@v5.0.0'
     '.github/workflows/push-email-notify.yml':
         - 'hyperpolymath/smtp-notify-action@v0.2.0'
@@ -40,9 +40,9 @@ dependencies:
         commit: 'sha1-3d3c42e5aac5ba805825da76410c181273ba90b1'
         owner_id: 44036562
         repo_id: 197814629
-    'actions/deploy-pages@v4.0.5':
-        ref: 'v4.0.5'
-        commit: 'sha1-d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e'
+    'actions/deploy-pages@v5.0.1':
+        ref: 'v5.0.1'
+        commit: 'sha1-368f82528645a54fb793d4d04e342629a3f51346'
         owner_id: 44036562
         repo_id: 438112499
     'actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd':
@@ -74,19 +74,19 @@ dependencies:
         commit: 'sha1-22d081ff2d3a40755e97629de92e3bcbfa7cf2ed'
         owner_id: 42048915
         repo_id: 356423100
-    'github/codeql-action@v4.37.8':
-        ref: 'v4.37.8'
-        commit: 'sha1-db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28'
+    'github/codeql-action@v4.37.9':
+        ref: 'v4.37.9'
+        commit: 'sha1-cdf488f595d80d6e07e03d4674febd5ab45fa938'
         owner_id: 9919
         repo_id: 259445878
     'hyperpolymath/a2ml-ecosystem@main':
         ref: 'main'
-        commit: 'sha1-aa4b836bd969df2bc58128cb8e3d20bbc88d5e79'
+        commit: 'sha1-f9d999b60cb5f383679ea19912bcdc49c944973a'
         owner_id: 6759885
         repo_id: 1275649586
     'hyperpolymath/k9-ecosystem@main':
         ref: 'main'
-        commit: 'sha1-89f3c2702f4f650a92aa7411502f38da06abd562'
+        commit: 'sha1-2155aa26a21758f2ba119f61bc7e0e1981c106fb'
         owner_id: 6759885
         repo_id: 1275650185
     'hyperpolymath/smtp-notify-action@v0.2.0':
