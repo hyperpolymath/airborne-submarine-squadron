@@ -155,20 +155,12 @@ The test suite is organized by classification:
 
 ## Code Coverage
 
-We use **codecov** to track coverage across the project:
+Coverage is generated in CI and published as a workflow artifact; no third-party
+coverage service is configured for this repository (the Codecov app was uninstalled
+estate-wide). **Target coverage: 80%+** for core game logic; CI fails below 70%.
 
-- **Target coverage: 80%+** for core game logic
-
-- Coverage reports are uploaded automatically on every push to the
-  `main` branch
-
-- View coverage details: <a
-  href="https://codecov.io/gh/hyperpolymath/airborne-submarine-squadron"
-  class="io/gh/hyperpolymath/airborne-submarine-squadron">codecov</a>
-
-The CI workflow (`.github/workflows/test.yml`) automatically: 1. Runs
-all tests on Linux and macOS 2. Uploads coverage to codecov 3. Fails if
-coverage drops below 70%
+The CI workflow (`.github/workflows/test.yml`) runs all tests on Linux and macOS and
+uploads the coverage report as an artifact.
 
 ## Test Categories Explained
 
@@ -319,7 +311,6 @@ GitHub Actions runs tests on every push and PR:
 
 1.  **test.yml** — Runs full blitz test suite on Linux + macOS
 
-2.  **codecov integration** — Uploads coverage automatically
 
 3.  **Required checks** — All tests must pass before merge
 
