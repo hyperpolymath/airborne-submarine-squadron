@@ -30,7 +30,6 @@ workflows:
     '.github/workflows/secret-scanner.yml': []
     '.github/workflows/test.yml':
         - 'actions/checkout@v7.0.1'
-        - 'codecov/codecov-action@v7.0.0'
         - 'denoland/setup-deno@v2.0.5'
     '.github/workflows/workflow-linter.yml':
         - 'actions/checkout@v7.0.1'
@@ -62,13 +61,6 @@ dependencies:
         repo_id: 496012378
         uses:
             - 'actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f'
-    'codecov/codecov-action@v7.0.0':
-        ref: 'v7.0.0'
-        commit: 'sha1-fb8b3582c8e4def4969c97caa2f19720cb33a72f'
-        owner_id: 8226205
-        repo_id: 200299178
-        uses:
-            - 'actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd'
     'denoland/setup-deno@v2.0.5':
         ref: 'v2.0.5'
         commit: 'sha1-22d081ff2d3a40755e97629de92e3bcbfa7cf2ed'

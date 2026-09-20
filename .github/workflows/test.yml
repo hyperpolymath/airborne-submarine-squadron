@@ -44,14 +44,6 @@ jobs:
       - name: Generate coverage report
         run: deno test --allow-all --coverage=./cov/ test/
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7.0.0
-        with:
-          files: ./cov/
-          flags: unittests
-          name: codecov-${{ matrix.os }}
-          fail_ci_if_error: false
-
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
