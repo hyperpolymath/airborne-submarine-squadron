@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
+# rsr-profile.a2ml — this repo's declared RSR v2.0 capabilities.
+#
+# Per the template's own rule, this file declares ONLY capabilities the repo really has, each grounded in a file
+# that exists, so the RSR conformance oracle (hypatia Hypatia.Rules.RsrConformance) scores the repo against the
+# modules it carries and no others.  Capabilities the repo does NOT have are omitted on purpose:
+#
+#   zig / ffi / abi       ffi/zig is an unbuildable template skeleton (see ffi/README.adoc) — NOT declared
+#   idris2 / formal-proofs  no proof files exist (docs/governance/PROOF-NEEDS.adoc lists candidates) — NOT declared
+#   container             no Containerfile                                                   — NOT declared
+#   affinescript          declared: src/main.affine exists and compiles in principle, but the compiled core is NOT
+#                         yet verified against the reference (see docs/RECON-2026-09.adoc §4)
+#
+# GRAMMAR: this family is converting to DEED (.deed) estate-wide (standards#837). Do not hand-convert.
+
+[rsr-profile]
+version = "1.0.0"
+spec = "rsr-criteria-v2"
+declares-against = "2.1.1-draft"
+role = "product"
+capabilities = [
+  "javascript",         # gossamer/*.js (engine), server/, sim/, run.js — Bun runtime
+  "affinescript",       # src/main.affine -> core WASM (co-processor; ABI v1)
+  "wasm",               # sim/verify_artifact.js, test/wasm_artifact_test.js
+  "rust",               # tray/ (ksni system tray)
+  "bash",               # build.sh, launcher.sh, gossamer/launch.sh, scripts/*.sh
+  "web-ui",             # index.html + gossamer/index_gossamer.html (Canvas 2D)
+  "cli",                # run.js (--help, --reflect)
+  "docs-site",          # .github/workflows/pages.yml (static playable game on GitHub Pages)
+  "benchmarks",         # test/bench.js, test/bench/gameloop_benchmark.js (real engine)
+  "game",               # interactive application
+]

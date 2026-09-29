@@ -46,7 +46,7 @@ upload helps (see
 and inspect `+README.adoc+` and `+build/+` artifacts.
 . Run the desktop launcher: `+./launcher.sh gossamer+` or the WASM
 harness:
-`+node run_wasm.js build/airborne-submarine-squadron.wasm main+`.
+`+node sim/run_wasm.js build/airborne-submarine-squadron.wasm main+`.
 . Smoke test the tray helper: `+./tray/tray+` (if built) and confirm HUD
 assets still load from `+gossamer/+`.
 

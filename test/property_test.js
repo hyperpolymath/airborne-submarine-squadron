@@ -6,8 +6,9 @@
 //
 // Reference: standards/testing-and-benchmarking/TESTING-TAXONOMY.adoc §9
 
-import { assert, assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals } from "./lib/assert.js";
 import extract from "./_extract.js";
+import { readTextFile, test } from "./lib/rt.js";
 
 const { constants: C, functions: F } = extract;
 
@@ -22,7 +23,7 @@ function mulberry32(seed) {
 }
 
 // ── 1. getThermalLayer is monotonically non-decreasing with depth ───
-Deno.test("property: getThermalLayer is monotonically non-decreasing with depth", () => {
+test("property: getThermalLayer is monotonically non-decreasing with depth", () => {
   const rand = mulberry32(42);
   // Generate 200 random Y values, sort them, verify layers are non-decreasing
   const ys = Array.from({ length: 200 }, () => Math.floor(rand() * 1000));
@@ -37,7 +38,7 @@ Deno.test("property: getThermalLayer is monotonically non-decreasing with depth"
 });
 
 // ── 2. thermallyVisible is reflexive (can always see yourself) ──────
-Deno.test("property: thermallyVisible is reflexive — observer sees own position", () => {
+test("property: thermallyVisible is reflexive — observer sees own position", () => {
   const rand = mulberry32(7);
   for (let i = 0; i < 100; i++) {
     const y = Math.floor(rand() * 900);
@@ -47,7 +48,7 @@ Deno.test("property: thermallyVisible is reflexive — observer sees own positio
 });
 
 // ── 3. clamp always returns value in [lo, hi] ──────────────────────
-Deno.test("property: clamp(v, lo, hi) always returns value in [lo, hi]", () => {
+test("property: clamp(v, lo, hi) always returns value in [lo, hi]", () => {
   const rand = mulberry32(99);
   for (let i = 0; i < 500; i++) {
     const lo = Math.floor(rand() * 100) - 50;
@@ -60,7 +61,7 @@ Deno.test("property: clamp(v, lo, hi) always returns value in [lo, hi]", () => {
 });
 
 // ── 4. Component damage never exceeds initial total ─────────────────
-Deno.test("property: damageRandomPart never creates HP (total only decreases)", () => {
+test("property: damageRandomPart never creates HP (total only decreases)", () => {
   const rand = mulberry32(1337);
   for (let trial = 0; trial < 25; trial++) {
     const parts = F.createParts();
@@ -77,11 +78,11 @@ Deno.test("property: damageRandomPart never creates HP (total only decreases)", 
 });
 
 // ── 5. Deterministic: same constants always produce same results ────
-Deno.test("property: game constants are deterministic across 3 reads", async () => {
+test("property: game constants are deterministic across 3 reads", async () => {
   const ROOT = extract.ROOT;
   const reads = [];
   for (let i = 0; i < 3; i++) {
-    const src = await Deno.readTextFile(ROOT + "gossamer/app_gossamer.js");
+    const src = await readTextFile(ROOT + "gossamer/app_gossamer.js");
     // Extract all const lines with numeric values
     const consts = {};
     for (const line of src.split('\n')) {
@@ -96,7 +97,7 @@ Deno.test("property: game constants are deterministic across 3 reads", async () 
 });
 
 // ── 6. overallHealth is bounded [0, 1] ──────────────────────────────
-Deno.test("property: overallHealth always returns value in [0, 100]", () => {
+test("property: overallHealth always returns value in [0, 100]", () => {
   const rand = mulberry32(2024);
   for (let trial = 0; trial < 50; trial++) {
     const parts = F.createParts();
@@ -112,7 +113,7 @@ Deno.test("property: overallHealth always returns value in [0, 100]", () => {
 });
 
 // ── 7. Velocity to MPH is non-negative for all inputs ───────────────
-Deno.test("property: velocityToMph is non-negative for all velocity combinations", () => {
+test("property: velocityToMph is non-negative for all velocity combinations", () => {
   const rand = mulberry32(555);
   for (let i = 0; i < 100; i++) {
     const vx = (rand() - 0.5) * 20;
@@ -124,8 +125,8 @@ Deno.test("property: velocityToMph is non-negative for all velocity combinations
 });
 
 // ── 8. Mission durations are all multiples of 60 (whole seconds) ────
-Deno.test("property: all MISSION_TYPES durations divide evenly by 60", async () => {
-  const src = await Deno.readTextFile(extract.ROOT + "gossamer/app_gossamer.js");
+test("property: all MISSION_TYPES durations divide evenly by 60", async () => {
+  const src = await readTextFile(extract.ROOT + "gossamer/app_gossamer.js");
   // Only match durations inside the MISSION_TYPES block (between { and };)
   const missionBlock = src.match(/const MISSION_TYPES\s*=\s*\{[\s\S]*?\};/);
   assert(missionBlock, "Could not find MISSION_TYPES block");
@@ -138,8 +139,8 @@ Deno.test("property: all MISSION_TYPES durations divide evenly by 60", async () 
 });
 
 // ── 9. All enemy score rewards are multiples of 100 ─────────────────
-Deno.test("property: enemy score rewards are multiples of 100", async () => {
-  const src = await Deno.readTextFile(extract.ROOT + "gossamer/enemies.js");
+test("property: enemy score rewards are multiples of 100", async () => {
+  const src = await readTextFile(extract.ROOT + "gossamer/enemies.js");
   const scores = [...src.matchAll(/world\.score\s*\+=\s*(\d+)/g)].map(m => parseInt(m[1]));
   for (const s of scores) {
     assertEquals(s % 100, 0,
@@ -148,8 +149,8 @@ Deno.test("property: enemy score rewards are multiples of 100", async () => {
 });
 
 // ── 10. Spawn thresholds are monotonically increasing ───────────────
-Deno.test("property: aircraft spawn thresholds increase with difficulty", async () => {
-  const src = await Deno.readTextFile(extract.ROOT + "gossamer/enemies.js");
+test("property: aircraft spawn thresholds increase with difficulty", async () => {
+  const src = await readTextFile(extract.ROOT + "gossamer/enemies.js");
   const berkutScore = parseInt(src.match(/BERKUT_SPAWN_SCORE\s*=\s*(\d+)/)?.[1] || '0');
   const nemesisScore = parseInt(src.match(/NEMESIS_SPAWN_SCORE\s*=\s*(\d+)/)?.[1] || '0');
   // Lightning threshold is inline in the update function

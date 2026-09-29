@@ -1,0 +1,24 @@
+{
+  "name": "airborne-submarine-squadron",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "description": "Airborne Submarine Squadron (ASS) — a Sopwith-style flying-submarine arcade game. Plain JS engine + AffineScript/typed-WASM core. Zero runtime dependencies.",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hyperpolymath/airborne-submarine-squadron.git"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  },
+  "scripts": {
+    "start": "bun run run.js",
+    "serve": "bun run run.js --no-open",
+    "debug": "bun run run.js --debug",
+    "test": "bun test",
+    "bench": "bun run test/bench.js && bun run test/bench/gameloop_benchmark.js",
+    "vectors": "bun run sim/make_vectors.js",
+    "vectors:check": "bun run sim/make_vectors.js --check"
+  }
+}

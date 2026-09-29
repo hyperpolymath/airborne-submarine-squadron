@@ -7,8 +7,9 @@
 //
 // Reference: standards/testing-and-benchmarking/TESTING-TAXONOMY.adoc §10
 
-import { assert, assertEquals, assertNotEquals } from "jsr:@std/assert";
+import { assert, assertEquals, assertNotEquals } from "./lib/assert.js";
 import extract from "./_extract.js";
+import { test } from "./lib/rt.js";
 
 const { constants: C, functions: F, source: SRC, ROOT } = extract;
 
@@ -154,7 +155,7 @@ const MUTATIONS = [
 // ── Mutation tests ──────────────────────────────────────────────────
 
 // Master test: verify original constants match expected values
-Deno.test("mutation: baseline — original constants have expected values", () => {
+test("mutation: baseline — original constants have expected values", () => {
   assertEquals(C.WATER_LINE, 420);
   assertEquals(C.GRAVITY, 0.15);
   assertEquals(C.MAX_SPEED, 5);
@@ -172,7 +173,7 @@ Deno.test("mutation: baseline — original constants have expected values", () =
 
 // Test each non-equivalent mutation is killed
 for (const mut of MUTATIONS.filter(m => m.expect === 'killed')) {
-  Deno.test(`mutation: ${mut.id} — ${mut.name} (expect: killed)`, () => {
+  test(`mutation: ${mut.id} — ${mut.name} (expect: killed)`, () => {
     const mutatedSrc = applyMutation(mut.const, mut.value);
     const re = new RegExp(`(?:^|\\n)const ${mut.const}\\s*=\\s*([^;]+);`);
     const origMatch = SRC.match(re);
@@ -193,7 +194,7 @@ for (const mut of MUTATIONS.filter(m => m.expect === 'killed')) {
 
 // Document equivalent mutations
 for (const mut of MUTATIONS.filter(m => m.expect === 'equivalent')) {
-  Deno.test(`mutation: ${mut.id} — ${mut.name} (equivalent — documented)`, () => {
+  test(`mutation: ${mut.id} — ${mut.name} (equivalent — documented)`, () => {
     // Equivalent mutations are expected to NOT be killed.
     // Document why they are equivalent.
     assert(true, `Equivalent: ${mut.reason}`);
@@ -201,7 +202,7 @@ for (const mut of MUTATIONS.filter(m => m.expect === 'equivalent')) {
 }
 
 // ── Mutation score ──────────────────────────────────────────────────
-Deno.test("mutation: score report", () => {
+test("mutation: score report", () => {
   const killed = MUTATIONS.filter(m => m.expect === 'killed').length;
   const equivalent = MUTATIONS.filter(m => m.expect === 'equivalent').length;
   const total = MUTATIONS.length;

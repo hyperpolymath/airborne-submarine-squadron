@@ -7,15 +7,16 @@
 //
 // Reference: standards/testing-and-benchmarking/TESTING-TAXONOMY.adoc §14
 
-import { assert, assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals } from "./lib/assert.js";
+import { BUN, Command, readTextFile, test } from "./lib/rt.js";
 
 const ROOT = new URL('..', import.meta.url).pathname;
 
 // ── Helper: run launcher with timeout ───────────────────────────────
 async function runLauncher(args, timeout = 10000) {
   try {
-    const cmd = new Deno.Command("deno", {
-      args: ["run", "--allow-all", ROOT + "run.js", ...args],
+    const cmd = new Command(BUN, {
+    args: ["run", ROOT + "run.js", ...args],
       stdout: "piped", stderr: "piped", cwd: ROOT,
     });
     const child = cmd.spawn();
@@ -33,7 +34,7 @@ async function runLauncher(args, timeout = 10000) {
 }
 
 // ── 1. Port conflict: all ports occupied ────────────────────────────
-Deno.test("chaos: launcher handles all ports occupied", async () => {
+test("chaos: launcher handles all ports occupied", async () => {
   // Occupy ports 6880-6884 (the full range)
   const listeners = [];
   const ports = [6880, 6881, 6882, 6883, 6884];
@@ -58,7 +59,7 @@ Deno.test("chaos: launcher handles all ports occupied", async () => {
 });
 
 // ── 2. Concurrent launcher instances don't corrupt state ────────────
-Deno.test("chaos: 3 concurrent --reflect invocations don't interfere", async () => {
+test("chaos: 3 concurrent --reflect invocations don't interfere", async () => {
   const results = await Promise.all([
     runLauncher(["--reflect"]),
     runLauncher(["--reflect"]),
@@ -74,7 +75,7 @@ Deno.test("chaos: 3 concurrent --reflect invocations don't interfere", async () 
 });
 
 // ── 3. Missing WASM artifact: --reflect still works ─────────────────
-Deno.test("chaos: --reflect works even with missing build artifacts", async () => {
+test("chaos: --reflect works even with missing build artifacts", async () => {
   // --reflect reads REGISTRY and source, doesn't need WASM
   const { code, out } = await runLauncher(["--reflect"]);
   assertEquals(code, 0);
@@ -84,10 +85,10 @@ Deno.test("chaos: --reflect works even with missing build artifacts", async () =
 });
 
 // ── 4. Filesystem stress: read source files under load ──────────────
-Deno.test("chaos: concurrent file reads don't corrupt data", async () => {
+test("chaos: concurrent file reads don't corrupt data", async () => {
   const path = ROOT + "gossamer/app_gossamer.js";
   const reads = await Promise.all(
-    Array.from({ length: 10 }, () => Deno.readTextFile(path))
+    Array.from({ length: 10 }, () => readTextFile(path))
   );
   // All reads must return identical content
   const first = reads[0];
@@ -98,9 +99,9 @@ Deno.test("chaos: concurrent file reads don't corrupt data", async () => {
 });
 
 // ── 5. Large crash log doesn't break localStorage logic ─────────────
-Deno.test("chaos: VeriSimDB module handles network failure gracefully", async () => {
+test("chaos: VeriSimDB module handles network failure gracefully", async () => {
   // Read verisimdb.js and verify it has timeout + fallback logic
-  const src = await Deno.readTextFile(ROOT + "gossamer/verisimdb.js");
+  const src = await readTextFile(ROOT + "gossamer/verisimdb.js");
   assert(src.includes("AbortController"), "Must use AbortController for timeouts");
   assert(src.includes("VERISIMDB_TIMEOUT"), "Must have configurable timeout");
   assert(src.includes("localStorage"), "Must fall back to localStorage");
@@ -108,14 +109,14 @@ Deno.test("chaos: VeriSimDB module handles network failure gracefully", async ()
 });
 
 // ── 6. K9 file corruption: missing sections don't crash ─────────────
-Deno.test("chaos: run.js --help works regardless of K9 file state", async () => {
+test("chaos: run.js --help works regardless of K9 file state", async () => {
   // --help only reads REGISTRY (hardcoded), not K9
   const { code } = await runLauncher(["--help"]);
   assertEquals(code, 0, "--help must always succeed");
 });
 
 // ── 7. Rapid startup/shutdown cycles ────────────────────────────────
-Deno.test("chaos: 5 rapid startup/shutdown cycles don't leave orphans", async () => {
+test("chaos: 5 rapid startup/shutdown cycles don't leave orphans", async () => {
   for (let i = 0; i < 5; i++) {
     const { code } = await runLauncher(["--reflect"]);
     assertEquals(code, 0, `Cycle ${i + 1} failed`);
@@ -124,7 +125,7 @@ Deno.test("chaos: 5 rapid startup/shutdown cycles don't leave orphans", async ()
 });
 
 // ── 8. Source file integrity under concurrent test runs ──────────────
-Deno.test("chaos: game engine files are syntactically valid JS", async () => {
+test("chaos: game engine files are syntactically valid JS", async () => {
   const files = [
     ROOT + "gossamer/app_gossamer.js",
     ROOT + "gossamer/enemies.js",
@@ -133,7 +134,7 @@ Deno.test("chaos: game engine files are syntactically valid JS", async () => {
     ROOT + "gossamer/controls.js",
   ];
   for (const f of files) {
-    const src = await Deno.readTextFile(f);
+    const src = await readTextFile(f);
     // Basic check: file is non-empty and has roughly balanced braces
     // (String literals can contain unmatched braces, so allow small imbalance)
     assert(src.length > 100, `${f.split('/').pop()} is suspiciously small`);
@@ -148,7 +149,7 @@ Deno.test("chaos: game engine files are syntactically valid JS", async () => {
 });
 
 // ── 9. Damage penalty functions never return out-of-range values ────
-Deno.test("chaos: damage penalty functions stay bounded [0,1] under adversarial inputs", async () => {
+test("chaos: damage penalty functions stay bounded [0,1] under adversarial inputs", async () => {
   const { functions } = await import("./_extract.js");
   const { getBackDamagePenalty, getFrontControlPenalty, getHullBuoyancyPenalty, clamp } = functions;
   if (!getBackDamagePenalty || !getFrontControlPenalty || !getHullBuoyancyPenalty) {
@@ -173,12 +174,12 @@ Deno.test("chaos: damage penalty functions stay bounded [0,1] under adversarial 
 });
 
 // ── 10. Rapid keybind rebinds don't corrupt storage ─────────────────
-Deno.test("chaos: controls.js keybind DEFAULT_KEYBINDS is valid under read stress", async () => {
+test("chaos: controls.js keybind DEFAULT_KEYBINDS is valid under read stress", async () => {
   // Read controls.js 20 times concurrently and verify every read gives us
   // identical, structurally valid source — no partial reads or corruption.
   const path = ROOT + "gossamer/controls.js";
   const reads = await Promise.all(
-    Array.from({ length: 20 }, () => Deno.readTextFile(path))
+    Array.from({ length: 20 }, () => readTextFile(path))
   );
   const first = reads[0];
   for (let i = 1; i < reads.length; i++) {
@@ -193,8 +194,8 @@ Deno.test("chaos: controls.js keybind DEFAULT_KEYBINDS is valid under read stres
 });
 
 // ── 11. Resource exhaustion: skin cycling under rapid toggles ───────
-Deno.test("chaos: SUB_SKINS catalogue survives rapid access patterns", async () => {
-  const src = await Deno.readTextFile(ROOT + "gossamer/persist.js");
+test("chaos: SUB_SKINS catalogue survives rapid access patterns", async () => {
+  const src = await readTextFile(ROOT + "gossamer/persist.js");
   // Find SUB_SKINS array boundaries
   const startIdx = src.indexOf("const SUB_SKINS = [");
   assert(startIdx >= 0, "SUB_SKINS must be defined in persist.js");
@@ -212,7 +213,7 @@ Deno.test("chaos: SUB_SKINS catalogue survives rapid access patterns", async () 
 });
 
 // ── 12. Memory pressure: extracted functions don't leak on repeated calls
-Deno.test("chaos: extracted functions handle repeated invocation without state leaks", async () => {
+test("chaos: extracted functions handle repeated invocation without state leaks", async () => {
   const { functions, constants } = await import("./_extract.js");
   if (!functions.createParts) return;  // Can't test without createParts
   // Call createParts 1000 times and verify each returns a fresh, pristine object
@@ -229,8 +230,8 @@ Deno.test("chaos: extracted functions handle repeated invocation without state l
 });
 
 // ── 13. File ordering: controls.js must load before persist.js ──────
-Deno.test("chaos: index_gossamer.html loads controls.js before persist.js", async () => {
-  const html = await Deno.readTextFile(ROOT + "gossamer/index_gossamer.html");
+test("chaos: index_gossamer.html loads controls.js before persist.js", async () => {
+  const html = await readTextFile(ROOT + "gossamer/index_gossamer.html");
   const ctrlIdx = html.indexOf("controls.js");
   const persistIdx = html.indexOf("persist.js");
   assert(ctrlIdx >= 0, "controls.js must be referenced in index_gossamer.html");

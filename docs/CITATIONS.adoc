@@ -33,4 +33,3 @@ Polymath, H. (2025). _RSR-template-repo_ [Computer software]. GitHub. https://gi
 == See Also
 
 * link:../CITATION.cff[CITATION.cff]
-* link:../codemeta.json[codemeta.json]

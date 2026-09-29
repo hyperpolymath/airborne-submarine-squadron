@@ -1,16 +1,16 @@
-# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # This workflow is managed by gh actions-lock.
-# This workflow is managed by gh actions-lock.
-# AffineScript build-chain gate — validates that build.sh produces a
-# usable WASM artifact under the three supported scenarios:
-#   1. affinescript is on PATH (real compile)
-#   2. AFFINESCRIPT_REPO points to a local checkout (bootstrapped compile)
-#   3. No compiler available (prebuilt fallback from build/ or dist/)
+# AffineScript / WASM build-chain gate.
 #
-# This is the gate that catches "build.sh suddenly requires affinescript"
-# regressions — the prebuilt-fallback path MUST continue to work so
-# playtesting and packaging builds don't break.
+#  vectors      (BLOCKING) the JS reference twin and its golden vectors are in sync, and the verifier
+#               rejects the known-bad legacy artifact.  Pure Bun; no compiler needed.
+#  no-compiler  (BLOCKING) build.sh must exit 0 with a clear note when no compiler exists: the WASM
+#               co-processor is optional, the game must always build/play without it.
+#  compile      (ADVISORY) fetch the upstream AffineScript compiler, compile src/main.affine to core
+#               WASM and run the conformance verifier on the result.  Advisory because the compiler is
+#               alpha (see hyperpolymath/affinescript docs/CAPABILITY-MATRIX.adoc); its JOB LOG is the
+#               evidence of whether the AffineScript core currently compiles to something that matches
+#               the reference.  Flip to blocking once it is green.
 name: Build Chain
 
 on:
@@ -20,8 +20,8 @@ on:
       - build.sh
       - run.js
       - src/**
-      - build/**
-      - dist/**
+      - sim/**
+      - test/wasm_artifact_test.js
       - '.github/workflows/build-chain.yml'
   pull_request:
     branches: [ main ]
@@ -29,8 +29,8 @@ on:
       - build.sh
       - run.js
       - src/**
-      - build/**
-      - dist/**
+      - sim/**
+      - test/wasm_artifact_test.js
       - '.github/workflows/build-chain.yml'
   workflow_dispatch:
 
@@ -38,75 +38,77 @@ permissions:
   contents: read
 
 jobs:
-  prebuilt-fallback:
-    name: Prebuilt WASM fallback (no compiler)
+  vectors:
+    name: Reference twin + golden vectors
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
-
-      - name: Verify affinescript is NOT on PATH
-        run: |
-          if command -v affinescript >/dev/null 2>&1; then
-            echo "::error::affinescript unexpectedly present — test invalid"
-            exit 1
-          fi
-          echo "No affinescript on PATH — good, testing fallback path"
-
-      - name: Run build.sh (must succeed with fallback)
-        run: bash build.sh
-        env:
-          AFFINESCRIPT_REPO: ""
-
-      - name: Verify WASM artifact produced
-        run: |
-          test -f build/airborne-submarine-squadron.wasm \
-            || (echo "::error::build/airborne-submarine-squadron.wasm missing after build.sh" && exit 1)
-          # WASM magic bytes: 00 61 73 6d
-          head -c 4 build/airborne-submarine-squadron.wasm | xxd | head -1
-          magic=$(head -c 4 build/airborne-submarine-squadron.wasm | xxd -p)
-          if [ "$magic" != "0061736d" ]; then
-            echo "::error::WASM magic bytes wrong: $magic (expected 0061736d)"
-            exit 1
-          fi
-          echo "WASM artifact valid (magic bytes OK)"
-
-      - name: Reflect (structural self-check)
-        uses: denoland/setup-deno@v2.0.5
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          deno-version: v2.x
+          bun-version: "1.4.2"
+      - name: Golden vectors are current
+        run: bun run vectors:check
+      - name: Twin, verifier and legacy-artifact negative control
+        run: bun test test/wasm_artifact_test.js
 
-      - name: Run --reflect
-        run: deno run --allow-all run.js --reflect | head -60
-
-  build-script-lint:
-    name: build.sh has documented fallback
+  no-compiler:
+    name: build.sh without a compiler exits 0
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
-
-      - name: Verify fallback is documented in build.sh
+      - name: Verify affinescript is NOT on PATH
         run: |
-          if ! grep -q 'affinescript not found' build.sh; then
-            echo "::error::build.sh must document the 'affinescript not found' fallback"
-            echo "This is required for reproducibility — see ROADMAP Work Queue."
-            exit 1
-          fi
-          if ! grep -q 'AFFINESCRIPT_REPO' build.sh; then
-            echo "::error::build.sh must reference AFFINESCRIPT_REPO env var"
-            exit 1
-          fi
-          echo "build.sh correctly documents both fallback paths"
-
-      - name: Verify README documents the build chain
+          if command -v affinescript >/dev/null 2>&1; then echo "::error::affinescript unexpectedly present"; exit 1; fi
+      - name: build.sh must succeed and say why it skipped
+        env:
+          AFFINESCRIPT_REPO: ""
         run: |
-          if ! grep -q 'AFFINESCRIPT_REPO\|affinescript' README.adoc; then
-            echo "::warning::README.adoc does not mention AFFINESCRIPT_REPO or affinescript"
-          fi
-          if ! grep -q 'prebuilt' README.adoc; then
-            echo "::warning::README.adoc does not mention the prebuilt WASM fallback"
-          fi
+          out=$(bash build.sh)
+          echo "$out"
+          echo "$out" | grep -q "affinescript not found" || { echo "::error::build.sh must document the 'affinescript not found' path"; exit 1; }
+      - name: build.sh documents both discovery paths
+        run: |
+          grep -q 'AFFINESCRIPT_REPO' build.sh || { echo "::error::build.sh must reference AFFINESCRIPT_REPO"; exit 1; }
+          grep -q -- '--wasm-gc' build.sh && grep -v '^#' build.sh | grep -q -- '--wasm-gc' && { echo "::error::build.sh must NOT pass --wasm-gc (the JS loader needs linear memory)"; exit 1; } || true
+
+  compile:
+    name: Compile src/main.affine + verify (ADVISORY)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.2"
+      - name: Fetch the latest published AffineScript compiler
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$HOME/bin"
+          tag=$(gh release list -R hyperpolymath/affinescript --limit 20 --json tagName,assets -q '[.[] | select(.assets | length > 0)][0].tagName')
+          echo "using affinescript release: ${tag:-<none with assets>}"
+          [ -n "$tag" ] || { echo "::warning::no affinescript release with binaries; cannot compile"; exit 1; }
+          gh release download "$tag" -R hyperpolymath/affinescript -p 'affinescript-linux-x64' -D "$HOME/bin"
+          mv "$HOME/bin/affinescript-linux-x64" "$HOME/bin/affinescript" && chmod +x "$HOME/bin/affinescript"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          "$HOME/bin/affinescript" --help | head -40 || true
+      - name: Type-check (typed-wasm ownership verifier runs as part of compile)
+        run: affinescript check src/main.affine
+      - name: Compile to core WASM and verify against the reference twin
+        run: bash build.sh
+      - name: The artifact, if any, must pass the conformance verifier on its own
+        if: always()
+        run: |
+          if [ -f build/airborne-submarine-squadron.wasm ]; then bun run sim/verify_artifact.js build/airborne-submarine-squadron.wasm
+          else echo "no artifact was produced (see compile step)"; exit 1; fi

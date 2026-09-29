@@ -29,7 +29,7 @@ main() {
     exit 1
   fi
 
-  if [ "${AFFINESCRIPT_AUTO_UPDATE:-1}" = "1" ] && [ -d "$repo/.git" ] && command -v git >/dev/null 2>&1; then
+  if [ "${AFFINESCRIPT_AUTO_UPDATE:-0}" = "1" ] && [ -d "$repo/.git" ] && command -v git >/dev/null 2>&1; then
     # Best-effort update; ignore network/offline failures.
     (cd "$repo" && git pull --ff-only >/dev/null 2>&1) || true
   fi

@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
+//
+// AffineScript compiler smoke test (syntax/type surface). Not part of the game; run with `affinescript check`.
+
+fn test_if_expr() -> Int {
+  let x: Int = if (true) { 1 } else { 2 };
+  return x;
+}
+fn main() -> Int { return 0; }

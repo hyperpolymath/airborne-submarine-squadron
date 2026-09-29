@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= Architecture Roadmap: AffineScript Simulation Kernel and Typed-WASM
+:toc: macro
+:icons: font
+
+toc::[]
+
+== 1. Current State and The Legacy Artifact Defect
+
+The original roadmap envisioned the AffineScript/WASM core acting as the authoritative physics co-processor running in lockstep with the JavaScript frontend.
+
+=== The Discovered Defect
+Auditing the committed release artifact (`dist/airborne-submarine-squadron.wasm`) revealed that it was fundamentally broken:
+1. **Zero Initial State:** Calling `init_state()` returned an all-zero payload (e.g., `sub_x = 0`, `sub_hp = 0`, `ammo = 0`) instead of the canonical initial values declared in `src/main.affine` (`sub_x = 400`, `sub_hp = 100`, `ammo = 200`).
+2. **Memory Leak and Trap:** Calling `step_state()` allocated 668 bytes per step via an uncollected bump allocator in linear memory. Within a single 64 KiB WebAssembly page, the allocator exhausted available memory and crashed with `RuntimeError: Out of bounds memory access` at step 96.
+3. **Silent Failure:** In browser execution, the exception was caught by `app_gossamer.js` and logged as a warning (`WASM co-processor unavailable`), causing the game to quietly drop back to pure JavaScript.
+
+The broken artifact has been removed from `dist/` and quarantined in `test/fixtures/legacy-broken-init-zero-heap-exhaust.wasm` as a permanent negative control test case.
+
+== 2. Strangler Migration Plan to Pure WASM
+
+To migrate safely from the 6,700-line JavaScript engine to AffineScript without destabilizing gameplay, we adopt the Strangler Fig pattern across four distinct phases:
+
+=== Phase 1: Reference Twin and Golden Vectors (Complete)
+* **Executable Oracle:** Authored `sim/shadow_ref.js`, a pure integer reference implementation of ABI v1 (29 state fields, 5 input fields).
+* **Golden Vectors:** Generated `sim/vectors/shadow_v1.json`, pinning 3,300 total simulation steps across five distinct flight and combat scenarios (`idle`, `climb-right`, `hold-fire`, `env-toggle`, `dogfight`) with 32-bit FNV-1a checksums every 100 steps.
+* **Conformance Verifier:** Implemented `sim/verify_artifact.js` and `test/wasm_artifact_test.js`. Any compiled `.wasm` file must pass export validation, match initial state exactly, reproduce all golden vector steps, and survive a 3,000-step memory soak without trapping.
+
+=== Phase 2: ABI v2 Transition (In-Place Flat State)
+* The current ABI returns an allocated list pointer on each step. ABI v2 will adopt fixed memory regions where state is updated in place, eliminating dynamic allocation during the game loop.
+* The AffineScript core will be compiled using the standard linear-memory target (`CORE wasm`), ensuring compatibility with browser memory views without requiring experimental WasmGC proposals.
+
+=== Phase 3: Subsystem-by-Subsystem Extraction
+Progressively extract simulation modules into AffineScript:
+1. **Submarine Integration:** Velocity, thrust, gravity, and drag calculations.
+2. **Thermal & Pressure Physics:** Depth pressure crush rules and layer acoustic visibility.
+3. **Projectile Dynamics:** Torpedo paths, missile tracking, and bouncing bomb water surface physics.
+4. **Enemy AI Kernels:** Deterministic state machines for interceptor flight and submarine patrols.
+
+=== Phase 4: Typed-WASM Integration
+* Integrate with `hyperpolymath/typed-wasm` Level 7 (aliasing safety) and Level 10 (linear resource usage) specifications.
+* Compile and verify ownership constraints using `affinescript check` and the `typed-wasm` boundary verifier.

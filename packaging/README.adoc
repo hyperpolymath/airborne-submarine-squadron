@@ -79,4 +79,4 @@ manifest or equivalent:
 * *RISC-V* — verified via RISC-V Deno (prebuilt binaries available)
 * *Lua / Node wrappers* — alternate runtimes for embedded contexts
 
-Track progress in `+ROADMAP.adoc+` § v3.0 Multi-platform Deployment.
+Track progress in `+docs/ROADMAP.adoc+` § v3.0 Multi-platform Deployment.

@@ -1,7 +1,21 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    # github/codeql-action v4.38.1+ is rejected by GitHub at workflow startup (hyperpolymath/standards#1037).
+    # A bare `ignore` was bypassed estate-wide by GROUPED updates, so exclude it from the group as well.
+    groups:
+      actions:
+        patterns: ["*"]
+        exclude-patterns: ["github/codeql-action*"]
+    ignore:
+      - dependency-name: "github/codeql-action"
+  - package-ecosystem: "cargo"
+    directory: "/tray"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 2

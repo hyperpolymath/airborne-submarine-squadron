@@ -1,197 +1,47 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
 //
-// gameloop_benchmark.js — Performance benchmarks for Airborne Submarine Squadron
-// game loop throughput.
+// gameloop_benchmark.js — benchmarks the REAL engine.
 //
-// Measures:
-// - Single tick execution time
-// - Bulk tick throughput (N ticks, ms/tick average)
-// - Mission state transitions overhead
-// - Thermal layer calculation cost
-// - Weapon system overhead
+// The Deno-era version timed a hand-written `GameSimulator` stand-in (GRAVITY 0.18, no enemies,
+// no weapons): it measured nothing about the game.  This one boots the actual engine headlessly
+// (test/harness/headless.js) and times the real update() and gameLoop().
 //
-// Run with: deno bench --allow-all test/bench/gameloop_benchmark.js
+// Run:   bun run test/bench/gameloop_benchmark.js
+// Budget (enforced in test/perf_budget_test.js): one sim step must stay well inside a 16.7 ms frame.
 //
-// Classification (Six Sigma baselines):
-//   Extraordinary: >20% faster than baseline
-//   Ordinary:      within ±20% of baseline
-//   Acceptable:    20-50% slower than baseline
-//   Unacceptable:  >50% slower than baseline
-//
-// Reference: standards/testing-and-benchmarking/TESTING-TAXONOMY.adoc §2
+// Note: draw() runs against a call-counting mock canvas, so its time is NOT real raster cost; the
+// number that matters there is ctx-calls-per-frame (a proxy for GPU command-buffer pressure).
 
-// Simplified game tick function for benchmarking (pure computation, no DOM)
-class GameSimulator {
-  constructor() {
-    // Constants
-    this.WATER_LINE = 420;
-    this.THERMAL_LAYER_1_MAX = 495;
-    this.THERMAL_LAYER_2_MAX = 615;
-    this.GRAVITY = 0.18;
-    this.W = 800;
-    this.H = 600;
-    this.HULL_DEEP_CRUSH_THRESHOLD = 0.2;
+import { bench, runBenches } from "../lib/rt.js";
+import { createGame } from "../harness/headless.js";
 
-    // State
-    this.x = this.W / 2;
-    this.y = this.WATER_LINE + 50;
-    this.vx = 0;
-    this.vy = 0;
-    this.alive = true;
-    this.ticks = 0;
-    this.hull = 1.0;
-    this.missionTimer = -1;
-    this.nemesisSpawned = false;
-  }
+const game = await createGame({ gameSeed: 7, instrument: false });
 
-  getThermalLayer(y) {
-    if (y <= this.WATER_LINE) return -1;
-    if (y < this.THERMAL_LAYER_1_MAX) return 0;
-    if (y < this.THERMAL_LAYER_2_MAX) return 1;
-    return 2;
-  }
-
-  tick(thrust = 0) {
-    if (!this.alive) return;
-
-    this.ticks++;
-
-    // Thrust
-    this.vx += thrust;
-
-    // Gravity (water only)
-    if (this.y > this.WATER_LINE) {
-      this.vy += this.GRAVITY;
-    }
-
-    // Update position
-    this.x += this.vx;
-    this.y += this.vy;
-
-    // Clamp
-    this.x = Math.max(0, Math.min(this.W, this.x));
-    this.y = Math.max(0, this.y);
-
-    // Thermal layer check
-    const thermal = this.getThermalLayer(this.y);
-
-    // Hull crush check
-    if (thermal === 2 && this.hull < this.HULL_DEEP_CRUSH_THRESHOLD) {
-      this.alive = false;
-    }
-
-    // Mission timer
-    if (this.missionTimer > 0) {
-      this.missionTimer--;
-    }
-
-    // Nemesis spawn (simple heuristic)
-    if (this.missionTimer > 0 && this.ticks > 500 && !this.nemesisSpawned) {
-      this.nemesisSpawned = true;
-    }
-  }
-
-  startMission(duration) {
-    this.missionTimer = duration;
-  }
-
-  fireWeapon() {
-    // Minimal overhead
-    return true;
-  }
+function scenario(name, setup) {
+  bench(`real update(): ${name}`, () => { game.update(game.ev("SIM_DT")); }, { iterations: 300, warmup: 30 });
+  return setup;
 }
 
-// ── Bench 1: Single tick ────────────────────────────────────────────────────
-Deno.bench("perf: Single game tick (no thrust)", () => {
-  const game = new GameSimulator();
-  game.tick(0);
-});
+// 1. cruising in the air over the sea
+game.ev("world.sub.floating = false; world.sub.y = 250; world.sub.vx = 3;");
+scenario("atmosphere cruise");
 
-Deno.bench("perf: Single game tick (with thrust)", () => {
-  const game = new GameSimulator();
-  game.tick(5);
-});
+// 2. busy: enemies, projectiles, mines around a submerged sub
+bench("real update(): underwater, weapons firing", () => {
+  game.press(" ", "ArrowRight");
+  game.update(game.ev("SIM_DT"));
+}, { iterations: 300, warmup: 30 });
 
-// ── Bench 2: Thermal layer calculation ──────────────────────────────────────
-Deno.bench("perf: Thermal layer lookup (100 calls)", () => {
-  const game = new GameSimulator();
-  for (let i = 0; i < 100; i++) {
-    game.getThermalLayer(game.WATER_LINE + i);
-  }
-});
+bench("real gameLoop frame @60 Hz (update + draw on a mock canvas)", () => { game.run(1, { hz: 60 }); }, { iterations: 200, warmup: 20 });
+bench("real gameLoop frame @144 Hz (interpolated)", () => { game.run(1, { hz: 144 }); }, { iterations: 200, warmup: 20 });
 
-// ── Bench 3: Bulk tick throughput (1000 ticks) ──────────────────────────────
-Deno.bench("perf: 1000-tick run (patrol mode)", () => {
-  const game = new GameSimulator();
-  for (let i = 0; i < 1000; i++) {
-    game.tick(1);
-  }
-});
-
-// ── Bench 4: Bulk tick throughput (5000 ticks) ──────────────────────────────
-Deno.bench("perf: 5000-tick run (patrol mode)", () => {
-  const game = new GameSimulator();
-  for (let i = 0; i < 5000; i++) {
-    game.tick(1);
-  }
-});
-
-// ── Bench 5: Mission with nemesis spawn ─────────────────────────────────────
-Deno.bench("perf: 600-tick strike mission (nemesis spawn)", () => {
-  const game = new GameSimulator();
-  game.startMission(6000);
-  for (let i = 0; i < 600; i++) {
-    game.tick(2);
-  }
-});
-
-// ── Bench 6: Multiple mission transitions ───────────────────────────────────
-Deno.bench("perf: 3 mission transitions (200 ticks each)", () => {
-  const game = new GameSimulator();
-  for (let mission = 0; mission < 3; mission++) {
-    game.startMission(200);
-    for (let i = 0; i < 201; i++) {
-      game.tick(1);
-    }
-  }
-});
-
-// ── Bench 7: Thermal layer transitions ──────────────────────────────────────
-Deno.bench("perf: Deep water descent (500 ticks)", () => {
-  const game = new GameSimulator();
-  game.y = game.WATER_LINE + 10;
-  game.vy = 1;  // Descend gradually
-  for (let i = 0; i < 500; i++) {
-    game.tick(0);
-  }
-});
-
-// ── Bench 8: Weapon fire loop (100 shots) ──────────────────────────────────
-Deno.bench("perf: Fire 100 weapons", () => {
-  const game = new GameSimulator();
-  for (let i = 0; i < 100; i++) {
-    game.fireWeapon();
-  }
-});
-
-// ── Bench 9: High-frequency input (1000 ticks with varying thrust) ──────────
-Deno.bench("perf: 1000 ticks with variable thrust input", () => {
-  const game = new GameSimulator();
-  for (let i = 0; i < 1000; i++) {
-    const thrust = Math.sin(i * 0.1) * 5;  // Oscillating input
-    game.tick(thrust);
-  }
-});
-
-// ── Bench 10: Worst-case scenario (deep water, low hull, active mission) ────
-Deno.bench("perf: 200 ticks in crush-risk scenario", () => {
-  const game = new GameSimulator();
-  game.y = game.THERMAL_LAYER_2_MAX + 50;
-  game.hull = 0.3;
-  game.startMission(200);
-  for (let i = 0; i < 200; i++) {
-    game.tick(1);
-    if (!game.alive) break;
-  }
-});
+if (import.meta.main) {
+  // Pre-position the second scenario's world, then run.
+  game.ev("world.sub.floating = false; world.sub.y = 560; world.sub.worldX = 2600;");
+  await runBenches();
+  game.ctx.calls = 0; game.ctx.recordOps = false;
+  game.run(120, { hz: 60 });
+  console.log(`ctx calls per frame (save/restore only; proxy): ${(game.ctx.calls / 120).toFixed(1)}  | max save depth: ${game.ctx.maxDepth}`);
+  game.dispose();
+}

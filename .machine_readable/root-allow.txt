@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# root-allow.txt — the repository root allowlist (enforced both ways by scripts/check-root-shape.sh).
+# One entry per line; '?' = may legitimately be absent. Every entry beyond the RSR template's own set
+# carries a justification: a game repo has real entry points the template does not.
+
+# --- RSR template set ---------------------------------------------------------------------------
+README.adoc
+LICENSE
+LICENSES/                 # REUSE licence texts
+CHANGELOG.adoc
+CITATION.cff
+CLAUDE.md                 # arrival pack (estate policy checker reads it from the ROOT)
+GEMINI.md                 # pointer to CLAUDE.md
+Justfile
+.editorconfig
+.gitattributes
+.gitignore
+.tool-versions
+mise.toml
+.github/
+.git/
+.machine_readable/
+docs/
+scripts/
+src/
+www/                      # site-operations bundle; canonical .well-known lives at www/.well-known/
+build/                    # build orchestration (guix.scm) + GENERATED WASM output (gitignored)
+
+# --- ASS-specific (justified) -------------------------------------------------------------------
+index.html                # the web entry point: served by GitHub Pages and by the local game server
+package.json              # Bun manifest (private, zero dependencies)
+run.js                    # launcher + server entry point (bun run run.js)
+launcher.sh               # unified desktop launcher (.desktop files call it)
+build.sh                  # AffineScript -> core WASM, with conformance verification
+integ.sh                  # desktop-integration self-healing installer (README-documented entry point)
+0-AI-MANIFEST.a2ml        # AI entry point; migrates to airborne-submarine-squadron_chora.deed (standards#837, needs deed_lint)
+coordination.k9           # K9 coordination contract (K9! format; the template uses coordination.k9.ncl)
+gossamer/                 # the game engine (JS) + desktop shell glue
+server/                   # Bun game server (security-tested)
+sim/                      # reference twin, golden vectors, WASM conformance verifier
+test/                     # bun test convention (the template calls this tests/)
+tray/                     # Rust system-tray binary (ksni)
+ffi/                      # Zig FFI seam — TEMPLATE SKELETON, not yet wired (see ffi/README.adoc)
+desktop/                  # XDG/Windows desktop integration
+packaging/                # deb / rpm manifests
+archive/                  # historical artefacts pending curation (DEBT)
+release/                  # release bundles pending migration to GitHub Releases (DEBT)
+logs/                     # crash-report output directory (contents gitignored)
+sonar-project.properties  # SonarCloud analysis config
+.gitleaks.toml            # secret-scanner configuration
+
+# --- community-health files kept at root as .adoc (the estate docs gate reads them here) ---------
+CODE_OF_CONDUCT.adoc
+GOVERNANCE.adoc
+MAINTAINERS.adoc
+SECURITY.adoc

@@ -1,6 +1,4 @@
-# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# This workflow is managed by gh actions-lock.
 # This workflow is managed by gh actions-lock.
 # For most projects, this workflow file will not need changing; you simply need
 # to commit it to your repository.
@@ -45,11 +43,13 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v7.0.1
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     # Initializes the CodeQL tools for scanning.
+    # v4.38.1+ are rejected at workflow STARTUP (startup_failure, zero jobs): pinned to the estate-validated
+    # v4.38.0 until hyperpolymath/standards#1037 is resolved. Dependabot must not bump this (see dependabot.yml).
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4.38.2
+      uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
       with:
         languages: ${{ matrix.language }}
         # If you wish to specify custom queries, you can do so here or in a config file.
@@ -62,7 +62,7 @@ jobs:
     # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, or Swift).
     # If this step fails, then you should remove it and run the build manually (see below)
     - name: Autobuild
-      uses: github/codeql-action/autobuild@v4.38.2
+      uses: github/codeql-action/autobuild@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
 
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
@@ -82,6 +82,6 @@ jobs:
         cd tray && cargo build --release
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v4.38.2
+      uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
       with:
         category: "/language:${{matrix.language}}"

@@ -26,7 +26,7 @@ metadata:
   schema: k9-coordination
   schema_version: 1.0.0
   generated_by: k9-coordination-generator
-  last_updated: 2026-04-03
+  last_updated: 2026-09-29
 
 project:
   name: "Airborne Submarine Squadron"
@@ -59,14 +59,14 @@ invariants:
     reason: "Architecture is deliberately browser + system tray binary (Gossamer frontend + Rust ksni tray). This is intentional, not a gap to fill."
     severity: critical
 
-  - id: deno-only-runtime
-    rule: "Deno is the only permitted JS runtime — no Node.js, npm, Bun, pnpm, or yarn"
-    reason: "Deno is the standard runtime across all hyperpolymath repos. The file server uses Deno."
+  - id: bun-only-runtime
+    rule: "Bun is the only permitted JS runtime, test runner and package manager — no Deno, Node.js, npm, yarn or pnpm"
+    reason: "Estate LANGUAGE-POLICY (owner ruling 2026-09-22): Bun is tier 1 and Deno is banned. Supersedes the April 2026 Deno-only rule. The game server (run.js + server/ass-server.js) and the whole test suite run on Bun."
     severity: critical
 
-  - id: no-npm-package-managers
-    rule: "Do not create package.json, package-lock.json, node_modules, bun.lockb, or yarn.lock"
-    reason: "All dependencies managed through Deno — no npm ecosystem"
+  - id: package-manifest-policy
+    rule: "package.json IS expected (Bun manifest: private, type=module, ZERO dependencies). Do not create package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, deno.json, deno.lock or node_modules"
+    reason: "The game ships dependency-free; a runtime dependency needs an explicit owner decision. test/contract_test.js enforces this."
     severity: critical
 
   - id: port-6880
@@ -76,7 +76,7 @@ invariants:
 
   - id: affinescript-engine
     rule: "The game engine will be AffineScript compiled to WASM — do not replace with a JS game engine"
-    reason: "AffineScript is a hyperpolymath language (from nextgen-languages). The JS in web/ is a placeholder until WASM build is wired."
+    reason: "AffineScript is a hyperpolymath language (from nextgen-languages). The authoritative simulation migrates to AffineScript/typed-WASM via the strangler plan in docs/AFFINESCRIPT-PORT-PLAN.adoc; the JS engine stays as renderer/host until each subsystem is proven equivalent (sim/verify_artifact.js)."
     severity: critical
 
   - id: standalone-repo
@@ -95,11 +95,13 @@ protected:
   - path: tray/
     reason: "Rust system tray binary using ksni (KDE StatusNotifierItem)"
   - path: src/
-    reason: "AffineScript source — main.as is the game engine source"
-  - path: web/
-    reason: "Browser-side JS — placeholder engine, will be replaced by WASM but structure stays"
+    reason: "AffineScript source — main.affine is the game-core source"
+  - path: server/
+    reason: "Bun game server (allowlisted static files, same-origin guard, bounded uploads) — security-tested in test/server_test.js"
+  - path: sim/
+    reason: "Reference twin, golden vectors and the WASM conformance verifier — the oracle any AffineScript build must match"
   - path: build/
-    reason: "WASM build artifacts from AffineScript compilation"
+    reason: "Generated WASM output (gitignored) + build/guix.scm — the directory must exist"
   - path: launcher.sh
     reason: "Unified launcher script — entry point for the whole application"
   - path: .machine_readable/
@@ -128,10 +130,11 @@ architecture:
     decision: "Gossamer provides the desktop window (WebKitGTK-based)"
     reason: "Gossamer is the hyperpolymath desktop runtime — shared with PanLL and other projects"
 
-  - id: deno-file-server
-    decision: "Deno serves static files during development"
-    reason: "Simple, no dependencies, matches ecosystem standard. Python http.server was deprecated."
+  - id: bun-game-server
+    decision: "Bun serves the game (run.js + server/ass-server.js): allowlisted static files, same-origin guard, bounded uploads, groove manifest"
+    reason: "Estate runtime (LANGUAGE-POLICY 2026-09-22), zero dependencies. Replaced the Deno server AND the two embedded heredoc servers in launcher.sh / gossamer/launch.sh (one of which accepted path traversal)."
     alternatives_rejected:
+      - Deno (banned 2026-09-22)
       - Python http.server
       - Node.js
       - nginx
@@ -141,10 +144,10 @@ do_not_create:
     reason: "TypeScript is banned — use vanilla JS or AffineScript"
   - pattern: "Dockerfile"
     reason: "Use Containerfile (Podman, not Docker)"
-  - pattern: "package.json"
-    reason: "npm is banned — use deno.json"
+  - pattern: "deno.json"
+    reason: "Deno is banned (2026-09-22) — the Bun manifest is package.json"
   - pattern: "package-lock.json"
-    reason: "npm lock files banned"
+    reason: "npm lock files banned (bun.lock is the lockfile if dependencies are ever added)"
   - pattern: "node_modules/**"
     reason: "npm ecosystem banned"
   - description: "Any heavyweight game framework (Phaser, PixiJS, Three.js)"
@@ -167,12 +170,25 @@ ports:
 
 ecosystem:
   depends_on:
-    - name: gossamer
-      role: "Desktop window runtime (WebKitGTK + Zig)"
-    - name: nextgen-languages
-      role: "Contains AffineScript compiler (affinescript subdir)"
+    - name: metadatastician/gossamer
+      role: "Desktop window runtime (WebKitGTK + Zig); linear-typed shell"
+    - name: hyperpolymath/affinescript
+      role: "AffineScript compiler (core WASM + typed-wasm ownership verifier)"
+  planned:
+    - name: metadatastician/enaction-engine
+      role: "Deterministic fixed-step timing (enaction-time) — gossamer/fixed_step.js already implements its contract in JS"
+    - name: metadatastician/groove
+      role: "Capability discovery: ASS serves /.well-known/groove (mode active)"
+    - name: metadatastician/spline
+      role: "Typed wire (Bebop control plane) for multiplayer snapshots — replaces JSON over DataChannel"
+    - name: metadatastician/cleave
+      role: "Integration dial: raw FFI <-> SNIF sandbox <-> protocol; the sim kernel is the first real consumer"
+    - name: metadatastician/burble
+      role: "Voice for squadron/role-based shared-sub multiplayer"
   related:
-    - name: idaptik
-      role: "Sister game project — also uses Gossamer, also co-developed with son"
+    - name: metadatastician/IDApTIK
+      role: "Sister game project — also Gossamer + AffineScript; proving ground for the deterministic-core pattern"
+    - name: metadatastician/universal-modding-studio
+      role: "Authoring/packaging for mods; ASS would be its next game profile after IDApTIK and Chronicles of Slavia"
     - name: proven
       role: "Formal verification — AffineScript type proofs"

@@ -1,0 +1,67 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+;
+; STATE.a2ml -- Airborne Submarine Squadron project state
+; Updated: 2026-09-29
+
+name = "airborne-submarine-squadron"
+project = "airborne-submarine-squadron"
+version = "0.5.0"
+schema_version = "1.0.0"
+
+(state
+  (metadata
+    (version "0.7.0")
+    (name "airborne-submarine-squadron")
+    (type "game")
+    (last-updated "2026-09-29"))
+
+  (project-context
+    (description "Sopwith-inspired arcade flight and combat simulation with attack submarine, space orbit, and multi-tier underwater mechanics")
+    (monorepo "games & trivia")
+    (language "JavaScript + AffineScript")
+    (target "WASM + browser + Gossamer desktop")
+    (port 6880)
+    (crg-grade "C")
+    (crg-file "docs/governance/READINESS.adoc"))
+
+  (current-position
+    (phase "alpha")
+    (completion-percentage 95)
+    (milestone "Engine Stabilization & Architecture Modernization 2026-09-29:
+                - Submarine jump bug resolved (canvas stack restore fixed in drawEvelCameratron).
+                - Fixed 60 Hz deterministic simulation loop implemented (enaction-time contract).
+                - Simulation RNG decoupled from rendering (mulberry32 seeded simRand()).
+                - Unbounded while loops in orbital navigation eliminated.
+                - Migrated to Bun runtime (package.json private, 0-dep; Deno retired).
+                - Hardened server (server/ass-server.js) with path allowlist and same-origin guards.
+                - AffineScript reference twin (sim/shadow_ref.js), golden vectors (3,300 steps), and WASM verifier landed.
+                - RSR compliance: root shape reorganized, build/guix.scm added, actions.lock closed."))
+
+  (components
+    (game-engine
+      (status "working")
+      (details "Gossamer frontend with fixed-step 60 Hz physics loop, render interpolation,
+                canvas stack stability, and decoupled cosmetic/simulation randomness.
+                Full flight, underwater thermal layers, and space mechanics verified."))
+    (simulation-core
+      (status "in-progress")
+      (details "Executable reference twin (sim/shadow_ref.js) with 3,300 golden vector steps.
+                Legacy broken WASM artifact quarantined; AffineScript compiler porting plan staged."))
+    (dev-server
+      (status "working")
+      (details "Hardened Bun HTTP server in server/ass-server.js. Loopback DNS-rebinding defence,
+                static path allowlisting, same-origin mutation guards, and Groove discovery endpoint."))
+    (desktop-integration
+      (status "working")
+      (details "Rust ksni tray binary + XDG desktop entry + unified launcher.sh calling Bun."))
+    (test-suite
+      (status "working")
+      (details "276 tests across 18 test files running natively on bun:test in <10 seconds.
+                Includes jump regression, fixed step, determinism, server security, and WASM verifier.")))
+
+  (critical-next-actions
+    (action-1 "Owner review and execution of staged MPL-2.0 migration (scripts/relicense-mpl2.js)")
+    (action-2 "Upstream collaboration with AffineScript team on linear memory allocator fix for ABI v2")
+    (action-3 "Web proving ground launch on itch.io and CrazyGames")
+    (action-4 "Burble spatial voice and Spline Bebop binary state sync integration for 4-player co-op")))

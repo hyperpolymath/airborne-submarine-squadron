@@ -1,28 +1,26 @@
 {
-  "applicability": [
-    "individual",
-    "team"
-  ],
+  "groove_version": "1",
+  "service_id": "airborne-submarine-squadron",
+  "service_version": "0.5.0",
+  "mode": "active",
   "capabilities": {
-    "cli": {
-      "description": "Asymmetric co-op stealth game compiled to WebAssembly with a CLI build system.",
-      "panel_compatible": true,
-      "protocol": "cli",
-      "requires_auth": false,
-      "type": "cli"
+    "game-session": {
+      "type": "custom",
+      "protocol": "http",
+      "version": "0.1.0",
+      "interface": "AirborneGameSession",
+      "description": "Sopwith-style flying-submarine arcade game. A running local server exposes the game and a WebRTC signalling mailbox (/room/:code); gameplay state is local and NEVER routed through groove (docs/BURBLE-GROOVE-INTEGRATION.adoc)."
     }
   },
   "consumes": [
-    "octad-storage"
+    "voice",
+    "spatial-audio",
+    "presence",
+    "text",
+    "octad-storage",
+    "integrity"
   ],
-  "groove_version": "1",
-  "health": null,
-  "invoke_patterns": {
-    "ci": "airborne-submarine-squadron --ci --format json",
-    "local": "airborne-submarine-squadron --interactive",
-    "mcp": "boj cartridge_invoke airborne-submarine-squadron"
-  },
-  "mode": "passive",
-  "service_id": "airborne-submarine-squadron",
-  "service_version": "0.1.0"
+  "endpoints": {
+    "groove": "http://127.0.0.1:6880/.well-known/groove"
+  }
 }

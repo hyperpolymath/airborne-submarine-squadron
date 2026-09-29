@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= Architecture Decision Record: Code Relicensing to MPL-2.0
+:toc: macro
+:icons: font
+
+toc::[]
+
+== Status
+*STAGED FOR OWNER APPROVAL AND EXECUTION* (2026-09-29)
+
+== Context
+
+Airborne Submarine Squadron was initially licensed under **AGPL-3.0-or-later** as a deliberate exception to the estate's standard Palimpsest/MPL-2.0 policy, reflecting its family co-development history.
+
+However, continuing under AGPL-3.0-or-later introduces several major operational and commercial barriers:
+
+1. **Steam Distribution Incompatibility:** Valve's Steamworks SDK documentation explicitly warns:
++
+[quote, Steamworks Documentation]
+____
+If your application contains third party open source code that is incompatible with the Steamworks SDK, then YOU MUST NOT DISTRIBUTE YOUR APPLICATION VIA STEAM. Generally, any license that has a so-called "copyleft" element will be problematic when combining code with the Steamworks SDK.
+____
++
+Because the Steamworks SDK is proprietary and requires an NDA, linking an AGPL-licensed client against `libsteam_api` creates legal exposure unless an explicit exception or dual license is granted by all copyright holders.
+2. **Ecosystem Harmonization:** The sibling technologies that ASS integrates with—Gossamer (MPL-2.0), Groove (MPL-2.0), Cleave (MPL-2.0), Spline (MPL-2.0), and Burble (MPL-2.0)—all share Mozilla Public License v2.0. AGPL copyleft creates friction when sharing components or compiling shared WASM libraries.
+3. **Estate Consistency:** The hyperpolymath estate standards designate MPL-2.0 as the standard copyleft license for code, providing file-level copyleft protection while allowing clean integration with external proprietary platform SDKs.
+
+== Decision
+
+Prepare and stage an atomic migration of the repository's code license to **Mozilla Public License Version 2.0 (MPL-2.0)**, while maintaining documentation under **Creative Commons Attribution-ShareAlike 4.0 International (CC-BY-SA-4.0)**.
+
+In accordance with **Estate Doctrine 6** ("No automated licence edits — ever — manual, owner-only"), this decision is NOT enacted automatically by AI agents. A verified migration tool (`scripts/relicense-mpl2.js`) has been authored and validated in an isolated scratch environment.
+
+== Authority and Copyright Holders
+
+A valid license change requires unanimous agreement from all copyright holders. The contributors to this repository are:
+* Jonathan D.A. Jewell (`@hyperpolymath`) — Administrator / Co-developer
+* Joshua Jewell (`@JoshuaJewell`) — Primary Owner / Gameplay Lead
+
+Both copyright holders must approve and execute the migration script manually:
+
+[source,bash]
+----
+# Run dry-run verification to preview changes:
+bun run scripts/relicense-mpl2.js
+
+# Execute migration (requires explicit owner confirmation variable):
+ASS_RELICENSE_OWNER_CONFIRM=yes bun run scripts/relicense-mpl2.js --apply
+
+# Inspect git diff, commit, and cryptographically sign:
+git diff
+git commit -S -m "chore(license): migrate code from AGPL-3.0-or-later to MPL-2.0"
+----
+
+== Scope of Relicensing
+
+When executed, the migration updates:
+1. `LICENSE` file replaced with `LICENSES/MPL-2.0.txt`.
+2. Source file SPDX headers updated from `AGPL-3.0-or-later` to `MPL-2.0`.
+3. Metadata declarations updated in `package.json`, `run.js` (REGISTRY), `CITATION.cff`, `tray/Cargo.toml`, and `.machine_readable/descriptiles/`.
+4. Invariant checks updated in `coordination.k9`, `0-AI-MANIFEST.a2ml`, and test suites.
+5. `archive/` historical snapshots and third-party vendored files remain untouched.

@@ -115,7 +115,7 @@ tracker
 |===
 
 The WASM co-processor is loaded asynchronously in `+init()+`. If it
-fails to load (e.g. WebKit WASM limitation), the JS engine continues
+fails to load (e.g. WebKit WASM limitation), the JS engine continues
 unaffected. When the AffineScript compiler WebKit issue is resolved, the
 co-processor will be promoted to primary physics engine.
 

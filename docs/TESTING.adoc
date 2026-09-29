@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= Testing Architecture & Verification Guide
+:toc: macro
+:icons: font
+
+toc::[]
+
+== 1. Testing Philosophy
+
+The testing framework for Airborne Submarine Squadron is structured around three foundational principles:
+1. **Never Test a Mock when you can Test Reality:** Tests execute the real game scripts loaded in real browser order inside a headless VM harness (`test/harness/headless.js`).
+2. **Deterministic Parity:** Physics and game logic must be strictly identical across all display refresh rates (30 Hz, 60 Hz, 120 Hz, 144 Hz, 240 Hz).
+3. **Negative Controls Prove the Gate:** Every static scanner, fuzz filter, and artifact verifier must include a negative control proving that it can detect genuine violations.
+
+== 2. Running Tests
+
+The test suite runs natively on https://bun.sh[Bun] without external dependencies:
+
+[source,bash]
+----
+# Run all 276 tests across 18 test suites:
+bun test
+
+# Run specific functional suites:
+bun test test/jump_test.js          # Jump bug and camera regression tests
+bun test test/fixed_step_test.js    # 60 Hz fixed timestep and interpolation
+bun test test/determinism_test.js   # Seeded RNG, O(1) loops, and static guards
+bun test test/server_test.js        # Server path allowlist and security controls
+bun test test/wasm_artifact_test.js # Core WASM conformance and golden vectors
+bun test test/pages_test.js         # Static site assembly and boot verification
+
+# Run performance benchmarks on the real engine:
+bun run bench
+----
+
+== 3. Test Suite Inventory
+
+[cols="2,1,4"]
+|===
+| Suite | Category | Verifications
+
+| `test/jump_test.js`
+| Regression
+| Canvas stack balance in `drawEvelCameratron()`, identical script tags across HTML entry points, coordinate stability under camera offset.
+
+| `test/fixed_step_test.js`
+| Physics
+| Fixed 60 Hz simulation rate across all monitor frequencies, bit-for-bit identical flight at 60/120/240 Hz, render interpolation smoothness.
+
+| `test/determinism_test.js`
+| Invariant
+| Seeded simulation reproducibility, static scan banning `Math.random()` in sim code, O(1) orbit selection without unbounded loops.
+
+| `test/server_test.js`
+| Security
+| Static path allowlisting (no dotfiles or git repo leakage), loopback DNS-rebinding defence, same-origin mutation checks, upload limits.
+
+| `test/wasm_artifact_test.js`
+| Conformance
+| Validation of WASM artifacts against `sim/shadow_ref.js`, golden vector verification, rejection of legacy leaky artifact.
+
+| `test/pages_test.js`
+| Integration
+| Assembly of static deployment via `scripts/build-pages.sh`, verifying that the deployed site boots without external assets.
+
+| `test/contract_test.js`
+| Governance
+| Enforces absence of TypeScript and banned package managers, verifies package.json is private and dependency-free.
+|===

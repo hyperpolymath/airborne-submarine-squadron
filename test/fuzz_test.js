@@ -7,15 +7,16 @@
 //
 // Reference: standards/testing-and-benchmarking/TESTING-TAXONOMY.adoc §11
 
-import { assert } from "jsr:@std/assert";
+import { assert } from "./lib/assert.js";
+import { BUN, Command, test } from "./lib/rt.js";
 
 const ROOT = new URL('..', import.meta.url).pathname;
 
 // ── Helper: run run.js with args, expect exit 0 or 1 (never crash) ──
 async function runLauncher(args, { stdin, timeout = 10000 } = {}) {
   try {
-    const cmd = new Deno.Command("deno", {
-      args: ["run", "--allow-all", ROOT + "run.js", ...args],
+    const cmd = new Command(BUN, {
+    args: ["run", ROOT + "run.js", ...args],
       stdout: "piped",
       stderr: "piped",
       cwd: ROOT,
@@ -40,51 +41,51 @@ async function runLauncher(args, { stdin, timeout = 10000 } = {}) {
 }
 
 // ── 1. Unknown flag does not crash ──────────────────────────────────
-Deno.test("fuzz: unknown flag --xyzzy-nonexistent exits gracefully", async () => {
+test("fuzz: unknown flag --xyzzy-nonexistent exits gracefully", async () => {
   const { code } = await runLauncher(["--help", "--xyzzy-nonexistent"]);
   assert(code === 0 || code === 1,
     `Unexpected exit code ${code} — must be 0 or 1`);
 });
 
 // ── 2. Empty string argument ────────────────────────────────────────
-Deno.test("fuzz: empty string argument exits gracefully", async () => {
+test("fuzz: empty string argument exits gracefully", async () => {
   const { code } = await runLauncher(["--help", ""]);
   assert(code === 0 || code === 1, `Exit code ${code}`);
 });
 
 // ── 3. XSS-like argument ────────────────────────────────────────────
-Deno.test("fuzz: XSS-like argument does not crash", async () => {
+test("fuzz: XSS-like argument does not crash", async () => {
   const { code } = await runLauncher(["--help", "<script>alert(1)</script>"]);
   assert(code === 0 || code === 1, `Exit code ${code}`);
 });
 
 // ── 4. Path traversal argument ──────────────────────────────────────
-Deno.test("fuzz: path traversal argument does not crash", async () => {
+test("fuzz: path traversal argument does not crash", async () => {
   const { code } = await runLauncher(["--help", "../../etc/passwd"]);
   assert(code === 0 || code === 1, `Exit code ${code}`);
 });
 
 // ── 5. Very long argument (10KB) ────────────────────────────────────
-Deno.test("fuzz: 10KB argument does not crash", async () => {
+test("fuzz: 10KB argument does not crash", async () => {
   const longArg = "A".repeat(10240);
   const { code } = await runLauncher(["--help", longArg]);
   assert(code === 0 || code === 1, `Exit code ${code}`);
 });
 
 // ── 6. Unicode/emoji argument ───────────────────────────────────────
-Deno.test("fuzz: unicode/emoji argument does not crash", async () => {
+test("fuzz: unicode/emoji argument does not crash", async () => {
   const { code } = await runLauncher(["--help", "🚀🦈💣"]);
   assert(code === 0 || code === 1, `Exit code ${code}`);
 });
 
 // ── 7. Null bytes in argument ───────────────────────────────────────
-Deno.test("fuzz: null byte argument does not crash", async () => {
+test("fuzz: null byte argument does not crash", async () => {
   const { code } = await runLauncher(["--help", "test\x00null"]);
   assert(code === 0 || code === 1, `Exit code ${code}`);
 });
 
 // ── 8. K9 file parse — empty file ───────────────────────────────────
-Deno.test("fuzz: reading an empty coordination.k9 does not crash run.js", async () => {
+test("fuzz: reading an empty coordination.k9 does not crash run.js", async () => {
   // We test that --reflect (which reads the K9 indirectly via REGISTRY)
   // does not crash even if filesystem is in odd states
   const { code } = await runLauncher(["--reflect"]);
@@ -92,7 +93,7 @@ Deno.test("fuzz: reading an empty coordination.k9 does not crash run.js", async 
 });
 
 // ── 9. Multiple duplicate flags ─────────────────────────────────────
-Deno.test("fuzz: duplicate flags do not crash", async () => {
+test("fuzz: duplicate flags do not crash", async () => {
   const { code } = await runLauncher([
     "--help", "--help", "--help", "--reflect", "--no-git", "--no-launch"
   ]);
@@ -100,7 +101,7 @@ Deno.test("fuzz: duplicate flags do not crash", async () => {
 });
 
 // ── 10. 100 random malformed arguments ──────────────────────────────
-Deno.test("fuzz: 100 random malformed arguments do not crash", async () => {
+test("fuzz: 100 random malformed arguments do not crash", async () => {
   const args = ["--help"]; // --help ensures quick exit
   for (let i = 0; i < 100; i++) {
     const len = Math.floor(Math.random() * 50) + 1;
@@ -115,7 +116,7 @@ Deno.test("fuzz: 100 random malformed arguments do not crash", async () => {
 });
 
 // ── 11. Coverage feedback: track which exit codes we've seen ────────
-Deno.test("fuzz: coverage feedback — all fuzz tests exercise code paths", async () => {
+test("fuzz: coverage feedback — all fuzz tests exercise code paths", async () => {
   // Meta-test: verify that fuzz inputs reach different code paths
   // by checking that --reflect and --help produce different output lengths
   const reflect = await runLauncher(["--reflect"]);
@@ -128,13 +129,13 @@ Deno.test("fuzz: coverage feedback — all fuzz tests exercise code paths", asyn
 });
 
 // ── 12. Fuzz: conflicting flags don't crash ─────────────────────────
-Deno.test("fuzz: conflicting flags --no-launch --no-git --reflect handled", async () => {
+test("fuzz: conflicting flags --no-launch --no-git --reflect handled", async () => {
   const { code } = await runLauncher(["--no-launch", "--no-git", "--reflect"]);
   assert(code === 0 || code === 1, `Exit code ${code}`);
 });
 
 // ── 13. Rapid sequential invocations ────────────────────────────────
-Deno.test("fuzz: 5 rapid --reflect invocations all succeed", async () => {
+test("fuzz: 5 rapid --reflect invocations all succeed", async () => {
   const results = await Promise.all(
     Array.from({ length: 5 }, () => runLauncher(["--reflect"]))
   );

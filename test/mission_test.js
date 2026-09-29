@@ -6,13 +6,14 @@
 //
 // Reference: standards/testing-and-benchmarking/TESTING-TAXONOMY.adoc §1, §12
 
-import { assert, assertEquals, assertNotEquals } from "jsr:@std/assert";
+import { assert, assertEquals, assertNotEquals } from "./lib/assert.js";
+import { readTextFile, test } from "./lib/rt.js";
 
 const ROOT = new URL('..', import.meta.url).pathname;
 
 // ── Helper: extract constants from source ───────────────────────────
 async function getMissionConstants() {
-  const src = await Deno.readTextFile(ROOT + "gossamer/app_gossamer.js");
+  const src = await readTextFile(ROOT + "gossamer/app_gossamer.js");
   const extract = (name) => {
     const m = src.match(new RegExp(`const ${name}\\s*=\\s*([^;]+);`));
     return m ? m[1].trim() : null;
@@ -21,7 +22,7 @@ async function getMissionConstants() {
 }
 
 // ── 1. MISSION_TYPES has all 4 types ────────────────────────────────
-Deno.test("mission: MISSION_TYPES defines patrol, strike, hostage, escort", async () => {
+test("mission: MISSION_TYPES defines patrol, strike, hostage, escort", async () => {
   const { src } = await getMissionConstants();
   assert(src.includes("patrol:"), "Missing patrol mission type");
   assert(src.includes("strike:"), "Missing strike mission type");
@@ -30,7 +31,7 @@ Deno.test("mission: MISSION_TYPES defines patrol, strike, hostage, escort", asyn
 });
 
 // ── 2. Strike has kill target ───────────────────────────────────────
-Deno.test("mission: strike type has killTarget defined", async () => {
+test("mission: strike type has killTarget defined", async () => {
   const { src } = await getMissionConstants();
   assert(src.includes("killTarget:"), "Strike must define killTarget");
   const m = src.match(/strike:\s*\{[^}]*killTarget:\s*(\d+)/);
@@ -40,7 +41,7 @@ Deno.test("mission: strike type has killTarget defined", async () => {
 });
 
 // ── 3. Hostage has hostageCount ─────────────────────────────────────
-Deno.test("mission: hostage type has hostageCount defined", async () => {
+test("mission: hostage type has hostageCount defined", async () => {
   const { src } = await getMissionConstants();
   assert(src.includes("hostageCount:"), "Hostage must define hostageCount");
   const m = src.match(/hostage:\s*\{[^}]*hostageCount:\s*(\d+)/);
@@ -50,7 +51,7 @@ Deno.test("mission: hostage type has hostageCount defined", async () => {
 });
 
 // ── 4. Escort is mandatory ──────────────────────────────────────────
-Deno.test("mission: escort type is mandatory", async () => {
+test("mission: escort type is mandatory", async () => {
   const { src } = await getMissionConstants();
   const escortDef = src.match(/escort:\s*\{[^}]+\}/);
   assert(escortDef, "Could not find escort definition");
@@ -58,7 +59,7 @@ Deno.test("mission: escort type is mandatory", async () => {
 });
 
 // ── 5. Hostage is mandatory ─────────────────────────────────────────
-Deno.test("mission: hostage type is mandatory", async () => {
+test("mission: hostage type is mandatory", async () => {
   const { src } = await getMissionConstants();
   const hostageDef = src.match(/hostage:\s*\{[^}]+\}/);
   assert(hostageDef, "Could not find hostage definition");
@@ -66,7 +67,7 @@ Deno.test("mission: hostage type is mandatory", async () => {
 });
 
 // ── 6. All timed missions have positive durations ───────────────────
-Deno.test("mission: all timed missions have duration > 0", async () => {
+test("mission: all timed missions have duration > 0", async () => {
   const { src } = await getMissionConstants();
   const durations = [...src.matchAll(/duration:\s*(\d+)/g)];
   assert(durations.length >= 3, "Expected at least 3 timed missions");
@@ -78,7 +79,7 @@ Deno.test("mission: all timed missions have duration > 0", async () => {
 });
 
 // ── 7. Mission bonus constants exist ────────────────────────────────
-Deno.test("mission: bonus constants are defined and positive", async () => {
+test("mission: bonus constants are defined and positive", async () => {
   const { extract } = await getMissionConstants();
   const strikeBonus = extract('STRIKE_COMPLETE_BONUS');
   const escortBonus = extract('ESCORT_COMPLETE_BONUS');
@@ -91,28 +92,28 @@ Deno.test("mission: bonus constants are defined and positive", async () => {
 });
 
 // ── 8. startMission function handles all types ──────────────────────
-Deno.test("mission: startMission handles strike setup", async () => {
+test("mission: startMission handles strike setup", async () => {
   const { src } = await getMissionConstants();
   assert(src.includes("typeKey === 'strike'"), "startMission must handle strike");
   assert(src.includes("_lastKnownKills"), "Strike must track kill baseline");
 });
 
 // ── 9. startMission function handles escort setup ───────────────────
-Deno.test("mission: startMission handles escort setup", async () => {
+test("mission: startMission handles escort setup", async () => {
   const { src } = await getMissionConstants();
   assert(src.includes("typeKey === 'escort'"), "startMission must handle escort");
   assert(src.includes("passengerShip"), "Escort must reference passenger ship");
 });
 
 // ── 10. VeriSimDB mission recording wired ───────────────────────────
-Deno.test("mission: verisimdbRecordMission is called on completion/failure", async () => {
+test("mission: verisimdbRecordMission is called on completion/failure", async () => {
   const { src } = await getMissionConstants();
   const calls = (src.match(/verisimdbRecordMission/g) || []).length;
   assert(calls >= 4, `Expected at least 4 verisimdbRecordMission calls, found ${calls}`);
 });
 
 // ── 11. Mission cycle key (M) is wired ──────────────────────────────
-Deno.test("mission: M key cycles through mission types", async () => {
+test("mission: M key cycles through mission types", async () => {
   const { src } = await getMissionConstants();
   assert(src.includes("missionCycle"), "Must have mission cycle array");
   assert(src.includes("'strike'") && src.includes("'hostage'") && src.includes("'escort'"),
@@ -120,7 +121,7 @@ Deno.test("mission: M key cycles through mission types", async () => {
 });
 
 // ── 12. Hostage rescue range constant exists ────────────────────────
-Deno.test("mission: HOSTAGE_RESCUE_RANGE is defined and reasonable", async () => {
+test("mission: HOSTAGE_RESCUE_RANGE is defined and reasonable", async () => {
   const { extract } = await getMissionConstants();
   const range = extract('HOSTAGE_RESCUE_RANGE');
   assert(range, "HOSTAGE_RESCUE_RANGE must be defined");

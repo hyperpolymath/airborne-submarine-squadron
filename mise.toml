@@ -1,57 +1,14 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Toolchain pins. Every name below exists in the mise registry (the previous file named 13 that did not, so
+# mise warned on every shell entry while installing none of them, and listed Node/npm/yarn/pnpm/Bun/vitest/jest —
+# i.e. contradicted the repo's own runtime policy).  CI pins the same versions (.github/workflows/test.yml).
+
 [tools]
-# Language runtimes
-node = "latest"
-python = "latest"
-rust = "latest"
-go = "latest"
-zig = "latest"
-java = "latest"
-bun = "latest"
-denojs = "latest"
+bun = "1.4.2"       # the estate JS runtime, test runner and package manager (Deno retired 2026-09-22)
+just = "latest"     # task runner (Justfile)
+zig = "0.15.2"      # the exact Zig that Gossamer requires (ffi/zig, future native sim host)
+rust = "latest"     # tray/ (ksni)
+shellcheck = "latest"
 
-# Package managers
-npm = "latest"
-yarn = "latest"
-pnpm = "latest"
-pip = "latest"
-cargo = "latest"
-go-task = "latest"
-
-# Formatting & Linting
-gofmt = "latest"
-black = "latest"
-isort = "latest"
-ruff = "latest"
-prettier = "latest"
-shfmt = "latest"
-stylua = "latest"
-
-# Build tools
-cmake = "latest"
-make = "latest"
-ninja = "latest"
-
-# Shell tools
-git = "latest"
-gnu-sed = "latest"
-gnu-tar = "latest"
-gnu-grep = "latest"
-
-# Testing
-vitest = "latest"
-pytest = "latest"
-jest = "latest"
-
-[env]
-# Common environment variables
-NODE_ENV = "development"
-PYTHONDONTWRITEBYTECODE = "1"
-PYTHONUNBUFFERED = "1"
-
-# Task runner alias
-[alias]
-task = "go-task"
-build = "cargo build --release || npm run build || go build"
-test = "cargo test || npm test || go test ./..."
-lint = "ruff check . || prettier --check . || black --check ."
-fmt = "ruff format . || prettier --write . || black ."
+# No [alias]/[tasks]: the estate drives builds through the Justfile; a second task runner sharing the verbs
+# build/test/lint is worse than one. Use `just <recipe>`.
