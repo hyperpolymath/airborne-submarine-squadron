@@ -35,6 +35,30 @@ const ORB_PROJ_MISSILE_SPEED = 0.8;
 const ORB_PROJ_TORPEDO_LIFE  = 300;
 const ORB_PROJ_MISSILE_LIFE  = 600;
 
+// ── Loop-free helpers ───────────────────────────────────────────────────────
+// These replace three unbounded `while` loops (pons-asinorum: missing escape hatch).
+// Two were rejection-sampling (`while (next === from) next = random...`), which spin
+// forever if the RNG is degenerate (constant, stuck, badly seeded); the other two
+// normalised an angle by repeated +-2PI, which never terminates for +-Infinity.
+
+/** Uniform planet index in 1..N-1 (the Sun, index 0, is excluded), never equal to `exclude`. */
+function pickPlanetIdx(exclude) {
+  const n = SOLAR_SYSTEM_BODIES.length - 1;                    // candidates 1..n
+  const count = (exclude >= 1 && exclude <= n) ? n - 1 : n;    // candidates left after exclusion
+  let k = Math.floor(simRand() * count);
+  if (!Number.isFinite(k) || k < 0) k = 0;
+  if (k > count - 1) k = count - 1;
+  let idx = k + 1;
+  if (exclude >= 1 && idx >= exclude) idx++;                   // skip over the excluded slot
+  return idx;
+}
+
+/** Wrap an angle into [-PI, PI). O(1). Non-finite input -> 0 (hold course) instead of hanging the frame. */
+function wrapAngle(a) {
+  if (!Number.isFinite(a)) return 0;
+  return ((a + Math.PI) % TWO_PI + TWO_PI) % TWO_PI - Math.PI;
+}
+
 // ── Solar body helpers ──────────────────────────────────────────────────────
 function solarBodyPosition(def, time) {
   if (def.id === 'sun') {
@@ -96,9 +120,9 @@ function initDebrisClouds() {
     const angle = (i / DEBRIS_CLOUD_COUNT) * Math.PI * 2 + 0.7;
     const speed = Math.sqrt(SOLAR_GM / (2 * orbitR));
     const particles = Array.from({ length: DEBRIS_PARTICLES }, () => ({
-      dx: (Math.random() - 0.5) * 40,
-      dy: (Math.random() - 0.5) * 40,
-      r:  1.5 + Math.random() * 3,
+      dx: (simRand() - 0.5) * 40,
+      dy: (simRand() - 0.5) * 40,
+      r:  1.5 + simRand() * 3,
     }));
     return {
       x:  Math.cos(angle) * orbitR,
@@ -116,10 +140,10 @@ function initDebrisClouds() {
 function initAsteroids() {
   const asteroids = [];
   for (let i = 0; i < ASTEROID_COUNT; i++) {
-    const orbitR = ASTEROID_BELT_MIN + Math.random() * (ASTEROID_BELT_MAX - ASTEROID_BELT_MIN);
-    const angle  = Math.random() * Math.PI * 2;
-    const speed  = Math.sqrt(SOLAR_GM / (2 * orbitR)) * (0.92 + Math.random() * 0.16);
-    const radius = 4 + Math.random() * 14;
+    const orbitR = ASTEROID_BELT_MIN + simRand() * (ASTEROID_BELT_MAX - ASTEROID_BELT_MIN);
+    const angle  = simRand() * Math.PI * 2;
+    const speed  = Math.sqrt(SOLAR_GM / (2 * orbitR)) * (0.92 + simRand() * 0.16);
+    const radius = 4 + simRand() * 14;
     asteroids.push({
       x:  Math.cos(angle) * orbitR,
       y:  Math.sin(angle) * orbitR,
@@ -144,9 +168,8 @@ function createOrbitState() {
   const orbitalRadius = originDef.orbitRadius + originDef.radius * 2;
   const angle = origin.angle;
   const orbitalSpeed = Math.sqrt(SOLAR_GM / orbitalRadius);
-  const touristFromIdx = Math.floor(Math.random() * (SOLAR_SYSTEM_BODIES.length - 1)) + 1;
-  let touristToIdx = touristFromIdx;
-  while (touristToIdx === touristFromIdx) touristToIdx = Math.floor(Math.random() * (SOLAR_SYSTEM_BODIES.length - 1)) + 1;
+  const touristFromIdx = pickPlanetIdx(-1);
+  const touristToIdx = pickPlanetIdx(touristFromIdx);
   const fromBody = solarBodyPosition(SOLAR_SYSTEM_BODIES[touristFromIdx], 0);
   return {
     time: 0,
@@ -246,7 +269,7 @@ function updateDebrisClouds(space, bodies, sub, dt) {
           const parts = sub.parts;
           const keys  = Object.keys(parts).filter(k => typeof parts[k] === 'number' && parts[k] < 100);
           if (keys.length) {
-            const ki = Math.floor(Math.random() * keys.length);
+            const ki = Math.floor(simRand() * keys.length);
             parts[keys[ki]] = Math.min(100, parts[keys[ki]] + 20);
           }
         } else {
@@ -269,7 +292,7 @@ function damageAsteroid(space, asteroid, damage) {
   if (asteroid.radius >= 7) {
     const fragCount = asteroid.radius >= 12 ? 3 : 2;
     for (let i = 0; i < fragCount; i++) {
-      const spreadAngle = (Math.random() - 0.5) * Math.PI;
+      const spreadAngle = (simRand() - 0.5) * Math.PI;
       const speed = Math.hypot(asteroid.vx, asteroid.vy) * 0.6;
       const baseAngle = Math.atan2(asteroid.vy, asteroid.vx) + spreadAngle;
       space.asteroids.push({
@@ -279,7 +302,7 @@ function damageAsteroid(space, asteroid, damage) {
         vy: Math.sin(baseAngle) * speed,
         radius: asteroid.radius / fragCount,
         hp: 1,
-        id: Math.random(),
+        id: simRand(),
         color: asteroid.color,
       });
     }
@@ -415,9 +438,7 @@ function updateOrbitMode(dt) {
       const targetAngle = Math.atan2(targetBody.y - space.shipY, targetBody.x - space.shipX);
       // Smooth rotation toward target
       let angleDiff = targetAngle - space.shipAngle;
-      // Normalise to [-PI, PI]
-      while (angleDiff > Math.PI) angleDiff -= TWO_PI;
-      while (angleDiff < -Math.PI) angleDiff += TWO_PI;
+      angleDiff = wrapAngle(angleDiff);   // [-PI, PI), O(1)
       space.shipAngle += angleDiff * 0.04 * dt;
     }
   } else {
@@ -507,9 +528,7 @@ function updateOrbitMode(dt) {
         tourist.progress = 0;
         tourist.dwellTimer = 200;
         tourist.fromPlanetIdx = tourist.toPlanetIdx;
-        let next = tourist.fromPlanetIdx;
-        while (next === tourist.fromPlanetIdx) next = Math.floor(Math.random() * (SOLAR_SYSTEM_BODIES.length - 1)) + 1;
-        tourist.toPlanetIdx = next;
+        tourist.toPlanetIdx = pickPlanetIdx(tourist.fromPlanetIdx);
       }
       const fromBody = solarBodyPosition(SOLAR_SYSTEM_BODIES[tourist.fromPlanetIdx], space.time);
       const toBody = solarBodyPosition(SOLAR_SYSTEM_BODIES[tourist.toPlanetIdx], space.time);
@@ -618,7 +637,7 @@ function updateOrbitMode(dt) {
       world.currentDestination = destination;
       world.caveMessage = { text: `LANDING: ${nearest.body.label.toUpperCase()} — ${destination.name.toUpperCase()}`, timer: 160 };
       world.terrain = generateTerrain(TERRAIN_LENGTH);
-      const baseX = Math.random() * (TERRAIN_LENGTH - 200) + 100;
+      const baseX = simRand() * (TERRAIN_LENGTH - 200) + 100;
       world.sub.worldX = baseX;
       world.sub.y = -150;
       world.sub.vx = 0;
