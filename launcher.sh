@@ -21,10 +21,21 @@ set -euo pipefail
 export PATH="$HOME/.bun/bin:$HOME/.opsm/shims:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PID_FILE="/tmp/airborne-server.pid"
-PORT_FILE="/tmp/airborne-server.port"
-GOSSAMER_PID_FILE="/tmp/airborne-gossamer.pid"
-GOSSAMER_SERVER_PID_FILE="/tmp/airborne-gossamer-server.pid"
+# CWE-377: a predictable /tmp pid path lets another local user choose which PID
+# `--stop` kills. Re-findable PID/port state lives under XDG_RUNTIME_DIR (falling
+# back to XDG_STATE_HOME, then ~/.local/state); the durable log lives under
+# XDG_STATE_HOME. gossamer/launch.sh computes the byte-identical
+# _XDG_RUNTIME_BASE for its own GOSSAMER_* files so both scripts agree on where
+# a running instance's state lives.
+_XDG_RUNTIME_BASE="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}}/launch-scaffolder/airborne-submarine-squadron"
+_XDG_STATE_BASE="${XDG_STATE_HOME:-$HOME/.local/state}/launch-scaffolder/airborne-submarine-squadron"
+mkdir -p "$_XDG_RUNTIME_BASE" "$_XDG_STATE_BASE"
+chmod 0700 "$_XDG_RUNTIME_BASE" "$_XDG_STATE_BASE"
+PID_FILE="$_XDG_RUNTIME_BASE/server.pid"
+PORT_FILE="$_XDG_RUNTIME_BASE/server.port"
+GOSSAMER_PID_FILE="$_XDG_RUNTIME_BASE/gossamer.pid"
+GOSSAMER_SERVER_PID_FILE="$_XDG_RUNTIME_BASE/gossamer-server.pid"
+LOG_FILE="$_XDG_STATE_BASE/server.log"
 WASM_FILE="$SCRIPT_DIR/build/airborne-submarine-squadron.wasm"
 WEB_DIR="$SCRIPT_DIR"
 TRAY_BIN="$SCRIPT_DIR/tray/target/release/airborne-tray"
@@ -86,7 +97,7 @@ start_server() {
     # The real game server (server/ass-server.js via run.js): allowlisted static files, same-origin
     # guard, bounded uploads. It writes its own PID to $PID_FILE and releases the port on exit.
     bun run "$SCRIPT_DIR/run.js" --no-open --port "$port" --pid-file "$PID_FILE" \
-        >"${TMPDIR:-/tmp}/airborne-server.log" 2>&1 &
+        >"$LOG_FILE" 2>&1 &
 
     local pid=$!
     sleep 0.3
