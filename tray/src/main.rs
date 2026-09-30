@@ -10,8 +10,15 @@ use std::process::Command;
 use ksni::blocking::TrayMethods;
 use ksni::menu::StandardItem;
 
-const PID_FILE: &str = "/tmp/airborne-server.pid";
-const PORT_FILE: &str = "/tmp/airborne-server.port";
+/// Resolve the same runtime directory as launcher.sh's _XDG_RUNTIME_BASE.
+fn runtime_dir() -> Option<PathBuf> {
+    std::env::var_os("XDG_RUNTIME_DIR")
+        .filter(|value| !value.is_empty())
+        .or_else(|| std::env::var_os("XDG_STATE_HOME").filter(|value| !value.is_empty()))
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))
+        .map(|base| base.join("launch-scaffolder/airborne-submarine-squadron"))
+}
 
 /// Resolve the launcher.sh path relative to this binary's location.
 fn launcher_path() -> PathBuf {
@@ -28,7 +35,12 @@ fn launcher_path() -> PathBuf {
 
 /// Check whether the game server is currently running.
 fn is_server_running() -> bool {
-    let pid_path = Path::new(PID_FILE);
+    runtime_dir()
+        .map(|dir| is_server_running_at(&dir.join("server.pid")))
+        .unwrap_or(false)
+}
+
+fn is_server_running_at(pid_path: &Path) -> bool {
     if !pid_path.exists() {
         return false;
     }
@@ -46,7 +58,11 @@ fn is_server_running() -> bool {
 
 /// Read the current server port, if running.
 fn server_port() -> Option<u16> {
-    std::fs::read_to_string(PORT_FILE)
+    server_port_at(&runtime_dir()?.join("server.port"))
+}
+
+fn server_port_at(port_path: &Path) -> Option<u16> {
+    std::fs::read_to_string(port_path)
         .ok()
         .and_then(|s| s.trim().parse().ok())
 }
@@ -173,6 +189,10 @@ mod tests {
     use std::fs;
     use std::io::Write;
 
+    fn test_pid_file(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("airborne-tray-{}-{name}.pid", std::process::id()))
+    }
+
     // ===== Unit tests for pure utility functions =====
 
     #[test]
@@ -203,15 +223,16 @@ mod tests {
 
     #[test]
     fn test_server_not_running_when_no_pid_file() {
-        // Without PID_FILE existing, server_running should be false
-        let _ = fs::remove_file(PID_FILE);
-        assert!(!is_server_running());
+        let pid_file = test_pid_file("missing");
+        let _ = fs::remove_file(&pid_file);
+        assert!(!is_server_running_at(&pid_file));
     }
 
     #[test]
     fn test_server_port_returns_none_when_no_port_file() {
-        let _ = fs::remove_file(PORT_FILE);
-        assert!(server_port().is_none());
+        let port_file = test_pid_file("missing-port").with_extension("port");
+        let _ = fs::remove_file(&port_file);
+        assert!(server_port_at(&port_file).is_none());
     }
 
     #[test]
@@ -241,11 +262,11 @@ mod tests {
 
     #[test]
     fn test_server_not_running_with_invalid_pid() {
-        // Write an invalid PID to the PID file
-        let mut f = fs::File::create(PID_FILE).unwrap();
+        let pid_file = test_pid_file("invalid");
+        let mut f = fs::File::create(&pid_file).unwrap();
         writeln!(f, "not-a-pid").unwrap();
-        assert!(!is_server_running());
-        let _ = fs::remove_file(PID_FILE);
+        assert!(!is_server_running_at(&pid_file));
+        let _ = fs::remove_file(pid_file);
     }
 
     // ===== Property tests =====
@@ -269,10 +290,11 @@ mod tests {
 
     #[test]
     fn test_server_running_consistent_when_no_file() {
-        let _ = fs::remove_file(PID_FILE);
+        let pid_file = test_pid_file("consistent-missing");
+        let _ = fs::remove_file(&pid_file);
         // 10 consecutive calls with no PID file should all return false
         for _ in 0..10 {
-            assert!(!is_server_running());
+            assert!(!is_server_running_at(&pid_file));
         }
     }
 
@@ -314,12 +336,13 @@ mod tests {
     #[test]
     fn test_server_not_running_with_negative_pid() {
         // Negative PID is invalid, parse should fail so server is not running
-        let mut f = fs::File::create(PID_FILE).unwrap();
+        let pid_file = test_pid_file("negative");
+        let mut f = fs::File::create(&pid_file).unwrap();
         writeln!(f, "-999999").unwrap();
         // -999999 as i32 is valid but kill(-999999, 0) fails (no such group)
         // We can't assert definitively, but it must not panic
-        let _ = is_server_running();
-        let _ = fs::remove_file(PID_FILE);
+        let _ = is_server_running_at(&pid_file);
+        let _ = fs::remove_file(pid_file);
     }
 
     #[test]
