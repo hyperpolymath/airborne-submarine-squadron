@@ -6,14 +6,15 @@
 //
 // Reference: standards/testing-and-benchmarking/TESTING-TAXONOMY.adoc §12
 
-import { assertEquals, assert } from "jsr:@std/assert";
+import { assertEquals, assert } from "./lib/assert.js";
+import { BUN, Command, NotFound, readDir, readTextFile, stat, test } from "./lib/rt.js";
 
 const ROOT = new URL('..', import.meta.url).pathname;
 
 // ── Helper: recursive file listing ──────────────────────────────────
 async function walkFiles(dir, filter = () => true) {
   const files = [];
-  for await (const entry of Deno.readDir(dir)) {
+  for await (const entry of readDir(dir)) {
     const path = dir + '/' + entry.name;
     if (entry.name.startsWith('.git') && entry.name !== '.github') continue;
     if (entry.name === 'node_modules') continue;
@@ -28,61 +29,64 @@ async function walkFiles(dir, filter = () => true) {
 }
 
 // ── 1. No TypeScript files (K9 invariant: no-typescript) ────────────
-Deno.test("contract: no TypeScript files anywhere in repo", async () => {
+test("contract: no TypeScript files anywhere in repo", async () => {
   const tsFiles = await walkFiles(ROOT, (name) => /\.tsx?$/.test(name));
   assertEquals(tsFiles.length, 0,
     `TypeScript files found (K9 invariant no-typescript violated):\n${tsFiles.join('\n')}`);
 });
 
-// ── 2. No npm artifacts (K9 invariant: no-npm-package-managers) ─────
-Deno.test("contract: no package.json, package-lock.json, .npmignore, node_modules, bun.lockb, yarn.lock", async () => {
-  const banned = ['package.json', 'package-lock.json', '.npmignore', 'bun.lockb', 'yarn.lock'];
+// ── 2. Package policy (estate LANGUAGE-POLICY, owner ruling 2026-09-22): Bun is tier 1 ─────
+// package.json + bun.lock are EXPECTED (Bun's manifest); Deno and the npm/yarn/pnpm lockfiles are not.
+test("contract: Bun manifest present, zero-dependency and private; no Deno/npm/yarn/pnpm artifacts", async () => {
+  const pkg = JSON.parse(await readTextFile(ROOT + "package.json"));
+  assertEquals(pkg.private, true, "package.json must be private (this is a game, not a library)");
+  assertEquals(pkg.type, "module");
+  assertEquals(Object.keys(pkg.dependencies ?? {}).length, 0, "runtime dependencies: none (the game ships dependency-free)");
+  assertEquals(Object.keys(pkg.devDependencies ?? {}).length, 0, "devDependencies: none (bun:test is built in)");
+  assert(pkg.scripts && pkg.scripts.test === "bun test", 'scripts.test must be "bun test"');
+
+  const banned = ["package-lock.json", ".npmignore", "bun.lockb", "yarn.lock", "pnpm-lock.yaml", "deno.json", "deno.jsonc", "deno.lock"];
+  const found = [];
   for (const name of banned) {
-    try {
-      await Deno.stat(ROOT + name);
-      throw new Error(`Banned file found: ${name} (K9 invariant no-npm-package-managers)`);
-    } catch (e) {
-      if (e instanceof Deno.errors.NotFound) continue;
-      throw e;
-    }
+    try { await stat(ROOT + name); found.push(name); } catch (e) { if (!(e instanceof NotFound)) throw e; }
   }
-  try {
-    await Deno.stat(ROOT + 'node_modules');
-    throw new Error('node_modules/ exists (K9 invariant no-npm-package-managers)');
-  } catch (e) {
-    if (!(e instanceof Deno.errors.NotFound)) throw e;
-  }
+  assertEquals(found, [], `banned package-manager artifacts present: ${found.join(", ")}`);
+  try { await stat(ROOT + "node_modules"); throw new Error("node_modules/ exists"); }
+  catch (e) { if (!(e instanceof NotFound)) throw e; }
 });
 
-// ── 3. AGPL license (K9 invariant: agpl-license) ───────────────────
-Deno.test("contract: LICENSE is AGPL-3.0-or-later", async () => {
-  const license = await Deno.readTextFile(ROOT + "LICENSE");
-  assert(
-    license.includes("GNU AFFERO GENERAL PUBLIC LICENSE") ||
-    license.includes("AGPL-3.0"),
-    "LICENSE must be AGPL-3.0 (K9 invariant agpl-license)"
-  );
+// ── 3. Licence: LICENSE text, run.js REGISTRY and SPDX headers must all agree ───────────────
+const LICENCE_TEXT = { "MPL-2.0": "Mozilla Public License Version 2.0", "AGPL-3.0-or-later": "GNU AFFERO GENERAL PUBLIC LICENSE" };
+test("contract: LICENSE text matches the licence declared in run.js REGISTRY", async () => {
+  const { stdout } = await new Command(BUN, { args: ["run", ROOT + "run.js", "--reflect"], cwd: ROOT, stderr: "null" }).output();
+  const out = new TextDecoder().decode(stdout);
+  const declared = JSON.parse(out.slice(out.indexOf("{"))).registry.identity.license;
+  assert(declared in LICENCE_TEXT, `unknown declared licence ${declared}`);
+  const license = await readTextFile(ROOT + "LICENSE");
+  assert(license.includes(LICENCE_TEXT[declared]), `LICENSE must contain the ${declared} text`);
+  assert(await (async () => { try { return (await stat(`${ROOT}LICENSES/${declared}.txt`)).isFile; } catch { return false; } })(),
+    `LICENSES/${declared}.txt must exist (REUSE layout)`);
 });
 
 // ── 4. Port 6880 in REGISTRY (K9 invariant: port-6880) ─────────────
-Deno.test("contract: run.js REGISTRY uses port 6880", async () => {
-  const src = await Deno.readTextFile(ROOT + "run.js");
+test("contract: run.js REGISTRY uses port 6880", async () => {
+  const src = await readTextFile(ROOT + "run.js");
   assert(src.includes("primary:  6880") || src.includes("primary: 6880"),
     "REGISTRY.ports.primary must be 6880");
 });
 
 // ── 5. Standalone repo (K9 invariant: standalone-repo) ──────────────
-Deno.test("contract: .git exists — repo is standalone, not monorepo subdir", async () => {
-  const info = await Deno.stat(ROOT + ".git");
+test("contract: .git exists — repo is standalone, not monorepo subdir", async () => {
+  const info = await stat(ROOT + ".git");
   assert(info.isDirectory, "Must have own .git directory (K9 invariant standalone-repo)");
 });
 
 // ── 6. Machine-readable files are A2ML, not SCM ────────────────────
-Deno.test("contract: .machine_readable/ contains .a2ml files, not .scm", async () => {
+test("contract: .machine_readable/ contains .a2ml files, not .scm", async () => {
   const mrDir = ROOT + ".machine_readable";
   const a2mlFiles = [];
   const scmFiles = [];
-  for await (const entry of Deno.readDir(mrDir)) {
+  for await (const entry of readDir(mrDir)) {
     if (entry.name.endsWith('.a2ml')) a2mlFiles.push(entry.name);
     if (entry.name.endsWith('.scm')) scmFiles.push(entry.name);
   }
@@ -92,7 +96,7 @@ Deno.test("contract: .machine_readable/ contains .a2ml files, not .scm", async (
 });
 
 // ── 7. All JS source files have SPDX headers ───────────────────────
-Deno.test("contract: all JS source files have AGPL SPDX header", async () => {
+test("contract: all JS source files have AGPL SPDX header", async () => {
   const jsFiles = await walkFiles(ROOT, (name, path) =>
     name.endsWith('.js') &&
     !path.includes('/archive/') &&
@@ -102,7 +106,7 @@ Deno.test("contract: all JS source files have AGPL SPDX header", async () => {
   );
   const missing = [];
   for (const f of jsFiles) {
-    const text = await Deno.readTextFile(f);
+    const text = await readTextFile(f);
     if (!text.includes('SPDX-License-Identifier:')) {
       missing.push(f.replace(ROOT, ''));
     }
@@ -112,12 +116,11 @@ Deno.test("contract: all JS source files have AGPL SPDX header", async () => {
 });
 
 // ── 8. Protected paths from K9 all exist ────────────────────────────
-Deno.test("contract: all K9-protected paths exist", async () => {
+test("contract: all K9-protected paths exist", async () => {
   const protectedPaths = [
     'gossamer/',
     'tray/',
     'src/',
-    'build/',
     'launcher.sh',
     '.machine_readable/',
     'coordination.k9',
@@ -125,7 +128,7 @@ Deno.test("contract: all K9-protected paths exist", async () => {
   const missing = [];
   for (const p of protectedPaths) {
     try {
-      await Deno.stat(ROOT + p);
+      await stat(ROOT + p);
     } catch {
       missing.push(p);
     }
@@ -135,8 +138,8 @@ Deno.test("contract: all K9-protected paths exist", async () => {
 });
 
 // ── 9. AffineScript engine invariant (K9: affinescript-engine) ──────
-Deno.test("contract: src/main.affine is AffineScript, not JS framework", async () => {
-  const text = await Deno.readTextFile(ROOT + "src/main.affine");
+test("contract: src/main.affine is AffineScript, not JS framework", async () => {
+  const text = await readTextFile(ROOT + "src/main.affine");
   assert(
     text.includes("fn create_world()") || text.includes("fn step_state("),
     "main.affine must define AffineScript world/step entrypoints"

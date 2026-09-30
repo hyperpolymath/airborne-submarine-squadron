@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+= ffi/ — NOT YET WIRED (template skeleton)
+
+Status: *quarantined scaffolding, not part of the game.* Verified 2026-09-29 against Zig 0.15.2:
+
+* `zig/build.zig`, `zig/src/main.zig` and `zig/test/integration_test.zig` still contain unsubstituted
+  `{{PROJECT}}` / `{{project}}` template placeholders;
+* the build script uses `addSharedLibrary`/`addStaticLibrary`, which no longer exist in the Zig the estate pins
+  (0.15.2), and references `include/*.h` and `bench/bench.zig`, which do not exist;
+* `Handle` is declared `opaque` *with fields* (not valid Zig); and the `src/abi/*.idr` files it says it mirrors do
+  not exist in this repository.
+
+It is therefore *not* declared as a capability in `.machine_readable/rsr-profile.a2ml`.
+
+== Intended future (docs/ROADMAP.adoc, horizon 3)
+
+The planned home of the *native simulation host*: the same deterministic kernel as `src/*.affine` and
+`sim/shadow_ref.js`, built natively for headless replay verification and a dedicated multiplayer/leaderboard
+referee — the "raw FFI" end of the cleave dial (see docs/JOINERY-AND-UPSTREAM-ASKS.adoc). Until that work starts,
+treat this directory as reference material only.

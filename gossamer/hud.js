@@ -845,8 +845,7 @@ function drawOrbitScene() {
   const notif = world._notifications;
 
   // ── TIER 1: Midscreen banner — critical/dramatic only ──
-  if (world.caveMessage && world.caveMessage.timer > 0) {
-    world.caveMessage.timer--;
+  if (world.caveMessage && world.caveMessage.timer > 0) {   // timer advanced by tickUiTimers()
     if (world.caveMessage.tier === 'mid' || !world.caveMessage.tier) {
       const alpha = Math.min(1, world.caveMessage.timer / 20);
       ctx.fillStyle = `rgba(0,0,0,${0.55 * alpha})`;
@@ -858,9 +857,22 @@ function drawOrbitScene() {
     }
   }
 
+  drawNotificationTiers();
+
+  if (world.paused) drawPauseOverlay();
+}
+
+// ============================================================
+// Notification tiers 2-4 — shared by atmosphere/water AND orbit draw paths.
+// (Timers are advanced by tickUiTimers() in app_gossamer.js, once per sim step;
+//  this function only READS them.)
+// ============================================================
+function drawNotificationTiers() {
+  if (!world._notifications) world._notifications = { ticker: [], hudFlash: null, actionIcon: null };
+  const notif = world._notifications;
+
   // ── TIER 2: HUD flash — warning text pulses in top-left ──
   if (notif.hudFlash && notif.hudFlash.timer > 0) {
-    notif.hudFlash.timer--;
     const flash = notif.hudFlash;
     const pulse = Math.sin(world.tick * 0.3) * 0.3 + 0.7;
     ctx.fillStyle = `rgba(0,0,0,0.5)`;
@@ -875,10 +887,6 @@ function drawOrbitScene() {
 
   // ── TIER 3: Ticker — scrolling text at very bottom ──
   // Show up to 2 recent ticker messages, stacked
-  for (let i = notif.ticker.length - 1; i >= 0; i--) {
-    notif.ticker[i].timer--;
-    if (notif.ticker[i].timer <= 0) notif.ticker.splice(i, 1);
-  }
   const visibleTickers = notif.ticker.slice(-2);
   for (let i = 0; i < visibleTickers.length; i++) {
     const tk = visibleTickers[i];
@@ -892,7 +900,6 @@ function drawOrbitScene() {
 
   // ── TIER 4: Action icon — small symbol near the sub ──
   if (notif.actionIcon && notif.actionIcon.timer > 0) {
-    notif.actionIcon.timer--;
     const ai = notif.actionIcon;
     const sx = toScreen(world.sub.worldX);
     const sy = world.sub.y - world.cameraY;
@@ -905,8 +912,6 @@ function drawOrbitScene() {
     ctx.fillText(ai.symbol, sx + (ai.offsetX || 0), sy - 25 - rise + (ai.offsetY || 0));
     ctx.globalAlpha = 1;
   }
-
-  if (world.paused) drawPauseOverlay();
 }
 
 // ============================================================

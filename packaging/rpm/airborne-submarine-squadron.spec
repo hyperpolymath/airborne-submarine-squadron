@@ -81,7 +81,7 @@ fi
 
 %files
 %license LICENSE
-%doc README.adoc ROADMAP.adoc
+%doc README.adoc docs/ROADMAP.adoc
 %{_bindir}/%{pkgname}
 %{pkgdir}
 %{_datadir}/applications/%{pkgname}.desktop

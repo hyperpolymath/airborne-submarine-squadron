@@ -17,8 +17,8 @@ set -euo pipefail
 
 # Desktop launchers (Terminal=true .desktop entries) start with a stripped
 # PATH that doesn't include user shell rc additions. Restore the toolchain
-# locations so `deno`, `cargo`, etc. resolve regardless of how we're invoked.
-export PATH="$HOME/.opsm/shims:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+# locations so `bun`, `cargo`, etc. resolve regardless of how we're invoked.
+export PATH="$HOME/.bun/bin:$HOME/.opsm/shims:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PID_FILE="/tmp/airborne-server.pid"
@@ -54,7 +54,7 @@ should_auto_open() {
 }
 
 warmup_affinescript_compiler() {
-    [ "${AFFINESCRIPT_AUTO_UPDATE_ON_STARTUP:-1}" = "1" ] || return 0
+    [ "${AFFINESCRIPT_AUTO_UPDATE_ON_STARTUP:-0}" = "1" ] || return 0
     if [ -x "$SCRIPT_DIR/scripts/ensure_affinescript.sh" ]; then
         "$SCRIPT_DIR/scripts/ensure_affinescript.sh" --warmup >/dev/null 2>&1 || true
     fi
@@ -78,60 +78,15 @@ start_server() {
     local port
     port=$(find_free_port)
 
-    if command -v deno >/dev/null 2>&1; then
-        # Deno file server — no npm/node needed.
-        # Uses AbortController + signal handlers to guarantee port release on exit.
-        deno run --allow-net --allow-read --allow-sys --allow-write - "$WEB_DIR" "$port" "$PID_FILE" <<'DENO_SERVER' &
-const dir = Deno.args[0] || ".";
-const port = parseInt(Deno.args[1] || "8000");
-const pidFile = Deno.args[2] || "";
-
-// Write own PID so the launcher can track us accurately
-if (pidFile) {
-    try { Deno.writeTextFileSync(pidFile, String(Deno.pid)); } catch { /* best-effort */ }
-}
-
-const ac = new AbortController();
-
-function shutdown() {
-    ac.abort();
-    if (pidFile) { try { Deno.removeSync(pidFile); } catch { /* already gone */ } }
-    Deno.exit(0);
-}
-
-try { Deno.addSignalListener("SIGINT", shutdown); } catch { /* Windows */ }
-try { Deno.addSignalListener("SIGTERM", shutdown); } catch { /* Windows */ }
-try { Deno.addSignalListener("SIGHUP", shutdown); } catch { /* not always available */ }
-
-const server = Deno.serve({ port, hostname: "127.0.0.1", signal: ac.signal, onListen() {} }, async (req) => {
-    const url = new URL(req.url);
-    let path = decodeURIComponent(url.pathname);
-    if (path === "/") path = "/index.html";
-
-    const filePath = dir + path;
-    try {
-        const file = await Deno.open(filePath, { read: true });
-        const ext = filePath.split(".").pop() || "";
-        const types = {
-            html: "text/html", css: "text/css", js: "application/javascript",
-            wasm: "application/wasm", json: "application/json",
-            svg: "image/svg+xml", png: "image/png",
-        };
-        return new Response(file.readable, {
-            headers: { "content-type": types[ext] || "application/octet-stream" },
-        });
-    } catch {
-        return new Response("Not Found", { status: 404 });
-    }
-});
-
-await server.finished;
-DENO_SERVER
-    else
-        # Fallback: Python (banned but functional)
-        echo "Warning: Deno not found, falling back to Python" >&2
-        cd "$WEB_DIR" && python3 -m http.server "$port" --bind 127.0.0.1 &
+    if ! command -v bun >/dev/null 2>&1; then
+        echo "Error: bun not found. Install it from https://bun.sh (Bun is the estate runtime;" >&2
+        echo "       the old Deno and Python fallbacks were retired: LANGUAGE-POLICY, 2026-09-22)." >&2
+        return 1
     fi
+    # The real game server (server/ass-server.js via run.js): allowlisted static files, same-origin
+    # guard, bounded uploads. It writes its own PID to $PID_FILE and releases the port on exit.
+    bun run "$SCRIPT_DIR/run.js" --no-open --port "$port" --pid-file "$PID_FILE" \
+        >"${TMPDIR:-/tmp}/airborne-server.log" 2>&1 &
 
     local pid=$!
     sleep 0.3
@@ -162,13 +117,15 @@ _kill_pid_aggressive() {
 }
 
 _release_game_ports() {
-    # Aggressively release all game ports (6880–6884).
-    # Uses fuser to SIGKILL any process still holding the port.
+    # Ask any PREVIOUS game server (recognised by /__ass/identity) to shut itself down gracefully.
+    # We never kill processes that are not ours: the old `fuser -k` SIGKILLed whatever held 6880-6884.
+    local port
     for port in $(seq 6880 6884); do
-        if ss -tlnH "sport = :$port" 2>/dev/null | grep -q .; then
-            fuser -k "${port}/tcp" 2>/dev/null || true
+        if curl -fsS -m 1 "http://127.0.0.1:${port}/__ass/identity" 2>/dev/null | grep -q '"airborne-submarine-squadron"'; then
+            curl -fsS -m 2 -X POST "http://127.0.0.1:${port}/shutdown" >/dev/null 2>&1 || true
         fi
     done
+    sleep 0.3
 }
 
 stop_server() {
@@ -195,8 +152,7 @@ stop_server() {
         fi
     done
 
-    # Unconditional port release — catches orphaned Deno processes whose
-    # PID files were already cleaned up.
+    # Graceful release of any game server whose PID file was already cleaned up.
     _release_game_ports
 
     if [ "$stopped" -eq 0 ]; then
@@ -256,10 +212,10 @@ launch_gossamer() {
     warmup_affinescript_compiler
     # Use run.js as the canonical launcher — it handles port management,
     # opens the Gossamer HTML entry point, and cleans up on exit.
-    if command -v deno >/dev/null 2>&1; then
-        exec deno run --allow-all "$SCRIPT_DIR/run.js" --no-git
+    if command -v bun >/dev/null 2>&1; then
+        exec bun run "$SCRIPT_DIR/run.js"
     else
-        # Fallback to gossamer/launch.sh if Deno isn't available
+        # Fallback to gossamer/launch.sh (native Gossamer only; needs bun for the web fallback)
         exec bash "$SCRIPT_DIR/gossamer/launch.sh" "${@}"
     fi
 }
@@ -268,10 +224,10 @@ launch_debug() {
     warmup_affinescript_compiler
     # Same as launch_gossamer but with --debug: no cache, ?debug=1 in URL,
     # on-screen diagnostics turned on in the game JS.
-    if command -v deno >/dev/null 2>&1; then
-        exec deno run --allow-all "$SCRIPT_DIR/run.js" --no-git --debug
+    if command -v bun >/dev/null 2>&1; then
+        exec bun run "$SCRIPT_DIR/run.js" --debug
     else
-        echo "Error: debug mode requires Deno" >&2
+        echo "Error: debug mode requires Bun (https://bun.sh)" >&2
         exit 1
     fi
 }

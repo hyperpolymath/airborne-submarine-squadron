@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# CITATION.cff — GitHub reads this from the ROOT of the default branch only.
+cff-version: 1.2.0
+message: "If you use this game or its reference implementation in research, please cite it as below."
+title: "Airborne Submarine Squadron"
+type: software
+version: "0.5.0"
+license: AGPL-3.0-or-later
+repository-code: "https://github.com/hyperpolymath/airborne-submarine-squadron"
+abstract: >-
+  A Sopwith-style arcade game in which the aircraft is also a submarine that can dive, fly, and leave the
+  atmosphere for orbit. A fixed-timestep deterministic JavaScript engine with an AffineScript/typed-WASM core
+  in progress; a worked example of reproducible, replayable, verifiable game simulation.
+keywords: [game, sopwith, arcade, deterministic-simulation, webassembly, affinescript, fixed-timestep]
+authors:
+  - family-names: Jewell
+    given-names: "Jonathan D.A."
+    email: "j.d.a.jewell@open.ac.uk"
+    alias: hyperpolymath
+  - family-names: Jewell
+    given-names: Joshua
+    alias: JoshuaJewell

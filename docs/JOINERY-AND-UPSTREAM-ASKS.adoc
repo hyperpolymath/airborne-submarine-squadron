@@ -1,0 +1,57 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= Upstream Dependencies & Asks: Gossamer, The Joinery, and Burble
+:toc: macro
+:icons: font
+
+toc::[]
+
+== 1. Ecosystem Topology
+
+Airborne Submarine Squadron sits at the intersection of several hyperpolymath and metadatastician technologies. To realize the project's multi-platform, verified-simulation, and multiplayer roadmap, the following upstream capabilities are required:
+
+[source]
+----
+                   ┌─────────────────────────────────────────┐
+                   │       Airborne Submarine Squadron       │
+                   └────────────────────┬────────────────────┘
+                                        │
+        ┌───────────────────────────────┼───────────────────────────────┐
+        ▼                               ▼                               ▼
+  ┌───────────┐                   ┌───────────┐                   ┌───────────┐
+  │ Gossamer  │                   │  Joinery  │                   │  Burble   │
+  │  (Shell)  │                   │ (Seams)   │                   │  (Voice)  │
+  └─────┬─────┘                   └─────┬─────┘                   └─────┬─────┘
+        │                               │                               │
+        │ Native Windowing              │ Capability Negotiation        │ In-Sub Spatial Voice
+        │ WebKitGTK / Cocoa / Win32     │ Cleave / Groove / Spline      │ WebRTC SFU / P2P
+----
+
+== 2. Specific Upstream Asks by Project
+
+=== Metadatastician / Gossamer
+* **Status:** v0.3.1 shipping native desktop targets across Linux, macOS, and Windows.
+* **Requirements for ASS:**
+  1. *Ephapax WASM Guest Loading:* Complete support in Ephapax for loading pure WASM guest modules alongside the webview shell, allowing the native runner to execute the AffineScript physics kernel directly.
+  2. *Gamepad API Passthrough:* Guarantee low-latency native gamepad event routing into the webview canvas without OS-level input lag.
+  3. *Single-Binary Asset Bundler:* Deliver an asset packaging mechanism to bundle HTML5/WASM resources into the native ELF/Mach-O/PE binary for Steam distribution.
+
+=== The Joinery (`cleave`, `groove`, `spline`)
+* **Metaphor & Architecture (ADR-0009):** `cleave` is the integration surface, `groove` is the discovery protocol, and `spline` is the serialized wire data-form.
+* **Requirements for ASS:**
+  1. *Groove Service Registration:* Add `airborne-submarine-squadron` to `metadatastician/groove` in `registry/groove-registry.json` under the games section (primary port 6880, capability `game-session`, protocol `http`).
+  2. *Spline Wire Format for Game State:* Adopt the Bebop binary schema defined in `metadatastician/spline` for multiplayer snapshot replication, replacing the JSON-over-DataChannel prototype to minimize bandwidth.
+  3. *Cleave Dial Verification:* Use the ASS simulation kernel as a proving ground for `cleave`'s dial: raw Zig FFI at one end, sandboxed WASM in the middle, and networked protocol at the far end.
+
+=== Metadatastician / Burble
+* **Status:** WebRTC voice platform with Bebop binary signaling and sub-microsecond PTP timing architecture.
+* **Requirements for ASS:**
+  1. *In-Submarine Crew Intercom:* Embed Burble client libraries into `gossamer/net/` to provide high-clarity, low-latency positional crew voice chat for 4-player shared submarine roles (Pilot, Gunner, Engineer, Commander).
+  2. *Acoustic Underwater Degradation:* Provide DSP effect filters (hydrophone filter, radio static, depth distortion) matching the current thermal layer.
+
+=== Hyperpolymath / AffineScript
+* **Status:** Compiler developing toward v0.2.0 (Menhir parser, QTT quantity checker, WASM backend).
+* **Requirements for ASS:**
+  1. *Fixed-Memory Layout (No Heap Exhaustion):* Resolve the linear memory allocation bug where lists/structs are bump-allocated on every function call without GC, causing 64 KiB memory traps within 100 frames.
+  2. *Struct Parameter Layouts:* Resolve Issue #2 in `docs/KNOWN-ISSUES.adoc` to ensure reading non-first fields from struct parameters compiles to valid byte offsets.
+  3. *Headless Conformance Testing in CI:* Include `sim/vectors/shadow_v1.json` as an upstream regression test in the AffineScript repository to ensure compiler changes do not break ASS simulation determinism.

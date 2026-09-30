@@ -8,4 +8,4 @@ tray/** linguist-language=Rust
 docs/** linguist-language=Markdown
 launcher.sh linguist-language=Shell
 run_wasm*.js linguist-language=JavaScript
-airborne-submarine-squadron-alpha-1.tar.gz filter=lfs diff=lfs merge=lfs -text
+release/airborne-submarine-squadron-alpha-1.tar.gz filter=lfs diff=lfs merge=lfs -text

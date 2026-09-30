@@ -10,7 +10,8 @@
 // gossamer/enemies.js; these tests mirror that logic closely enough to
 // catch regressions when someone edits the originals.
 
-import { assert, assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals } from "./lib/assert.js";
+import { test } from "./lib/rt.js";
 
 // ── Helper: seeded PRNG ──────────────────────────────────────────────
 function mulberry32(seed) {
@@ -75,7 +76,7 @@ function simulateMineCluster(mines, startIdx, CHAIN_RADIUS = 80) {
   return { step, detonated: mines.filter(m => !m.active).length };
 }
 
-Deno.test("invariant: mine chain detonation terminates for linear cluster", () => {
+test("invariant: mine chain detonation terminates for linear cluster", () => {
   // 20 mines in a straight line, 60px apart — each within 80 of the next.
   const mines = Array.from({ length: 20 }, (_, i) => ({
     x: i * 60, y: 500, active: true, chainFuse: 0,
@@ -85,7 +86,7 @@ Deno.test("invariant: mine chain detonation terminates for linear cluster", () =
   assertEquals(detonated, 20, "every mine should have detonated");
 });
 
-Deno.test("invariant: mine chain terminates for random clusters", () => {
+test("invariant: mine chain terminates for random clusters", () => {
   const rand = mulberry32(1337);
   for (let trial = 0; trial < 30; trial++) {
     const n = 5 + Math.floor(rand() * 15);
@@ -105,7 +106,7 @@ Deno.test("invariant: mine chain terminates for random clusters", () => {
   }
 });
 
-Deno.test("invariant: isolated mine triggers only itself", () => {
+test("invariant: isolated mine triggers only itself", () => {
   const mines = [
     { x: 0, y: 0, active: true, chainFuse: 0 },
     { x: 10_000, y: 10_000, active: true, chainFuse: 0 },  // way outside radius
@@ -136,7 +137,7 @@ function resolveTarget(sw, sub) {
   return sw.target;
 }
 
-Deno.test("invariant: Sopwith target fallback to sub when target invalid", () => {
+test("invariant: Sopwith target fallback to sub when target invalid", () => {
   const sub = { worldX: 100, y: 200 };
   const cases = [
     { target: null },
@@ -175,18 +176,18 @@ function simulateLadderShake(dt, jerk, waterContact) {
   return Infinity;
 }
 
-Deno.test("invariant: ladder shake-off triggers in bounded ticks under sustained jerk", () => {
+test("invariant: ladder shake-off triggers in bounded ticks under sustained jerk", () => {
   const t = simulateLadderShake(1, 0.3, true); // jerk=0.3 per tick, in water
   assert(Number.isFinite(t), "shake-off should eventually fire");
   assert(t < 50, `shake-off took ${t} ticks, expected < 50`);
 });
 
-Deno.test("invariant: ladder shake-off never triggers while airborne only", () => {
+test("invariant: ladder shake-off never triggers while airborne only", () => {
   const t = simulateLadderShake(1, 5.0, false); // high jerk but no water
   assertEquals(t, Infinity, "airborne-only should never trigger shake");
 });
 
-Deno.test("invariant: ladder shake-off monotonic — bigger jerk means sooner release", () => {
+test("invariant: ladder shake-off monotonic — bigger jerk means sooner release", () => {
   const smallJerk = simulateLadderShake(1, 0.2, true);
   const bigJerk = simulateLadderShake(1, 1.0, true);
   assert(bigJerk <= smallJerk, `bigger jerk (${bigJerk}) should release sooner than smaller (${smallJerk})`);
@@ -218,7 +219,7 @@ function simulateBomb({ life = 300, maxBounces = 6, bounceLoss = 0.55 } = {}) {
   return { ticks, reason: bounces > maxBounces ? 'bounces' : 'life' };
 }
 
-Deno.test("invariant: bouncing bomb expires in bounded ticks", () => {
+test("invariant: bouncing bomb expires in bounded ticks", () => {
   const result = simulateBomb();
   assertEquals(result.reason === 'runaway', false);
   assert(result.ticks <= 300, `bomb took ${result.ticks} ticks, expected <= 300`);
@@ -247,7 +248,7 @@ function simulateRooms(requests, MAX_ROOMS = 4) {
   return rooms;
 }
 
-Deno.test("invariant: signalling room count never exceeds MAX_ROOMS", () => {
+test("invariant: signalling room count never exceeds MAX_ROOMS", () => {
   const reqs = Array.from({ length: 50 }, (_, i) => ({
     code: `R${i}`, t: i * 1000,
   }));
@@ -255,7 +256,7 @@ Deno.test("invariant: signalling room count never exceeds MAX_ROOMS", () => {
   assert(rooms.size <= 4, `room count ${rooms.size} exceeded cap 4`);
 });
 
-Deno.test("invariant: signalling rooms LRU — most recent survive", () => {
+test("invariant: signalling rooms LRU — most recent survive", () => {
   // 5 rooms, cap at 3 — the last 3 accessed should remain.
   const reqs = [
     { code: 'A', t: 100 },
@@ -271,7 +272,7 @@ Deno.test("invariant: signalling rooms LRU — most recent survive", () => {
   assert(rooms.has('C') && rooms.has('D') && rooms.has('E'), "last 3 should survive");
 });
 
-Deno.test("invariant: repeated hits on same room do not grow map", () => {
+test("invariant: repeated hits on same room do not grow map", () => {
   const reqs = Array.from({ length: 100 }, (_, i) => ({ code: 'X', t: i }));
   const rooms = simulateRooms(reqs, 4);
   assertEquals(rooms.size, 1);

@@ -18,7 +18,7 @@ function generateTerrain(length) {
   const ground = [], islands = [], caves = [];
   let y = SEA_FLOOR;
   for (let x = 0; x < length; x += 4) {
-    y += (Math.random() - 0.48) * 4;
+    y += (simRand() - 0.48) * 4;
     y = Math.max(WATER_LINE + 60, Math.min(SEA_FLOOR + 40, y));
     ground.push({ x, y });
   }
@@ -26,7 +26,7 @@ function generateTerrain(length) {
   // 1. Sunken supply packages on the ocean floor
   const sunkenSupplies = [];
   for (let i = 0; i < 5; i++) {
-    const sx = 600 + Math.random() * (length - 1200);
+    const sx = 600 + simRand() * (length - 1200);
     const gIdx = Math.floor(sx / 4);
     const gy = (gIdx >= 0 && gIdx < ground.length) ? ground[gIdx].y : SEA_FLOOR;
     sunkenSupplies.push({ x: sx, y: gy - 6, collected: false });
@@ -35,7 +35,7 @@ function generateTerrain(length) {
   // 2. Small diver holes (diver can enter)
   const diverHoles = [];
   for (let i = 0; i < 3; i++) {
-    const dx = 500 + Math.random() * (length - 1000);
+    const dx = 500 + simRand() * (length - 1000);
     const gIdx = Math.floor(dx / 4);
     const gy = (gIdx >= 0 && gIdx < ground.length) ? ground[gIdx].y : SEA_FLOOR;
     const isMissionTunnel = i === 0; // First diver hole is a mission tunnel
@@ -43,16 +43,16 @@ function generateTerrain(length) {
       x: dx, y: gy, w: 18, h: 14,
       explored: false,
       missionTunnel: isMissionTunnel,
-      reward: isMissionTunnel ? 'mission' : ['ammo', 'intel', 'repair'][Math.floor(Math.random() * 3)],
+      reward: isMissionTunnel ? 'mission' : ['ammo', 'intel', 'repair'][Math.floor(simRand() * 3)],
     });
   }
 
   // 3. Large sub caves (1-3) — hiding places with periscope capability
-  const subCaveCount = 1 + Math.floor(Math.random() * 3);
+  const subCaveCount = 1 + Math.floor(simRand() * 3);
   for (let i = 0; i < subCaveCount; i++) {
-    const cx = 800 + Math.random() * (length - 1600);
-    const cw = 45 + Math.random() * 25;
-    const ch = 28 + Math.random() * 12;
+    const cx = 800 + simRand() * (length - 1600);
+    const cw = 45 + simRand() * 25;
+    const ch = 28 + simRand() * 12;
     const gIdx = Math.floor(cx / 4);
     const groundY = (gIdx >= 0 && gIdx < ground.length) ? ground[gIdx].y : SEA_FLOOR;
     const isLabyrinth = i === 0 && subCaveCount >= 2; // First cave is labyrinth if 2+ caves
@@ -65,31 +65,31 @@ function generateTerrain(length) {
     });
   }
   for (let i = 0; i < length / 400; i++) {
-    const ix = 400 + Math.random() * (length - 600);
-    const topW = 40 + Math.random() * 50;
-    const baseW = topW + 30 + Math.random() * 40;
-    const ih = 18 + Math.random() * 22;
+    const ix = 400 + simRand() * (length - 600);
+    const topW = 40 + simRand() * 50;
+    const baseW = topW + 30 + simRand() * 40;
+    const ih = 18 + simRand() * 22;
     // Underwater foundation: uneven rocky base extending down from waterline
-    const underwaterDepth = 30 + Math.random() * 50; // How deep the rock goes
-    const underwaterW = baseW + 10 + Math.random() * 30; // Wider than above-water
-    const hasTunnel = Math.random() < 0.25; // 25% chance of a passage through
-    const tunnelY = WATER_LINE + underwaterDepth * (0.3 + Math.random() * 0.4); // Tunnel vertical pos
-    const tunnelH = 18 + Math.random() * 10; // Tunnel height (must fit sub)
+    const underwaterDepth = 30 + simRand() * 50; // How deep the rock goes
+    const underwaterW = baseW + 10 + simRand() * 30; // Wider than above-water
+    const hasTunnel = simRand() < 0.25; // 25% chance of a passage through
+    const tunnelY = WATER_LINE + underwaterDepth * (0.3 + simRand() * 0.4); // Tunnel vertical pos
+    const tunnelH = 18 + simRand() * 10; // Tunnel height (must fit sub)
     // Generate uneven underwater rock profile (jagged points)
     const rockPoints = [];
-    const numPts = 6 + Math.floor(Math.random() * 4);
+    const numPts = 6 + Math.floor(simRand() * 4);
     for (let p = 0; p <= numPts; p++) {
       const frac = p / numPts;
       const px = ix - underwaterW / 2 + frac * underwaterW;
       const baseDepth = WATER_LINE + underwaterDepth * Math.sin(frac * Math.PI); // Arch shape
-      const jitter = (Math.random() - 0.5) * 15;
+      const jitter = (simRand() - 0.5) * 15;
       rockPoints.push({ x: px, y: baseDepth + jitter });
     }
     islands.push({ x: ix, topW, baseW, h: ih, underwaterDepth, underwaterW, hasTunnel, tunnelY, tunnelH, rockPoints });
   }
   // Mark 1-2 islands as mission islands (Trionic SubCommando — v2)
   if (islands.length >= 4) {
-    const mIdx = Math.floor(islands.length * 0.4 + Math.random() * islands.length * 0.3);
+    const mIdx = Math.floor(islands.length * 0.4 + simRand() * islands.length * 0.3);
     islands[Math.min(mIdx, islands.length - 1)].missionIsland = true;
   }
 
@@ -98,14 +98,14 @@ function generateTerrain(length) {
   const islandsCopy = [...islands];
   // Shuffle and pick islands for radars
   for (let i = islandsCopy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(simRand() * (i + 1));
     [islandsCopy[i], islandsCopy[j]] = [islandsCopy[j], islandsCopy[i]];
   }
   const radarCount = Math.min(Math.floor(islands.length * 0.4), 15);
   for (let i = 0; i < radarCount; i++) {
     const isl = islandsCopy[i];
     if (!isl || isl.h < 20) continue; // Need tall enough island
-    const roll = Math.random();
+    const roll = simRand();
     let tier;
     if (roll < 0.5)      tier = 1; // Basic — slow rotation, alerts ships
     else if (roll < 0.85) tier = 2; // Medium — fast rotation, machine guns
@@ -116,17 +116,17 @@ function generateTerrain(length) {
       y: WATER_LINE - isl.h,  // Top of island
       tier,
       hp, maxHp: hp,
-      angle: Math.random() * Math.PI * 2, // Current dish rotation
+      angle: simRand() * Math.PI * 2, // Current dish rotation
       cooldown: 0,
       alertRadius: tier === 1 ? 250 : tier === 2 ? 350 : 450,
       destroyed: false,
-      wobblePhase: Math.random() * Math.PI * 2,
+      wobblePhase: simRand() * Math.PI * 2,
       wobbleRange: tier === 1 ? 8 : 0, // Tier 1 moves back/forward
       siloCount: tier === 2 ? 3 : 0,   // Tier 2 has launch silos
     });
   }
   // Destroyer — one per level, patrols mid-section
-  const destroyerX = length * 0.4 + Math.random() * length * 0.3;
+  const destroyerX = length * 0.4 + simRand() * length * 0.3;
   const destroyer = {
     x: destroyerX,
     y: WATER_LINE - 8,
@@ -158,7 +158,7 @@ function generateTerrain(length) {
   // Nemesis underwater lair — hidden deep in the thermocline, far from the player's hangar.
   // Placed at ~68% of terrain length so it feels distant and discoverable.
   const nemesisLair = {
-    x: Math.round(length * 0.68 + (Math.random() - 0.5) * length * 0.06),
+    x: Math.round(length * 0.68 + (simRand() - 0.5) * length * 0.06),
     y: WATER_LINE + 145,   // Deep in thermocline — THERMAL_LAYER_2_MAX is WATER_LINE+195
     w: 110,                // Width of the cave mouth
     h: 52,                 // Height of the cavern opening
@@ -166,13 +166,13 @@ function generateTerrain(length) {
   };
   // Акула-Молот enemy submarine — one per level, deadly
   const akulaMolot = {
-    x: length * 0.5 + (Math.random() - 0.5) * length * 0.3,
-    y: WATER_LINE + 80 + Math.random() * 100,
+    x: length * 0.5 + (simRand() - 0.5) * length * 0.3,
+    y: WATER_LINE + 80 + simRand() * 100,
     targetDepth: WATER_LINE + 80,
     hp: AKULA_HP,
     maxHp: AKULA_HP,
     destroyed: false,
-    dir: Math.random() < 0.5 ? 1 : -1,
+    dir: simRand() < 0.5 ? 1 : -1,
     samCooldown: AKULA_SAM_COOLDOWN * 0.4,
     torpedoCooldown: AKULA_TORPEDO_COOLDOWN * 0.3,
     cloakTimer: 0,
@@ -190,20 +190,20 @@ function generateTerrain(length) {
   // Дельфин enemy submarines — 2 per level, less dangerous
   const delfins = [];
   for (let i = 0; i < DELFIN_COUNT; i++) {
-    const spawnX = length * (0.25 + i * 0.35) + (Math.random() - 0.5) * length * 0.15;
+    const spawnX = length * (0.25 + i * 0.35) + (simRand() - 0.5) * length * 0.15;
     delfins.push({
       x: spawnX,
-      y: WATER_LINE + 40 + Math.random() * 60,
-      dir: Math.random() < 0.5 ? 1 : -1,
+      y: WATER_LINE + 40 + simRand() * 60,
+      dir: simRand() < 0.5 ? 1 : -1,
       hp: DELFIN_HP,
       maxHp: DELFIN_HP,
       destroyed: false,
       bailed: false,
       surfaced: false,
-      torpedoCooldown: DELFIN_TORPEDO_COOLDOWN * (0.3 + Math.random() * 0.5),
+      torpedoCooldown: DELFIN_TORPEDO_COOLDOWN * (0.3 + simRand() * 0.5),
       mgCooldown: 0,
       patrolCenter: spawnX,
-      patrolRange: 250 + Math.random() * 150,
+      patrolRange: 250 + simRand() * 150,
       bailChecked: false,
       crew: [],  // Populated on bail-out
     });
@@ -212,8 +212,8 @@ function generateTerrain(length) {
   // Interceptor boats — hide behind islands, harass the sub
   const interceptors = [];
   for (let i = 0; i < Math.min(INTERCEPTOR_COUNT, islands.length); i++) {
-    const isl = islands[Math.floor(Math.random() * islands.length)];
-    const side = Math.random() < 0.5 ? -1 : 1;
+    const isl = islands[Math.floor(simRand() * islands.length)];
+    const side = simRand() < 0.5 ? -1 : 1;
     interceptors.push({
       x: isl.x + side * (isl.baseW / 2 + 10),
       y: WATER_LINE - 4,
@@ -222,7 +222,7 @@ function generateTerrain(length) {
       maxHp: INTERCEPTOR_HP,
       destroyed: false,
       state: 'hiding', // hiding, rushing, stopping, aiming, firing, retreating
-      stateTimer: 100 + Math.random() * 200,
+      stateTimer: 100 + simRand() * 200,
       dir: 1,
       mgCooldown: 0,
       bazookaCooldown: INTERCEPTOR_BAZOOKA_COOLDOWN * 0.5,
@@ -251,7 +251,7 @@ function generateTerrain(length) {
   // Types: residential (houses, few defenders), industrial (cranes, moderate),
   //        military (bunkers, heavy defenders, radar priority)
   for (const isl of islands) {
-    const roll = Math.random();
+    const roll = simRand();
     if (isl.missionIsland) {
       isl.type = 'military'; // Mission islands are always military
     } else if (roll < 0.4) {
@@ -269,17 +269,17 @@ function generateTerrain(length) {
     if (isl.h < 15) continue; // Need enough surface to ride on
     // Only military and some industrial islands have motorcyclists
     if (isl.type === 'residential') continue;
-    if (isl.type === 'industrial' && Math.random() > 0.3) continue;
+    if (isl.type === 'industrial' && simRand() > 0.3) continue;
     // One bike per island, no more
     motorcyclists.push({
-      x: isl.x + (Math.random() - 0.5) * isl.topW * 0.6,
+      x: isl.x + (simRand() - 0.5) * isl.topW * 0.6,
       y: WATER_LINE - isl.h - 4,
-      vx: (Math.random() < 0.5 ? 1 : -1) * MOTORCYCLE_SPEED,
+      vx: (simRand() < 0.5 ? 1 : -1) * MOTORCYCLE_SPEED,
       hp: MOTORCYCLE_HP,
       alive: true,
       island: isl,
       isEvel: false,
-      mgCooldown: 20 + Math.random() * 30,
+      mgCooldown: 20 + simRand() * 30,
       bullets: [],
       jumping: false,
       jumpVy: 0,
@@ -302,7 +302,7 @@ function generateTerrain(length) {
         if (d < bestDist && d > 100) { bestDist = d; evelIsland = isl; }
       }
     }
-    if (!evelIsland) evelIsland = islands[Math.floor(Math.random() * islands.length)];
+    if (!evelIsland) evelIsland = islands[Math.floor(simRand() * islands.length)];
     motorcyclists.push({
       x: evelIsland.x,
       y: WATER_LINE - evelIsland.h - 4,

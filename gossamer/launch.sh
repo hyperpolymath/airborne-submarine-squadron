@@ -6,12 +6,12 @@
 #
 # Two modes:
 #   1. Native Gossamer (Ephapax + libgossamer.so) — preferred
-#   2. Fallback: Deno file server + system webview via xdg-open
+#   2. Fallback: Bun game server (run.js) + system webview via xdg-open
 #
 # Usage:
 #   cd ~/Documents/hyperpolymath-repos/games\ \&\ trivia/airborne-submarine-squadron
 #   bash gossamer/launch.sh
-#   bash gossamer/launch.sh --fallback   # Skip Gossamer, use Deno + browser
+#   bash gossamer/launch.sh --fallback   # Skip Gossamer, use Bun + browser
 
 set -euo pipefail
 
@@ -44,13 +44,11 @@ cleanup() {
             rm -f "$pid_file"
         fi
     done
-    # Aggressively release the Deno server port so a new launch never
-    # finds it occupied.  Run unconditionally — the port might be held
-    # by a Deno process whose PID file was already cleaned up.
+    # Ask any previous game server (recognised by /__ass/identity) to shut itself down gracefully.
+    # We never kill processes that are not ours (the old `fuser -k` SIGKILLed whatever held the port).
     for port in 6880 $(seq 6881 6884); do
-        if ss -tlnH "sport = :$port" 2>/dev/null | grep -q .; then
-            # fuser sends SIGKILL to all processes bound to the port.
-            fuser -k "${port}/tcp" 2>/dev/null || true
+        if curl -fsS -m 1 "http://127.0.0.1:${port}/__ass/identity" 2>/dev/null | grep -q '"airborne-submarine-squadron"'; then
+            curl -fsS -m 2 -X POST "http://127.0.0.1:${port}/shutdown" >/dev/null 2>&1 || true
         fi
     done
 }
@@ -93,10 +91,10 @@ if [[ "$USE_FALLBACK" == false ]] && [[ -x "$EPHAPAX" ]] && [[ -f "$LIBGOSSAMER"
     exit "$STATUS"
 fi
 
-# --- Fallback: Deno file server ---
+# --- Fallback: Bun game server (run.js) ---
 echo "=== Airborne Submarine Squadron (Gossamer fallback) ==="
 if [[ "$USE_FALLBACK" == false ]]; then
-    echo "Note: Ephapax or libgossamer.so not found, using Deno fallback."
+    echo "Note: Ephapax or libgossamer.so not found, using Bun fallback."
     [[ ! -x "$EPHAPAX" ]] && echo "  Missing: $EPHAPAX"
     [[ ! -f "$LIBGOSSAMER" ]] && echo "  Missing: $LIBGOSSAMER"
 fi
@@ -115,53 +113,17 @@ echo "Server: http://127.0.0.1:${PORT}/"
 echo "Stop from another terminal with: ./launcher.sh --stop"
 echo ""
 
-# Serve from the game root (one level up from gossamer/) so that:
-#   /gossamer/index_gossamer.html  — the game page
-#   /gossamer/app_gossamer.js      — the game engine
-#   /build/airborne-submarine-squadron.wasm — WASM co-processor
-# are all reachable from the same origin (required for WASM fetch).
-deno run --allow-net --allow-read - <<DENO_SERVER &
-const root = "${GAME_ROOT}";
-const ac = new AbortController();
-
-function shutdown() {
-  ac.abort();
-  Deno.exit(0);
-}
-try { Deno.addSignalListener("SIGINT", shutdown); } catch {}
-try { Deno.addSignalListener("SIGTERM", shutdown); } catch {}
-try { Deno.addSignalListener("SIGHUP", shutdown); } catch {}
-
-const server = Deno.serve({ port: ${PORT}, hostname: "127.0.0.1", signal: ac.signal, onListen() {} }, async (req) => {
-  const url = new URL(req.url);
-  // Default route: redirect / to the Gossamer game page
-  let path = url.pathname === "/" ? "/gossamer/index_gossamer.html" : url.pathname;
-  // Prevent path traversal above root
-  const resolved = root + path;
-  if (!resolved.startsWith(root)) {
-    return new Response("Forbidden", { status: 403 });
-  }
-  const file = resolved;
-  try {
-    const data = await Deno.readFile(file);
-    const ext = file.split(".").pop();
-    const types = {
-      html: "text/html", js: "application/javascript",
-      css: "text/css", json: "application/json",
-      png: "image/png", svg: "image/svg+xml",
-      wasm: "application/wasm",
-    };
-    return new Response(data, {
-      headers: { "content-type": types[ext] || "application/octet-stream" },
-    });
-  } catch {
-    return new Response("Not Found", { status: 404 });
-  }
-});
-await server.finished;
-DENO_SERVER
+# run.js serves the allowlisted game files from the repo root so that
+#   /gossamer/index_gossamer.html, /gossamer/app_gossamer.js and /build/*.wasm
+# are all reachable from ONE origin (required for the WASM fetch), with a same-origin guard on
+# anything that mutates. (This replaces an embedded server whose `root + path` prefix check
+# accepted  root/../../etc/passwd.)
+if ! command -v bun >/dev/null 2>&1; then
+    echo "ERROR: bun not found. Install it from https://bun.sh" >&2
+    exit 1
+fi
+bun run "$GAME_ROOT/run.js" --no-open --port "${PORT}" --pid-file "$GOSSAMER_SERVER_PID_FILE" &
 SERVER_PID=$!
-echo "$SERVER_PID" > "$GOSSAMER_SERVER_PID_FILE"
 
 # Wait for server to start
 sleep 0.5

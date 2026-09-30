@@ -3,6 +3,7 @@
 ;
 ; 0-AI-MANIFEST.a2ml — Universal AI entry point for Airborne Submarine Squadron
 ; Media-Type: application/a2ml
+; (Legacy entry point accepted mid-migration — standards#837 moves this into <repo>_chora.deed.)
 
 ; THIS FILE MUST BE READ FIRST BY ALL AI AGENTS
 
@@ -18,69 +19,81 @@
     (ownership "primary-owner: JoshuaJewell, admin: hyperpolymath"))
 
   (purpose
-    "Sopwith-inspired flying submarine arcade game. Free-flight 2D arcade with
-     submarine, aircraft, ship and space mechanics. AffineScript compiled to WASM
-     as physics co-processor; Gossamer v2 JS engine is the current playable frontend.
-     Standalone AGPL repo — exception to PMPL, co-developed with son.")
+    "Sopwith-inspired flying-submarine arcade game. The player flies an attack submarine through atmosphere,
+     water (thermal layers) and orbit. Deterministic fixed-timestep JavaScript engine (gossamer/) with an
+     AffineScript/typed-WASM core in progress (src/, sim/). Standalone repo, co-developed with son.
+     Licence: currently AGPL-3.0-or-later; an owner-run migration to MPL-2.0 is staged but NOT applied
+     (docs/decisions/ADR-0002-licence-mpl-2.0.adoc).")
 
   (context-tiers
-    (tier-0 "Always load: this file + .claude/CLAUDE.md")
-    (tier-1 "Load if working on code: README.adoc, EXPLAINME.adoc, Justfile, READINESS.md")
-    (tier-2 "Load on demand: .machine_readable/STATE.a2ml, docs/")
-    (tier-3 "Never load unless asked: gossamer/app_gossamer.js (7500+ lines), build/"))
+    (tier-0 "Always load: this file + CLAUDE.md + coordination.k9")
+    (tier-1 "Load if working on code: docs/RECON-2026-09.adoc, Justfile, docs/TESTING.adoc")
+    (tier-2 "Load on demand: .machine_readable/descriptiles/STATE.a2ml, docs/")
+    (tier-3 "Never load unless asked: gossamer/app_gossamer.js (6,600+ lines), gossamer/enemies.js (3,800), archive/"))
 
   (canonical-locations
-    (ai-manifest     "0-AI-MANIFEST.a2ml"                    "THIS FILE")
-    (ai-instructions ".claude/CLAUDE.md"                     "Claude-specific patterns")
-    (state           ".machine_readable/STATE.a2ml")
-    (meta            ".machine_readable/META.a2ml")
-    (ecosystem       ".machine_readable/ECOSYSTEM.a2ml")
-    (readiness       "READINESS.md"                          "CRG v2.0 grade assessment")
-    (web-entry       "index.html"                            "Root game entry — no redirect")
-    (game-engine     "gossamer/app_gossamer.js"              "Gossamer v2 JS engine + crash logger")
-    (desktop-entry   "gossamer/index_gossamer.html"          "Gossamer desktop HTML")
-    (as-source       "src/main.as"                           "Canonical AffineScript source")
-    (wasm-dist       "dist/airborne-submarine-squadron.wasm" "Tracked release artifact")
-    (run-script      "run.js"                                "Deno launcher — inline server, port management")
-    (launcher        "launcher.sh"                           "Unified launcher")
-    (build-script    "build.sh"                              "AffineScript to WASM build")
-    (crash-logs      "logs/"                                 "On-disk crash reports (gitignored except .gitkeep)"))
+    (ai-manifest     "0-AI-MANIFEST.a2ml"                      "THIS FILE")
+    (ai-instructions "CLAUDE.md"                               "estate doctrine + repo rules")
+    (coordination    "coordination.k9"                         "invariants, protected paths, terminology")
+    (state           ".machine_readable/descriptiles/STATE.a2ml")
+    (meta            ".machine_readable/descriptiles/META.a2ml")
+    (ecosystem       ".machine_readable/descriptiles/ECOSYSTEM.a2ml")
+    (rsr-profile     ".machine_readable/rsr-profile.a2ml"      "declared capabilities (truthful)")
+    (root-allowlist  ".machine_readable/root-allow.txt"        "enforced by scripts/check-root-shape.sh")
+    (readiness       "docs/governance/READINESS.adoc"          "CRG grade assessment")
+    (recon           "docs/RECON-2026-09.adoc"                 "ground-truth audit (supersedes older status docs)")
+    (web-entry       "index.html"                              "root game entry; same module list as gossamer/index_gossamer.html (test-enforced)")
+    (game-engine     "gossamer/app_gossamer.js"                "JS engine: fixed 60 Hz update(), seeded simRand(), render interpolation")
+    (server          "server/ass-server.js"                    "request handler (allowlist, same-origin, bounds)")
+    (as-source       "src/main.affine"                         "AffineScript core (ABI v1, 29 state ints + 5 input ints)")
+    (reference-twin  "sim/shadow_ref.js"                       "bit-exact JS twin of src/main.affine; the oracle")
+    (golden-vectors  "sim/vectors/shadow_v1.json")
+    (run-script      "run.js"                                  "Bun launcher: bun run run.js")
+    (launcher        "launcher.sh"                             "unified launcher")
+    (build-script    "build.sh"                                "AffineScript -> core WASM + conformance verification (optional)")
+    (crash-logs      "logs/"                                   "on-disk crash reports (gitignored except .gitkeep)"))
 
   (architecture
-    (js-engine  "gossamer/app_gossamer.js"           "Full game at 60fps — current playable")
-    (wasm-coproc "build/airborne-final-working.wasm" "AffineScript physics co-processor")
-    (tray       "tray/src/main.rs"                   "Rust system tray (ksni)")
-    (ffi        "ffi/zig/"                           "Zig FFI layer")
-    (ports      "browser:6880 gossamer-fallback:6881-6884"))
+    (js-engine   "gossamer/app_gossamer.js"    "the playable game at 60 Hz fixed step")
+    (wasm-coproc "build/airborne-submarine-squadron.wasm" "OPTIONAL, NOT TRACKED, must pass sim/verify_artifact.js")
+    (tray        "tray/src/main.rs"            "Rust system tray (ksni)")
+    (ffi         "ffi/"                        "Zig template skeleton — NOT wired (ffi/README.adoc)")
+    (ports       "browser:6880 fallbacks:6881-6884"))
 
   (recommended-reading
-    (guide "docs/AFFINESCRIPT-GUIDE.adoc" "Modern coding guide for AffineScript — READ THIS to understand the language and WASM co-processor architecture"))
+    (guide "docs/RECON-2026-09.adoc" "READ FIRST: verified state, defects found and fixed, what is real vs aspirational")
+    (guide "docs/AFFINESCRIPT-PORT-PLAN.adoc" "how the simulation migrates to AffineScript + typed-wasm (ABI v2)")
+    (guide "docs/AFFINESCRIPT-GUIDE.adoc" "language primer (older; see the RECON for what currently compiles correctly)"))
 
   (critical-invariants
-    (rule "AGPL-3.0-or-later only — do NOT change license or relicense")
+    (rule "Bun is the only JS runtime/test runner/package manager (estate ruling 2026-09-22). No Deno, Node, npm, yarn, pnpm.")
+    (rule "package.json is expected but must stay private + dependency-free")
+    (rule "Licence changes are OWNER-ONLY and MANUAL (estate doctrine 6). Do not relicense; do not run scripts/relicense-mpl2.js on the owner's behalf.")
     (rule "Standalone git repo — do NOT merge into any monorepo")
-    (rule "No TypeScript — use vanilla JS or AffineScript only")
-    (rule "No Tauri or Electron — browser plus ksni tray binary only")
-    (rule "No npm, bun, pnpm, yarn — Deno only for JS runtime")
-    (rule "No Node.js — Deno only")
-    (rule "Machine-readable files MUST be in .machine_readable/ — never in root (A2ML format only, SCM migrated)")
+    (rule "No TypeScript — plain JS or AffineScript only")
+    (rule "No Tauri or Electron — browser plus ksni tray binary plus Gossamer shell")
+    (rule "Machine-readable files live in .machine_readable/ — never in the root")
     (rule "Crash logs in logs/ are gitignored — do NOT commit crash-*.json files")
-    (rule "src/main.as is the ONLY canonical AffineScript source")
-    (rule "gossamer/app_gossamer.js is the current game engine — do not replace"))
+    (rule "Simulation randomness is simRand() (seeded). Math.random() is cosmetic-only (test/determinism_test.js enforces)")
+    (rule "Canvas save()/restore() must balance in every function (test/determinism_test.js + test/jump_test.js)")
+    (rule "Never trust a compiled WASM core because it exists: it must pass sim/verify_artifact.js")
+    (rule "Terminology: the player vehicle is an 'attack submarine' (coordination.k9)")
+    (rule "Launching the game must never touch git or sibling repos (run.js --git-cycle and compiler auto-update are opt-in)"))
 
   (lifecycle
     (on-enter
       (step "Read THIS file first")
-      (step "Read .machine_readable/STATE.a2ml for current status and blockers")
-      (step "Read READINESS.md for CRG grade and open blockers"))
+      (step "Read CLAUDE.md and coordination.k9")
+      (step "Read docs/RECON-2026-09.adoc — do not trust older status documents without re-verifying")
+      (step "Run: bun test (should be green) and just --list"))
     (on-exit
-      (step "Update .machine_readable/STATE.a2ml with any progress made")
-      (step "Commit and push — full git cycle")))
+      (step "Update .machine_readable/descriptiles/STATE.a2ml with any progress made")
+      (step "Keep tests green; commit on your branch")))
 
   (format-meta
-    (version "2.1.0")
+    (version "2.2.0")
     (media-type "application/a2ml")
     (created "2026-01-30")
-    (last-updated "2026-04-04")
+    (last-updated "2026-09-29")
     (maintained-by "Jonathan D.A. Jewell / hyperpolymath")
     (protocol "https://github.com/hyperpolymath/0-ai-gatekeeper-protocol")))

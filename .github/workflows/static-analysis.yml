@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# This workflow is managed by gh actions-lock.
+# Estate static analysis, ADVISORY: runs the two hyperpolymath analysers against this repo and uploads
+# their reports.  Built from source on the runner (cargo is preinstalled on ubuntu-latest).
+#   pons-asinorum  — dead work, self-contradiction, missing escape hatches (T0 rules incl. JavaScript).
+#   panic-attack   — `assail` static analysis (49 languages) — weak points, path exposure, unbounded writes.
+# Findings are advisory until triaged; the point is that they RUN, so they can be fixed, not forgotten.
+name: Static Analysis
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pons-and-panic-attack:
+    name: pons-asinorum + panic-attack (ADVISORY)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Install pons-asinorum and panic-attack from source
+        run: |
+          cargo install --locked --git https://github.com/hyperpolymath/pons-asinorum --bin pons 2>&1 | tail -3 || cargo install --git https://github.com/hyperpolymath/pons-asinorum 2>&1 | tail -3
+          cargo install --locked --git https://github.com/hyperpolymath/panic-attack 2>&1 | tail -3 || cargo install --git https://github.com/hyperpolymath/panic-attack 2>&1 | tail -3
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: pons scan (game engine, server, sim, tests)
+        run: |
+          mkdir -p reports
+          pons --help > reports/pons-help.txt 2>&1 || true
+          pons scan gossamer server sim run.js 2>&1 | tee reports/pons.txt
+
+      - name: panic-attack assail
+        run: |
+          panic-attack --help > reports/panic-attack-help.txt 2>&1 || true
+          panic-attack assail . --output-format json --store reports/panic-attack 2>&1 | tee reports/panic-attack.log
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: static-analysis-reports
+          path: reports/
+          if-no-files-found: warn

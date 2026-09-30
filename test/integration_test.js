@@ -15,8 +15,9 @@
 //
 // Reference: standards/testing-and-benchmarking/TESTING-TAXONOMY.adoc §3
 
-import { assertEquals, assert, assertGreater, assertLess } from "jsr:@std/assert";
+import { assertEquals, assert, assertGreater, assertLess } from "./lib/assert.js";
 import extract from "./_extract.js";
+import { test } from "./lib/rt.js";
 
 const { constants: C, functions: F } = extract;
 
@@ -156,7 +157,7 @@ class GameStateMachine {
 
 // ── Test: Game initialization ───────────────────────────────────────────────
 
-Deno.test("integration: Game initializes in valid state", () => {
+test("integration: Game initializes in valid state", () => {
   const game = new GameStateMachine();
   assert(game.state.alive, "Game should start alive");
   assertEquals(game.state.hp, C.COMMANDER_HP, "Commander should have full HP");
@@ -170,7 +171,7 @@ Deno.test("integration: Game initializes in valid state", () => {
 
 // ── Test: State transitions ────────────────────────────────────────────────
 
-Deno.test("integration: Patrol → Strike mission transition", () => {
+test("integration: Patrol → Strike mission transition", () => {
   const game = new GameStateMachine();
   assertEquals(game.state.missionType, "patrol");
 
@@ -181,7 +182,7 @@ Deno.test("integration: Patrol → Strike mission transition", () => {
   assertEquals(game.state.missionProgress, 0);
 });
 
-Deno.test("integration: Mission timer counts down and expires", () => {
+test("integration: Mission timer counts down and expires", () => {
   const game = new GameStateMachine();
   game.startMission("strike", 10);
 
@@ -193,7 +194,7 @@ Deno.test("integration: Mission timer counts down and expires", () => {
   assertEquals(game.state.missionType, "patrol", "Should revert to patrol");
 });
 
-Deno.test("integration: Hostage rescue mission transition", () => {
+test("integration: Hostage rescue mission transition", () => {
   const game = new GameStateMachine();
   const result = game.startMission("hostage", 5400);
 
@@ -202,7 +203,7 @@ Deno.test("integration: Hostage rescue mission transition", () => {
   assertGreater(game.state.missionTimer, 0);
 });
 
-Deno.test("integration: Escort mission transition", () => {
+test("integration: Escort mission transition", () => {
   const game = new GameStateMachine();
   const result = game.startMission("escort", 7200);
 
@@ -213,7 +214,7 @@ Deno.test("integration: Escort mission transition", () => {
 
 // ── Test: Nemesis spawning ─────────────────────────────────────────────────
 
-Deno.test("integration: Nemesis doesn't spawn in patrol", () => {
+test("integration: Nemesis doesn't spawn in patrol", () => {
   const game = new GameStateMachine();
 
   for (let i = 0; i < 1000; i++) {
@@ -223,7 +224,7 @@ Deno.test("integration: Nemesis doesn't spawn in patrol", () => {
   assertEquals(game.state.nemesisSpawned, false, "Nemesis should not spawn in patrol");
 });
 
-Deno.test("integration: Nemesis spawns after 500 ticks in active mission", () => {
+test("integration: Nemesis spawns after 500 ticks in active mission", () => {
   const game = new GameStateMachine();
   game.startMission("strike", 6000);
 
@@ -236,7 +237,7 @@ Deno.test("integration: Nemesis spawns after 500 ticks in active mission", () =>
 
 // ── Test: Hangar damage progression ─────────────────────────────────────────
 
-Deno.test("integration: Hangar takes damage from surface hits", () => {
+test("integration: Hangar takes damage from surface hits", () => {
   const game = new GameStateMachine();
   const initialHull = game.state.hull;
 
@@ -246,7 +247,7 @@ Deno.test("integration: Hangar takes damage from surface hits", () => {
   assertGreater(game.state.hangarDamage, 0, "Hangar damage counter should increment");
 });
 
-Deno.test("integration: Cumulative hangar damage tracking", () => {
+test("integration: Cumulative hangar damage tracking", () => {
   const game = new GameStateMachine();
 
   game.takeSurfaceDamage(0.05);
@@ -260,21 +261,21 @@ Deno.test("integration: Cumulative hangar damage tracking", () => {
 
 // ── Test: Hull integrity mechanics ─────────────────────────────────────────
 
-Deno.test("integration: Cannot enter deep water with low hull", () => {
+test("integration: Cannot enter deep water with low hull", () => {
   const game = new GameStateMachine();
   game.state.hull = C.HULL_DEEP_THRESHOLD - 0.05;
 
   assert(!game.canEnterDeepWater(), "Cannot enter deep with low hull");
 });
 
-Deno.test("integration: Can enter deep water with sufficient hull", () => {
+test("integration: Can enter deep water with sufficient hull", () => {
   const game = new GameStateMachine();
   game.state.hull = C.HULL_DEEP_THRESHOLD + 0.05;
 
   assert(game.canEnterDeepWater(), "Can enter deep with sufficient hull");
 });
 
-Deno.test("integration: Hull crush ends game in deep layer", () => {
+test("integration: Hull crush ends game in deep layer", () => {
   const game = new GameStateMachine();
   game.state.y = C.THERMAL_LAYER_2_MAX + 50;  // Force to deep layer
   game.state.hull = C.HULL_DEEP_CRUSH_THRESHOLD - 0.05;
@@ -287,7 +288,7 @@ Deno.test("integration: Hull crush ends game in deep layer", () => {
 
 // ── Test: Thermal layer transitions ────────────────────────────────────────
 
-Deno.test("integration: Detect surface (air) layer", () => {
+test("integration: Detect surface (air) layer", () => {
   const game = new GameStateMachine();
   game.state.y = 0;
   game.tick();
@@ -295,7 +296,7 @@ Deno.test("integration: Detect surface (air) layer", () => {
   assertEquals(game.state.thermal, -1, "Should detect air layer");
 });
 
-Deno.test("integration: Detect warm water layer", () => {
+test("integration: Detect warm water layer", () => {
   const game = new GameStateMachine();
   game.state.y = C.WATER_LINE + 10;
   game.tick();
@@ -303,7 +304,7 @@ Deno.test("integration: Detect warm water layer", () => {
   assertEquals(game.state.thermal, 0, "Should detect warm layer");
 });
 
-Deno.test("integration: Detect thermocline layer", () => {
+test("integration: Detect thermocline layer", () => {
   const game = new GameStateMachine();
   game.state.y = C.THERMAL_LAYER_1_MAX + 50;
   game.tick();
@@ -311,7 +312,7 @@ Deno.test("integration: Detect thermocline layer", () => {
   assertEquals(game.state.thermal, 1, "Should detect thermocline layer");
 });
 
-Deno.test("integration: Detect deep cold layer", () => {
+test("integration: Detect deep cold layer", () => {
   const game = new GameStateMachine();
   game.state.y = C.THERMAL_LAYER_2_MAX + 50;
   game.tick();
@@ -321,7 +322,7 @@ Deno.test("integration: Detect deep cold layer", () => {
 
 // ── Test: Weapon systems ────────────────────────────────────────────────────
 
-Deno.test("integration: Fire torpedo decrements counter", () => {
+test("integration: Fire torpedo decrements counter", () => {
   const game = new GameStateMachine();
   const initialCount = game.state.torpedoes;
 
@@ -331,7 +332,7 @@ Deno.test("integration: Fire torpedo decrements counter", () => {
   assertEquals(game.state.torpedoes, initialCount - 1);
 });
 
-Deno.test("integration: Fire missile decrements counter", () => {
+test("integration: Fire missile decrements counter", () => {
   const game = new GameStateMachine();
   const initialCount = game.state.missiles;
 
@@ -341,7 +342,7 @@ Deno.test("integration: Fire missile decrements counter", () => {
   assertEquals(game.state.missiles, initialCount - 1);
 });
 
-Deno.test("integration: Fire depth charge decrements counter", () => {
+test("integration: Fire depth charge decrements counter", () => {
   const game = new GameStateMachine();
   const initialCount = game.state.depthCharges;
 
@@ -351,7 +352,7 @@ Deno.test("integration: Fire depth charge decrements counter", () => {
   assertEquals(game.state.depthCharges, initialCount - 1);
 });
 
-Deno.test("integration: Cannot fire when out of ammo", () => {
+test("integration: Cannot fire when out of ammo", () => {
   const game = new GameStateMachine();
   game.state.torpedoes = 0;
 
@@ -362,7 +363,7 @@ Deno.test("integration: Cannot fire when out of ammo", () => {
 
 // ── Test: Combat damage ─────────────────────────────────────────────────────
 
-Deno.test("integration: Take damage reduces HP", () => {
+test("integration: Take damage reduces HP", () => {
   const game = new GameStateMachine();
   const initialHP = game.state.hp;
 
@@ -372,7 +373,7 @@ Deno.test("integration: Take damage reduces HP", () => {
   assert(game.state.alive, "Game should still be alive");
 });
 
-Deno.test("integration: HP zero ends game", () => {
+test("integration: HP zero ends game", () => {
   const game = new GameStateMachine();
   game.state.hp = 1;
 
@@ -382,7 +383,7 @@ Deno.test("integration: HP zero ends game", () => {
   assertEquals(game.state.alive, false, "Game should end at 0 HP");
 });
 
-Deno.test("integration: Cannot take damage when dead", () => {
+test("integration: Cannot take damage when dead", () => {
   const game = new GameStateMachine();
   game.state.alive = false;
   game.state.hp = 0;
@@ -394,7 +395,7 @@ Deno.test("integration: Cannot take damage when dead", () => {
 
 // ── Test: Physics simulation ────────────────────────────────────────────────
 
-Deno.test("integration: Gravity applies when underwater", () => {
+test("integration: Gravity applies when underwater", () => {
   const game = new GameStateMachine();
   game.state.y = C.WATER_LINE + 50;
   game.state.vy = 0;
@@ -404,7 +405,7 @@ Deno.test("integration: Gravity applies when underwater", () => {
   assertGreater(game.state.vy, 0, "Should have downward velocity from gravity");
 });
 
-Deno.test("integration: Thrust affects velocity", () => {
+test("integration: Thrust affects velocity", () => {
   const game = new GameStateMachine();
   game.state.vx = 0;
 
@@ -413,7 +414,7 @@ Deno.test("integration: Thrust affects velocity", () => {
   assertEquals(game.state.vx, 5, "Thrust should add to velocity");
 });
 
-Deno.test("integration: Position updates from velocity", () => {
+test("integration: Position updates from velocity", () => {
   const game = new GameStateMachine();
   const initialX = game.state.x;
   game.state.vx = 10;
@@ -423,7 +424,7 @@ Deno.test("integration: Position updates from velocity", () => {
   assertEquals(game.state.x, initialX + 10, "Position should update from velocity");
 });
 
-Deno.test("integration: Position clamped to world bounds", () => {
+test("integration: Position clamped to world bounds", () => {
   const game = new GameStateMachine();
   game.state.x = C.W + 100;
 
@@ -434,7 +435,7 @@ Deno.test("integration: Position clamped to world bounds", () => {
 
 // ── Test: Multi-tick scenarios ──────────────────────────────────────────────
 
-Deno.test("integration: 100-tick patrol run", () => {
+test("integration: 100-tick patrol run", () => {
   const game = new GameStateMachine();
 
   for (let i = 0; i < 100; i++) {
@@ -446,7 +447,7 @@ Deno.test("integration: 100-tick patrol run", () => {
   assertGreater(game.state.x, 0, "Should have moved");
 });
 
-Deno.test("integration: Mission sequence: patrol → strike → patrol", () => {
+test("integration: Mission sequence: patrol → strike → patrol", () => {
   const game = new GameStateMachine();
 
   // Phase 1: Patrol
@@ -464,7 +465,7 @@ Deno.test("integration: Mission sequence: patrol → strike → patrol", () => {
 
 // ── Test: Edge cases ────────────────────────────────────────────────────────
 
-Deno.test("integration: Cannot start mission when dead", () => {
+test("integration: Cannot start mission when dead", () => {
   const game = new GameStateMachine();
   game.state.alive = false;
 
@@ -473,7 +474,7 @@ Deno.test("integration: Cannot start mission when dead", () => {
   assertEquals(result, false, "Dead game cannot start missions");
 });
 
-Deno.test("integration: Y position never goes negative", () => {
+test("integration: Y position never goes negative", () => {
   const game = new GameStateMachine();
   game.state.y = 5;
   game.state.vy = -100;
@@ -483,7 +484,7 @@ Deno.test("integration: Y position never goes negative", () => {
   assertGreater(game.state.y, -1, "Y should be non-negative");
 });
 
-Deno.test("integration: Multiple surface damage calls accumulate", () => {
+test("integration: Multiple surface damage calls accumulate", () => {
   const game = new GameStateMachine();
 
   for (let i = 0; i < 5; i++) {

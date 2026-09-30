@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath)
+//
+// AffineScript compiler smoke test (syntax/type surface). Not part of the game; run with `affinescript check`.
+
+// Test file to isolate type definition issues
+type Environment = Int;
+
+type Submarine = { x: Int, y: Int, vx: Int, vy: Int, health: Int };
+
+// Test simple type
+type SimpleType = A | B | C;
+
+// Test the power-up type
+type PowerUpType = HealthPack | AmmoRefill | Shield | SpeedBoost | RapidFire | DoubleDamage | EnvironmentControl;
+
+type PowerUp = {
+  x: Int, y: Int,
+  powerup_type: PowerUpType,
+  active: Bool,
+  duration: Int,
+  spawn_tick: Int
+};
+
+fn init_world() -> Int {
+  return 42;
+}
+
+fn main() -> Int {
+  return init_world();
+}

@@ -2,252 +2,128 @@
 // SPDX-FileCopyrightText: 2025-2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 
 = Airborne Submarine Squadron (ASS)
+:toc: macro
+:icons: font
 
-image::airborne-submarine-squadron.png[Airborne Submarine Squadron Banner,width="100%",link=""]
+image::docs/assets/banner.png[Airborne Submarine Squadron banner,width="100%",link=""]
 
-image:https://img.shields.io/badge/OpenSSF-Best_Practices-green?logo=opensourcesecurity[OpenSSF Best Practices,link="https://www.bestpractices.dev/en/projects/new?repo_url=https://github.com/hyperpolymath/airborne-submarine-squadron"]
+image:https://github.com/hyperpolymath/airborne-submarine-squadron/actions/workflows/test.yml/badge.svg[Test Suite,link="https://github.com/hyperpolymath/airborne-submarine-squadron/actions/workflows/test.yml"]
 image:https://img.shields.io/badge/License-AGPL_v3-blue.svg[License: AGPL-3.0,link=LICENSE]
-image:https://api.thegreenwebfoundation.org/greencheckimage/github.com[Green Web,link="https://www.thegreenwebfoundation.org/green-web-check/?url=github.com"]
+image:https://img.shields.io/badge/runtime-Bun-black?logo=bun[Runtime: Bun,link="https://bun.sh"]
+image:https://img.shields.io/badge/CRG-C-yellow[Component Readiness Grade C,link="docs/governance/READINESS.adoc"]
 
-Airborne Submarine Squadron is a browser-forward take on the classic Sopwith-style arcade, rebuilt on the Gossamer launcher. Features atmosphere flight, underwater combat with thermal layers and caterpillar drive, orbital space navigation, three ship types, two enemy submarine classes, mine chain-cutting, supply drops, hangar defense, and a commander ejection system.
+_A Sopwith-style arcade game where your *attack submarine* also flies — and when you pull up hard at 88 MPH, leaves the atmosphere._
+
+toc::[]
+
+== Play
+
+[cols="2,3"]
+|===
+| Zero-install (GitHub Pages) | https://hyperpolymath.github.io/airborne-submarine-squadron/ (deployed by `.github/workflows/pages.yml` on every push to `main`)
+| Local server | `bun run run.js` → http://127.0.0.1:6880/
+| Desktop window | `./launcher.sh --gossamer` (Gossamer shell; falls back to the local server)
+| A specific world | append `?seed=anything` — the same seed always generates the same world (daily challenges, shareable runs)
+|===
 
 == Status
 
-This repo now hosts a playable Gossamer frontend that wraps the AffineScript/WASM core and the launcher/installer ecosystem. The current goal is finishing the orbit/depth-charge gameplay loop and stabilizing builds, installs, and multi-platform deploys.
+Alpha (CRG grade *C*). What is verified *today* — by running the real engine headlessly, not by reading status documents — is in
+link:docs/RECON-2026-09.adoc[docs/RECON-2026-09.adoc]. In short:
 
-== Quick Start (WASM)
+* The game is playable and deep: atmosphere, water with thermal layers, orbit, enemy AI, weapons, missions, damage model.
+* The JavaScript engine is now a *fixed 60 Hz deterministic simulation* with a seeded RNG and render-only interpolation: every
+  display refresh rate plays identically, and a (seed, inputs) pair fully determines a run.
+* The "sub jumps around the screen" bugs are root-caused, fixed and guarded by tests
+  (link:docs/JUMP-BUG-POSTMORTEM.adoc[post-mortem]).
+* The AffineScript/WASM core is *not yet functional*: the artifact that used to ship returned an all-zero initial state and
+  crashed after ~96 steps. It is no longer shipped; a reference twin, golden vectors and a conformance verifier now define what
+  a correct build must do (link:docs/AFFINESCRIPT-PORT-PLAN.adoc[port plan]).
+* Where it is going, and how it could become a cult hit:
+  link:docs/ROADMAP.adoc[roadmap], link:docs/CULT-GAME-STRATEGY.adoc[strategy],
+  link:docs/JOINERY-AND-UPSTREAM-ASKS.adoc[what Gossamer / the Joinery / Burble must deliver].
 
-Prereqs:
+== Quick start
 
-- AffineScript compiler available on  (or set  to a local checkout)
-- Modern browser or Deno runtime for launcher support
-- Node.js only if you want to run the standalone WASM runner
-
-[NOTE]
-====
- prefers the compiler but copies  into  (and preserves legacy artifacts) when no compiler is present, so playtesting works out of the box.
-====
-
-[source,bash]
-----
-# Build to WebAssembly
-./build.sh
-
-# Run the WASM module (exports )
-node run_wasm.js build/airborne-submarine-squadron.wasm main
-----
-
-== Quick Start (Gossamer)
+Prerequisites: https://bun.sh[Bun] ≥ 1.1 (the estate runtime — Deno was retired 2026-09-22), a modern browser. Nothing else: the game has
+*zero* dependencies.
 
 [source,bash]
 ----
-./launcher.sh gossamer            # launch the Gossamer desktop/web player
-python3 -m http.server -d gossamer  # serve browser version from gossamer/ and open http://localhost:8000
+bun run run.js            # serve on :6880 and open the game
+bun test                  # the whole suite, against the REAL engine (no browser needed)
+just --list               # every task (install `just`; or use the commands above)
+./build.sh                # OPTIONAL: compile src/main.affine to WASM (needs the AffineScript compiler)
 ----
 
-Controls, HUD, and color settings live inside the pause menu () and the on-screen legend ().
-
-== Gameplay Highlights
-
-- Free-flight submarine with accelerometer/afterburner, diver ejection (Tab/M), and space transition when you exceed 88 MPH with a sharp climb.
-- Weapon triad: torpedoes (), missiles (), and depth charges (). Depth charges are anti-sub-super weapons with particle trails and wide blast radii.
-- Digital Knight Rider–style HUD showing speedometer, accelerometer, status gauges, and a persistent controls legend.
-- Solar map in the top-left corner, warp hotkeys (, Enter, –), and leaderboard tracking performance per mission.
-- Custom skin tuning (, , ,  while paused) plus retro battle background and diver/tray integration.
+The WASM co-processor is optional: without it the game logs `WASM co-processor unavailable` and plays normally.
+`run.js` never touches git (the old auto commit/push/merge-to-main cycle is opt-in: `--git-cycle`).
 
 == Controls
 
 Core flight:
 
-- Arrow keys – steer, climb, dive
-- Space – fire selected weapon
-- Shift – stabilise in all modes (atmosphere, water, space)
-- A – afterburner (drains fuel, regenerates over time)
-- P – periscope toggle (Shift+P for auto mode)
-- E / M – disembark / embark
-- Tab – emergency eject (commander)
-- Z / X – aim swivel (on land only)
+* Arrow keys — steer, climb, dive
+* Space — fire selected weapon
+* Shift — stabilise (air, water and space)
+* `A` — afterburner (drains fuel, regenerates); `S` — air/aqua brake
+* `P` — periscope (Shift+P: auto mode)
+* `E` / `M` — disembark / embark; `Tab` — emergency eject
+* `Z` / `X` — aim swivel (on land only)
+* `F` — orbit menu (warp); `Enter` confirms; number keys pick a destination in orbit
 
-Weapons (number keys):
+Weapons: `1` machine gun · `2` torpedo · `3` missile · `4` depth charge · `5` bouncing bomb · `9` railgun (commander)
 
-- 1 – Machine gun (unlimited)
-- 2 – Torpedo
-- 3 – Missile
-- 4 – Depth charge
-- 5 – Bouncing bomb
-- 9 – Railgun (commander)
+Pause menu (`Esc`): `[` `]` cycle skin · `,` `.` tune hue · `R` rainbow · `B` spectrum · `P` pride · `L` legend · `H` HALO ·
+`D` deep-diver kit · `C` supply frequency · `G` Nemesis sub · `S` save · `O` load · `N` new game · `Q` quit (two-stage) ·
+`0`–`9` rebind action · `Backspace` reset keybinds
 
-Pause menu (Esc):
+== Gameplay highlights
 
-- `[` / `]` – cycle sub skin
-- `,` / `.` – tune hue (Spectrum skin only)
-- R – rainbow preset  |  B – Spectrum preset  |  P – Pride preset
-- L – toggle legend  |  H – HALO parachute  |  D – deep-diver kit
-- C – cycle supply crate frequency  |  G – Nemesis sub toggle
-- S – save  |  O – load  |  N – new game  |  Q – quit (2-stage)
-- 0–9 – rebind action  |  Backspace – reset keybinds
+* Free flight with afterburner; dive through *three thermal layers* with real visibility rules; caterpillar drive for silent running.
+* Leave the atmosphere: 88 MPH + afterburner + sharp pull-up (the "Back to the Future" launch) → orbit with a solar system, asteroids,
+  comets, and a sun that burns.
+* Weapon triad plus bouncing bomb and railgun; mines with chain reactions; hangars with point-defence; supply drops.
+* An enemy roster with personality: Akula-Molot and Delfin submarines, destroyers, a Sopwith Camel that becomes the Red Baron when hit,
+  Su-47 Berkut with Lightning interceptor squadrons, the Nemesis sub, Evel Knievel.
+* Damage model with hit zones (rear slows, front shields, middle loses buoyancy), commander with 3 hearts, hostage rescue,
+  strike and escort missions, end-of-mission scoring.
+* Eight sub skins including Spectrum (HSL), Rainbow and Pride.
 
-== Sub Skins & Colour Palettes
-
-Eight skins ship in the pause menu (`[` / `]` to cycle):
-
-- *Ocean Blue* – default (`#4a6baf` hull, `#e74c3c` wings)
-- *Retro Red*, *Amber Gold*, *Emerald*, *Violet* – fixed palettes
-- *Spectrum Custom* – HSL-based, tune hue with `,` / `.` (0–360°)
-- *Rainbow* – animated rainbow stripes, hue shifts with `world.tick`
-- *Pride Submarine* – static 6-stripe pride flag (red, orange, yellow, green, blue, violet)
-
-Spectrum auto-generates hull/wings/tower/nose/porthole colours from a single
-hue value, persisted in `localStorage` under `airborne-submarine-squadron:gossamer:settings`.
-The pause menu shows a live colour-swatch preview of the current skin's
-hull / wings / tower / nose / porthole components.
-
-== Building & Tooling
-
--  – ensures the WASM bundle is refreshed. Points to  when you need a fresh compile; otherwise the prebuilt  is reused.
--  – installs desktop/start-menu shortcuts through the Gossamer tray workflow.
--  – multiplatform entry point that wires the Gossamer runtime, browser view, and desktop tray helper.
--  – optional Justfile targets for type-checking and scripted builds.
--  – Deno lockfile/runtime dependency state.
-
-== Distribution
-
-This project is distributed as source + WASM artifacts and launched via Deno/Gossamer.
-No npm packaging is used in this repository.
-
-- `build/` and `dist/` contain the generated WASM payloads.
-- `launcher.sh` and `run.js` are the primary runtime entry points.
-- `Justfile` provides build/test workflows under Deno.
-
-== Launcher Quick Start
-
-[source,bash]
-----
-./launcher.sh --browser     # start the browser version (Deno file server + HUD)
-bash gossamer/launch.sh     # direct Gossamer desktop build
-./launcher.sh --stop        # stop running Deno/Gossamer instances and tray helpers
-----
-
-== Enhanced Integration System (NEW)
-
-The game now features an advanced, cross-platform integration system:
-
-* **Reflective Architecture**: Self-aware installation with platform detection
-* **Homoiconic Design**: Self-describing configuration and metadata
-* **Self-Healing**: Automatic file verification and backup restoration
-* **Fault Tolerance**: Graceful degradation on unsupported platforms
-* **Cross-Platform**: Linux, Windows (partial), RISC-V, Minix support
-
-=== Installation
-
-[source,bash]
-----
-./integ.sh          # Enhanced installer with diagnostics
-./launcher.sh --install  # Traditional installation
-----
-
-=== Features
-
-* **Multiple Icon Formats**: PNG, SVG, and ICO (Windows compatibility)
-* **Automatic Platform Detection**: Linux, Windows, RISC-V, Minix
-* **Self-Diagnostics**: Pre-installation health checks
-* **Fault Tolerant**: Continues with limited functionality if tools missing
-* **Backup System**: Automatic backup of critical files in `.backup/`
-
-=== Platform Support
-
-[cols="1,1,1,1"]
-|===
-| Platform | Status | Icons | Menu Integration
-
-| Linux (x86_64/ARM) 
-| ✓ Full 
-| PNG, SVG, ICO 
-| ✓ Menu + Desktop
-
-| Windows 
-| ⚠ Partial 
-| ✓ ICO available 
-| Manual setup required
-
-| RISC-V 
-| ⚠ Planned 
-| ✓ ICO available 
-| Future support
-
-| Minix 
-| ⚠ Planned 
-| - 
-| Future support
-|===
-
-=== Windows Notes
-
-For Windows users:
-- ICO file provided at `desktop/icons/airborne-submarine-squadron.ico`
-- Contains multiple sizes: 16x16, 32x32, 48x48, 64x64, 128x128, 256x256
-- Manual shortcut creation may be needed until full installer available
-
-=== Self-Healing
-
-The system includes:
-- Automatic backup of critical files in `.backup/`
-- File existence verification before operations
-- Graceful fallback when required tools are missing
-- Comprehensive error reporting and recovery
-
-== Documentation & Assets
-
--  – developer notes, telemetry, and feature writeups
--  – launcher page, HUD canvas, and loader visuals
--  – supporting web assets and auxiliary integrations
-- , ,  – narrative, power-up design, and feature references
--  – technical architecture and implementation details
--  – project roadmap and milestones
--  – maintainers and contributors information
-
-== Layout & Project Overview
+== Architecture at a glance
 
 [source]
 ----
-airborne-submarine-squadron/
-├── src/                 # AffineScript source
-│   └── main.as
-├── build/               # WASM output (reuses dist/ when builder absent)
-├── gossamer/            # HTML/JS launcher and HUD assets
-├── CLI tools (launcher.sh, integ.sh)
-├── tray/                # Rust system tray binary + installer scripts
-└── README.adoc           # this document
+index.html / gossamer/index_gossamer.html     two entry points, SAME module list (test-enforced)
+  gossamer/*.js        engine: fixed-step update() at 60 Hz, seeded simRand(), render interpolation, draw()
+  server/ass-server.js + run.js    Bun game server: allowlisted files, same-origin guard, bounded uploads
+  src/main.affine      AffineScript core (ABI v1) → core WASM (optional co-processor)
+  sim/                 reference twin + golden vectors + WASM conformance verifier (the oracle)
+  test/                bun:test suite + headless harness that boots the real engine
+  tray/                Rust system tray (ksni)
 ----
 
-[source]
-----
-airborne-submarine-squadron/
-├── index.html            # Web entry point (serves Gossamer v2 engine)
-├── src/                  # AffineScript source (main.as = canonical)
-├── gossamer/             # Gossamer v2 JS engine + desktop launcher
-├── build/                # Compiled WASM artifacts (gitignored locally)
-├── dist/                 # Release WASM artifact (tracked)
-├── tray/                 # Rust system tray binary (ksni)
-├── ffi/                  # Zig FFI layer
-├── docs/                 # Design and development docs
-├── launcher.sh           # Unified launcher
-├── build.sh              # AffineScript -> WASM build script
-├── Justfile              # Task runner
-└── .machine_readable/    # STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml
-----
+Details: link:docs/architecture/ARCHITECTURE.adoc[architecture], link:docs/TESTING.adoc[testing],
+link:docs/BUN-MIGRATION.adoc[Bun migration].
 
-== Build Notes
+== Sub skins
 
-`build.sh` prefers a global `affinescript` binary on `$PATH`. When missing it looks for a sibling `nextgen-languages/affinescript` checkout and uses `dune exec`. Otherwise it copies the prebuilt WASM from `dist/` into `build/` so the launcher can run without rebuilding.
+Eight skins ship in the pause menu (`[` / `]`): Ocean Blue (default), Retro Red, Amber Gold, Emerald, Violet, *Spectrum Custom*
+(HSL, tune with `,` / `.`), *Rainbow* (animated) and *Pride Submarine* (six stripes). Settings persist in `localStorage`
+under `airborne-submarine-squadron:gossamer:settings`.
 
-== Roadmap
+== Contributing
 
-- *UI polish:* Finish Groove/Burble integration in the Gossamer panel, add persistent HUD legend, leaderboard final scoring, and damage state map (rear damage slows sub, front shield vanishes when depleted, middle damage makes you sink or lose buoyancy).
-- *Expansion:* Ship packages for Linux (deb/rpm, kinoite/silverblue), macOS, Windows, Android/iOS, and RISC-V/minix targets, while documenting CI/build expectations.
-- *Gameplay:* Add orbital warp menu (Enter → Orbit → Depart) with digital speedometer (space speeds), planet numbering, hazard handling (Sun burns), and multi-map transitions with alien terrain.
-- *AffineScript WASM pipeline:* Complete WebKit compiler compatibility; graduate co-processor from frame counter to primary physics engine.
+See `.github/CONTRIBUTING.md`, link:GOVERNANCE.adoc[GOVERNANCE], link:SECURITY.adoc[SECURITY]. Before sending a change:
+`bun test` must be green. Two rules are enforced by tests because they were the source of real bugs: *simulation code never
+calls `Math.random()`* and *canvas `save()`/`restore()` must balance in every function*.
 
-== License
+== Licence
 
-This repository is documented and distributed under AGPL-3.0-or-later, the Palimpsest-MPL license layer on top of MPL-2.0 is the licnecning for Gossamer (linear-type gui wrapper), Burble (high assurance multiplayer communications), and Affinescript (affine-type programming language, compiling to WASM). See  or https://github.com/hyperpolymath/palimpsest-license for full terms and for foundational technologies..
+// LICENCE-STATUS:BEGIN
+Code: *AGPL-3.0-or-later*. Documentation and prose: *CC-BY-SA-4.0*. Full texts in `LICENSES/`. An owner-run migration of the code
+licence to *MPL-2.0* is staged but not applied — see link:docs/decisions/ADR-0002-licence-mpl-2.0.adoc[ADR-0002].
+// LICENCE-STATUS:END
+
+Gossamer (linear-typed desktop shell), Burble (voice) and AffineScript (affine-typed language compiling to WASM) are separate
+projects under their own licences; see link:docs/JOINERY-AND-UPSTREAM-ASKS.adoc[the ecosystem map].

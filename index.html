@@ -704,9 +704,26 @@
         })();
     </script>
 
-    <!-- Game engine -->
-    <script src="gossamer/camera_layers.js"></script>
-    <script src="gossamer/wasm_abi.js"></script>
-    <script src="gossamer/app_gossamer.js"></script>
+    <!-- Game engine (modular: support -> enemies -> HUD -> core).
+         MUST list exactly the same modules, in the same order, as
+         gossamer/index_gossamer.html (minus net/signalling.js, which only the
+         desktop lobby uses).  These are classic scripts sharing ONE global scope:
+         app_gossamer.js calls generateTerrain/SFX/keys/... defined in the others,
+         so omitting any of them means init() throws and the game never starts.
+         test/jump_test.js boots both entry points and compares the lists. -->
+    <script src="gossamer/sfx.js?v=2"></script>
+    <script src="gossamer/verisimdb.js?v=2"></script>
+    <script src="gossamer/enemies.js?v=2"></script>
+    <script src="gossamer/hud.js?v=2"></script>
+    <script src="gossamer/weapons.js?v=2"></script>
+    <script src="gossamer/orbital.js?v=2"></script>
+    <script src="gossamer/controls.js?v=2"></script>
+    <script src="gossamer/persist.js?v=2"></script>
+    <script src="gossamer/terrain.js?v=2"></script>
+    <script src="gossamer/camera_layers.js?v=1"></script>
+    <script src="gossamer/fixed_step.js?v=1"></script>
+    <script src="gossamer/rng.js?v=1"></script>
+    <script src="gossamer/wasm_abi.js?v=1"></script>
+    <script src="gossamer/app_gossamer.js?v=2"></script>
 </body>
 </html>

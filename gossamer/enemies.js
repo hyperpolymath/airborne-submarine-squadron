@@ -134,11 +134,11 @@ const SOPWITH_GRAZE_CHANCE = 0.35;  // 35% chance a hit only grazes (half damage
 
 function createSopwith(terrain) {
   // Spawn in the middle third of the terrain, cruising high
-  const startX = TERRAIN_LENGTH * 0.3 + Math.random() * TERRAIN_LENGTH * 0.4;
+  const startX = TERRAIN_LENGTH * 0.3 + simRand() * TERRAIN_LENGTH * 0.4;
   return {
     x: startX,
-    y: 50 + Math.random() * 40,
-    vx: (Math.random() < 0.5 ? 1 : -1) * SOPWITH_SPEED,
+    y: 50 + simRand() * 40,
+    vx: (simRand() < 0.5 ? 1 : -1) * SOPWITH_SPEED,
     vy: 0,
     hp: SOPWITH_HP,
     maxHp: SOPWITH_HP,
@@ -251,14 +251,14 @@ function updateSopwith(dt) {
       const awayAngle = Math.atan2(sw.y - threatY, sw.x - threatX);
       const dodgeSpeed = SOPWITH_ACROBAT_SPEED * 1.5;
       // Perpendicular dodge (more effective than running directly away)
-      const perpAngle = awayAngle + (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2);
+      const perpAngle = awayAngle + (simRand() < 0.5 ? Math.PI / 2 : -Math.PI / 2);
       sw.vx = Math.cos(perpAngle) * dodgeSpeed;
       sw.vy = Math.sin(perpAngle) * dodgeSpeed;
       sw.dodgeCooldown = SOPWITH_DODGE_COOLDOWN;
       sw.dodging = true;
       // Cycle to evasive manoeuvre
       const evasive = ['barrelRoll', 'splitS', 'snapTurn'];
-      sw.manoeuvre = evasive[Math.floor(Math.random() * evasive.length)];
+      sw.manoeuvre = evasive[Math.floor(simRand() * evasive.length)];
       sw.acrobatTimer = 0;
     }
   }
@@ -311,7 +311,7 @@ function updateSopwith(dt) {
     // Gets increasingly evasive with each hit (dodge cooldown drops)
     sw.dodgeCooldown = Math.max(0, sw.dodgeCooldown - 10);
     setAttacker(attacker, kind);
-    if (sw.angered && Math.random() < SOPWITH_GRAZE_CHANCE) {
+    if (sw.angered && simRand() < SOPWITH_GRAZE_CHANCE) {
       // Glancing hit — half damage
       sw.hp -= baseDmg * 0.5;
       addParticles(sw.x, sw.y, 2, '#aaa');
@@ -497,7 +497,7 @@ function updateSopwith(dt) {
     // More likely when wounded ("oil everywhere, engine coughing").
     const stallChance = 0.002 + (1 - hpPct) * 0.004; // ~0.2% → 0.6% per tick
     if (sw.manoeuvre !== 'stall' && sw.manoeuvre !== 'recover'
-        && Math.random() < stallChance * dt) {
+        && simRand() < stallChance * dt) {
       sw.manoeuvre = 'stall';
       sw.acrobatTimer = 0;
       sw._stallSpinPhase = 0;
@@ -510,7 +510,7 @@ function updateSopwith(dt) {
         // every few ticks like the original arcade cabinet.
         if (!sw._dirLockTimer || sw._dirLockTimer <= 0) {
           sw._dirIdx = quantize8(tgtX - sw.x, tgtY - sw.y);
-          sw._dirLockTimer = 6 + Math.floor(Math.random() * 4); // re-aim every 6-9 ticks
+          sw._dirLockTimer = 6 + Math.floor(simRand() * 4); // re-aim every 6-9 ticks
         } else {
           sw._dirLockTimer -= dt;
         }
@@ -539,7 +539,7 @@ function updateSopwith(dt) {
         // Trigger a loop periodically — longer cooldown when healthy, more
         // frequent when taking a beating (confused, flailing).
         const loopWait = Math.max(50, 140 * hpPct);
-        if (sw.acrobatTimer > loopWait && Math.random() < 0.02 * dt) {
+        if (sw.acrobatTimer > loopWait && simRand() < 0.02 * dt) {
           sw.manoeuvre = 'loop';
           sw.acrobatTimer = 0;
           sw._loopStartIdx = sw._dirIdx || 0;
@@ -782,10 +782,10 @@ const BERKUT_BOMB_COOLDOWN = 90;
 const BERKUT_CHAFF_COOLDOWN = 200;
 
 function spawnBerkut() {
-  const side = Math.random() < 0.5 ? 1 : -1;
+  const side = simRand() < 0.5 ? 1 : -1;
   return {
     x: world.sub.worldX + side * W,
-    y: 40 + Math.random() * 60,
+    y: 40 + simRand() * 60,
     vx: -side * BERKUT_SPEED,
     vy: 0,
     hp: BERKUT_HP,
@@ -906,7 +906,7 @@ function updateAirSupremacy(dt) {
 
       // MG — close range (only when sub is visible)
       if (dist < 150 && bk.mgCooldown <= 0 && !hidden && sub.y < WATER_LINE) {
-        const spread = (Math.random() - 0.5) * 0.12;
+        const spread = (simRand() - 0.5) * 0.12;
         bk.bullets.push({
           x: bk.x, y: bk.y,
           vx: Math.cos(angleToSub + spread) * 5,
@@ -1161,21 +1161,21 @@ const LIGHTNING_ROCKET_COOLDOWN = 90;
 const LIGHTNING_SQUAD_SPAWN_INTERVAL = 600;
 
 function spawnLightningSquad() {
-  const count = 2 + Math.floor(Math.random() * 2); // 2 or 3
-  const side = Math.random() < 0.5 ? 1 : -1;
+  const count = 2 + Math.floor(simRand() * 2); // 2 or 3
+  const side = simRand() < 0.5 ? 1 : -1;
   const baseX = world.sub.worldX + side * (W * 0.7);
-  const baseY = 50 + Math.random() * 50;
+  const baseY = 50 + simRand() * 50;
   const squad = [];
   for (let i = 0; i < count; i++) {
     squad.push({
       x: baseX + i * 30 * side,
       y: baseY + (i - 1) * 15, // V-formation offset
       vx: -side * LIGHTNING_SPEED,
-      vy: (Math.random() - 0.5) * 0.3,
+      vy: (simRand() - 0.5) * 0.3,
       hp: LIGHTNING_HP,
       alive: true,
-      mgCooldown: 20 + Math.random() * 20,
-      rocketCooldown: 40 + Math.random() * 40,
+      mgCooldown: 20 + simRand() * 20,
+      rocketCooldown: 40 + simRand() * 40,
       bullets: [],
       commanded: false, // Set true when Berkut is nearby
       state: 'attack',  // attack, retreat
@@ -1309,7 +1309,7 @@ function updateAirInterceptors(dt) {
 
     // MG fire — close range, only if sub is visible (not in periscope/underwater)
     if (distToTarget < 180 && li.mgCooldown <= 0 && !subHidden) {
-      const mgSpread = (Math.random() - 0.5) * 0.15;
+      const mgSpread = (simRand() - 0.5) * 0.15;
       li.bullets.push({
         x: li.x, y: li.y,
         vx: Math.cos(angleToTarget + mgSpread) * 4.5,
@@ -1551,7 +1551,7 @@ function updateNemesis(dt) {
     nm.vy += Math.sin(angleToSub) * 0.08 * dt;
     // MG fire in air
     if (dist < 200 && nm.mgCooldown <= 0 && sub.y < WATER_LINE) {
-      const spread = (Math.random() - 0.5) * 0.15;
+      const spread = (simRand() - 0.5) * 0.15;
       nm.bullets.push({
         x: nm.x, y: nm.y,
         vx: Math.cos(angleToSub + spread) * 4,
@@ -1885,7 +1885,7 @@ function updateDestroyer(dt) {
   // Depth charges (when sub is below water near destroyer)
   if (sub.y > WATER_LINE + 10 && Math.abs(sub.worldX - d.x) < 120 && d.depthChargeCooldown <= 0) {
     world.depthCharges.push({
-      worldX: d.x + (Math.random() - 0.5) * 30,
+      worldX: d.x + (simRand() - 0.5) * 30,
       y: WATER_LINE + 5,
       vx: 0, vy: 1.0,
       life: DEPTH_CHARGE_LIFE, trail: [],
@@ -2066,7 +2066,7 @@ function updateInterceptors(dt) {
         if (distToSub < 350 && boat.stateTimer <= 0) {
           boat.state = 'rushing';
           boat.dir = sub.worldX > boat.x ? 1 : -1;
-          boat.targetPart = INTERCEPTOR_TARGET_PARTS[Math.floor(Math.random() * INTERCEPTOR_TARGET_PARTS.length)];
+          boat.targetPart = INTERCEPTOR_TARGET_PARTS[Math.floor(simRand() * INTERCEPTOR_TARGET_PARTS.length)];
         }
         break;
 
@@ -2077,7 +2077,7 @@ function updateInterceptors(dt) {
         if (distToSub < INTERCEPTOR_MG_RANGE && boat.mgCooldown <= 0 && sub.y < WATER_LINE + 20) {
           damageSpecificPart(sub.parts, boat.targetPart, INTERCEPTOR_MG_DAMAGE);
           boat.mgCooldown = INTERCEPTOR_MG_COOLDOWN;
-          addParticles(sub.worldX + (Math.random() - 0.5) * 20, sub.y + (Math.random() - 0.5) * 10, 1, '#fbbf24');
+          addParticles(sub.worldX + (simRand() - 0.5) * 20, sub.y + (simRand() - 0.5) * 10, 1, '#fbbf24');
         }
         // Decide to stop for bazooka
         if (boat.bazookaCooldown <= 0 && distToSub < 250 && distToSub > 80) {
@@ -2126,7 +2126,7 @@ function updateInterceptors(dt) {
         boat.x += homeDir * INTERCEPTOR_SPEED * 0.8 * dt;
         if (Math.abs(boat.x - boat.homeIsland.x) < 40) {
           boat.state = 'hiding';
-          boat.stateTimer = 200 + Math.random() * 300;
+          boat.stateTimer = 200 + simRand() * 300;
           boat.targetPart = null;
         }
         break;
@@ -2369,7 +2369,7 @@ function updateMotorcyclists(dt) {
           m.swimming = false;
           m.y = WATER_LINE - m.swimTarget.h - 4;
           m.island = m.swimTarget;
-          m.jumpCooldown = 400 + Math.random() * 200;
+          m.jumpCooldown = 400 + simRand() * 200;
           m.jumpTrail = [];
           m.swimTarget = null;
           ticker('Evel reaches shore — commandeers a bike!', 60);
@@ -2455,7 +2455,7 @@ function updateMotorcyclists(dt) {
       const flyingPast = !sub.floating && subSpeed > 1.0;
       if (inReach && flyingPast && (!m._laddersnatchCd || m._laddersnatchCd <= 0)) {
         m._laddersnatchCd = 90;
-        if (Math.random() < 0.25) {
+        if (simRand() < 0.25) {
           ticker('Evel leaps for the ladder!', 60);
           if (Math.abs(dxTip) < 30 && Math.abs(dyTip) < 30) {
             sub.ladderPassenger = { kind: 'evel', ref: m };
@@ -2486,7 +2486,7 @@ function updateMotorcyclists(dt) {
         // One offer per stable hover — track via a per-frame timer
         if (!m._ladderOfferCd || m._ladderOfferCd <= 0) {
           m._ladderOfferCd = 45; // ~3/4 sec between offers
-          if (Math.random() < 0.10) {
+          if (simRand() < 0.10) {
             m.captured = true;
             m.alive = false;
             world.score += EVEL_SCORE;
@@ -2509,7 +2509,7 @@ function updateMotorcyclists(dt) {
     const dist = Math.hypot(sub.worldX - m.x, sub.y - m.y);
     if (dist < evelRange && m.mgCooldown <= 0 && !isSubHiddenFromAir(sub)) {
       const angle = Math.atan2(sub.y - m.y, sub.worldX - m.x);
-      const spread = (Math.random() - 0.5) * (m.isEvel ? 0.08 : 0.2);
+      const spread = (simRand() - 0.5) * (m.isEvel ? 0.08 : 0.2);
       const bulletSpeed = m.isEvel ? MOTORCYCLE_MG_SPEED * 1.35 : MOTORCYCLE_MG_SPEED;
       const burst = m.isEvel ? 3 : 1;
       for (let k = 0; k < burst; k++) {
@@ -2552,7 +2552,7 @@ function updateMotorcyclists(dt) {
           // Prefer military islands (his kind of place)
           if (other.type === 'military') score += 80;
           // Slight randomness so he's not perfectly predictable
-          score += Math.random() * 100;
+          score += simRand() * 100;
           // Penalise very long jumps (risky)
           score -= jumpDist * 0.1;
 
@@ -2565,7 +2565,7 @@ function updateMotorcyclists(dt) {
           const dx = bestTarget.x - m.x;
           m.vx = dx > 0 ? EVEL_JUMP_SPEED : -EVEL_JUMP_SPEED;
           m.jumpVy = -EVEL_JUMP_SPEED * 0.7; // Arc upward
-          m.jumpCooldown = 400 + Math.random() * 300;
+          m.jumpCooldown = 400 + simRand() * 300;
           m.jumpTrail = [];
           // Cameratron event — triggers the mini-frame popup
           world._evelCameratron = { active: true, timer: 0, maxTimer: 180, evel: m };
@@ -2970,10 +2970,10 @@ function updateAkulaMolot(dt) {
     if (Math.abs(t.worldX - ak.x) < 25 && Math.abs(t.y - ak.y) < 18) {
       // Check if sonar buoys protect
       const nearBuoy = isNearSonarBuoy(t.worldX, t.y, ak.sonarBuoys);
-      if (nearBuoy && Math.random() < 0.6) {
+      if (nearBuoy && simRand() < 0.6) {
         // Torpedo deflected by sonar interference
-        t.vx += (Math.random() - 0.5) * 3;
-        t.vy += (Math.random() - 0.5) * 2;
+        t.vx += (simRand() - 0.5) * 3;
+        t.vy += (simRand() - 0.5) * 2;
         addParticles(t.worldX, t.y, 4, '#60a5fa');
         ticker('Torpedo deflected by sonar field', 50);
         return true; // Torpedo survives but is knocked off course
@@ -3324,12 +3324,12 @@ function spawnBailCrew(delfin) {
   delfin.crew = [];
   for (let i = 0; i < DELFIN_CREW_COUNT; i++) {
     delfin.crew.push({
-      x: delfin.x + (Math.random() - 0.5) * 20,
+      x: delfin.x + (simRand() - 0.5) * 20,
       y: delfin.y - 5 - i * 4,
-      vy: -0.5 - Math.random() * 0.3,
-      vx: (Math.random() - 0.5) * 0.6,
-      bobPhase: Math.random() * Math.PI * 2,
-      armWave: Math.random() * Math.PI * 2,
+      vy: -0.5 - simRand() * 0.3,
+      vx: (simRand() - 0.5) * 0.6,
+      bobPhase: simRand() * Math.PI * 2,
+      armWave: simRand() * Math.PI * 2,
       surfaced: false,
     });
   }
@@ -3367,7 +3367,7 @@ function updateDelfins(dt) {
     // Bail-out check at low HP
     if (!d.bailChecked && d.hp <= d.maxHp * DELFIN_BAIL_THRESHOLD) {
       d.bailChecked = true;
-      if (Math.random() < DELFIN_BAIL_CHANCE) {
+      if (simRand() < DELFIN_BAIL_CHANCE) {
         spawnBailCrew(d);
         d.destroyed = true;
         addParticles(d.x, d.y, 10, '#9ca3af');
@@ -3419,7 +3419,7 @@ function updateDelfins(dt) {
     if (d.surfaced && distToSub < DELFIN_MG_RANGE && d.mgCooldown <= 0 && sub.y < WATER_LINE + 10) {
       damageRandomPart(sub.parts, DELFIN_MG_DAMAGE);
       d.mgCooldown = DELFIN_MG_COOLDOWN;
-      addParticles(sub.worldX + (Math.random() - 0.5) * 15, sub.y + (Math.random() - 0.5) * 8, 1, '#fbbf24');
+      addParticles(sub.worldX + (simRand() - 0.5) * 15, sub.y + (simRand() - 0.5) * 8, 1, '#fbbf24');
     }
 
     // Take damage from player torpedoes
@@ -3644,20 +3644,20 @@ function updatePassengerShip(dt) {
         addParticles(ship.x, ship.y, 20, '#ecf0f1');
         world.score = 0;
         // Spawn survivors in the water
-        const numSurvivors = 3 + Math.floor(Math.random() * 4);
+        const numSurvivors = 3 + Math.floor(simRand() * 4);
         const clothColors = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#db2777'];
         for (let s = 0; s < numSurvivors; s++) {
           ship.survivors.push({
-            x: ship.x + (Math.random() - 0.5) * 50,
+            x: ship.x + (simRand() - 0.5) * 50,
             y: ship.y - 4,
-            vy: -0.8 - Math.random() * 0.5,
-            vx: (Math.random() - 0.5) * 0.8,
+            vy: -0.8 - simRand() * 0.5,
+            vx: (simRand() - 0.5) * 0.8,
             surfaced: false,
             rescued: false,
-            bobPhase: Math.random() * Math.PI * 2,
-            panicPhase: Math.random() * Math.PI * 2,
+            bobPhase: simRand() * Math.PI * 2,
+            panicPhase: simRand() * Math.PI * 2,
             clothColor: clothColors[s % clothColors.length],
-            huddled: Math.random() < 0.4,
+            huddled: simRand() < 0.4,
           });
         }
         world.caveMessage = { text: 'CIVILIAN SHIP DESTROYED — SURVIVORS IN WATER! SCORE ZERO', timer: 250 };

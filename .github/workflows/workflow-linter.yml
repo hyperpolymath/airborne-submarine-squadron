@@ -1,6 +1,4 @@
-# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# This workflow is managed by gh actions-lock.
 # This workflow is managed by gh actions-lock.
 # Prevention workflow - validates all workflows have proper security config
 name: Workflow Security Linter
@@ -19,14 +17,16 @@ jobs:
   lint-workflows:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check SPDX headers
         run: |
+          # The SPDX id must be in the LEADING comment block, not necessarily line 1 (gh actions-lock
+          # prepends its own "managed by" comment; checking `head -1` failed every lock-managed file).
           errors=0
           for f in .github/workflows/*.yml .github/workflows/*.yaml; do
             [ -f "$f" ] || continue
-            if ! head -1 "$f" | grep -q "SPDX-License-Identifier"; then
+            if ! awk '/^---[[:space:]]*$/ { next } /^#/ { print; next } { exit }' "$f" | grep -q "^# SPDX-License-Identifier:"; then
               echo "ERROR: $f missing SPDX header"
               errors=$((errors + 1))
             fi
@@ -45,13 +45,13 @@ jobs:
           done
           exit $errors
 
-      - name: Check pinned actions
+      - name: Check pinned actions (direct refs must be full commit SHAs)
         run: |
-          errors=0
-          for f in .github/workflows/*.yml .github/workflows/*.yaml; do
-            [ -f "$f" ] || continue
-            # Look for uses: without SHA
-            if grep -E "uses:.*@v[0-9]" "$f" | grep -v "#"; then
-              echo "WARNING: $f has unpinned actions (missing SHA comment)"
-            fi
-          done
+          # Mirrors the governance gate: every direct `uses:` (except local ./, docker:// and the
+          # estate's own reusable workflows, which are SHA-pinned separately) must be @<40 hex>.
+          unpinned=$(grep -rnE --include='*.yml' --include='*.yaml' "^[[:space:]]+(- )?uses:" .github/workflows/ \
+            | grep -v "@[a-f0-9]\{40\}" | grep -v "uses: \./\|uses: docker://" || true)
+          if [ -n "$unpinned" ]; then
+            echo "ERROR: direct workflow references not SHA-pinned:"; echo "$unpinned"; exit 1
+          fi
+          echo "all direct references are SHA-pinned"

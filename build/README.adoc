@@ -1,0 +1,6 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+= build/
+
+This directory is for build orchestration (`guix.scm`). `build.sh` also writes the compiled WASM core here
+(`airborne-submarine-squadron.wasm`); that output is gitignored and never committed — a compiled artifact must
+pass `sim/verify_artifact.js` before the game will load it.

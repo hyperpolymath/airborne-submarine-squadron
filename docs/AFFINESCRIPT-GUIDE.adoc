@@ -128,6 +128,6 @@ See `CONTRIBUTING.md` for the full guide. The key principle: **every module is a
 == Further Reading
 
 - `src/main.as` — the complete AffineScript source, heavily annotated
-- `ROADMAP.adoc` — game development roadmap
+- `docs/ROADMAP.adoc` — game development roadmap
 - `docs/DEVELOPMENT.md` — development setup guide
 - The AffineScript compiler: `hyperpolymath/affinescriptiser`

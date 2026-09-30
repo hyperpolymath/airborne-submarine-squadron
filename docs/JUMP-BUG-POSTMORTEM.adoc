@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= Defect Post-Mortem: Submarine Screen Jumping
+:toc: macro
+:icons: font
+
+toc::[]
+
+== 1. Defect Description
+
+Players and developers observed erratic behavior where the attack submarine, squadron wingmen, projectiles, and islands would violently teleport vertically across the screen by several dozen to hundreds of pixels, occasionally snapping back or plunging through terrain.
+
+== 2. Root Cause Analysis
+
+Investigation through the headless harness (`test/harness/headless.js`) isolated three distinct compounding causes:
+
+=== Cause 1: Canvas State Stack Imbalance (Primary Bug)
+* **Location:** `gossamer/app_gossamer.js`, inside `drawEvelCameratron()`.
+* **Mechanism:** When Evel Knievel jumped between islands, a corner "CAMERATRON" TV inset popup was rendered. The function executed `ctx.save()` twice (once for the camera frame, once for Evel's zoomed sprite). However, it executed `ctx.restore()` three times (an extra restore at the very end of the function).
+* **Impact:** The extra `ctx.restore()` popped the *caller's* `ctx.translate(shakeX, -camY + shakeY)` transformation matrix that established the world-to-camera viewport. Consequently, every entity drawn after `drawEvelCameratron()`—specifically the squadron wingmen, projectiles, and crucially `drawSub(world.sub)`—was rendered in raw screen coordinates without the `cameraY` offset. The attack submarine abruptly jumped upward by exactly `cameraY` pixels (measured at 144.45 pixels in a single frame during deep dives).
+* **The False Fix Trap:** A previous proposed fix in `standards#1047` removed the middle `ctx.restore()` after the sprite. While this numerically balanced the stack, it left the 3x zoom and clipping path active, causing the cameratron border, label, and blinking REC dot to vanish. The correct fix removed the redundant trailing restore.
+
+=== Cause 2: Variable Timestep with Frame-Dependent Damping
+* **Location:** `gossamer/app_gossamer.js`, `gameLoop()`.
+* **Mechanism:** The game loop calculated `dt = Math.min(ts - lastTime, 32) / 16` and invoked `update(dt)`. However, major physics components applied frame-rate-dependent damping (e.g., `vx *= 0.98`, `WATER_DRAG = 0.96`, `vx *= 1 - brakeForce * dt`).
+* **Impact:** Higher refresh rate monitors (120 Hz, 144 Hz, 240 Hz) executed more integration steps per second, applying drag far too frequently. A standard 6-second flight ended **254 pixels further right at 30 Hz** and **229 pixels shorter at 240 Hz**. On high-refresh displays, the craft felt sluggish, struggled to achieve the 88 MPH launch speed, and experienced erratic altitude hunting.
+
+=== Cause 3: Discontinuous Camera Follow Lerp
+* **Location:** `gossamer/app_gossamer.js`, `update()`.
+* **Mechanism:** When the camera target switched abruptly (e.g., commander emergency ejection via `Tab`, boarding via `M`, or diver deployment), `targetCamX` and `targetCamY` moved by hundreds of pixels instantly. The proportional smoothing calculation `(targetCam - camera) * CAMERA_SMOOTH * dt * 4` produced single-frame leaps of 43 to 46 pixels.
+
+== 3. Solutions Implemented
+
+1. **Canvas Stack Balance:** Corrected `drawEvelCameratron()` to guarantee exactly 2 saves and 2 restores. Removed dead code `translate(-evel.x * 0 - toScreen(evel.x) + toScreen(evel.x), 0)`.
+2. **Fixed 60 Hz Timestep:** Integrated `gossamer/fixed_step.js` implementing the `enaction-time` contract. The simulation advances strictly in whole, equal steps (60 Hz) regardless of monitor refresh rate. Render interpolation (`drawInterpolated()`) smoothly blends continuous visual positions between completed steps on high-refresh displays without mutating simulation state.
+3. **Camera Velocity Clamping:** Introduced `CAMERA_MAX_PAN = 14px/step`. Smooth camera transitions are guaranteed even during violent disembarkation or ejection events. Initialized `cameraX`/`cameraY` in `initWorld()` directly centered on the launch port to eliminate intro swoop.
+4. **Regression Testing:** Landed `test/jump_test.js` and `test/fixed_step_test.js`, verifying stack balance, screen coordinate stability, and bit-for-bit simulation parity across 30, 60, 120, and 240 Hz displays.

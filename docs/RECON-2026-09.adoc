@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= Ground-Truth Reconnaissance: Airborne Submarine Squadron (September 2026)
+:toc: macro
+:icons: font
+
+toc::[]
+
+== 1. Executive Summary
+
+This reconnaissance report audits `airborne-submarine-squadron` against real execution, real tests, and live upstream relationships across the hyperpolymath and metadatastician estates.
+
+Previous documentation contained serious status drift: claims of a functioning WebAssembly co-processor and clean cross-platform headless testing did not match reality. This audit establishes the verified ground truth, records defect fixes landed in this session, and charts the path to commercial success.
+
+=== Key Verified Facts
+* **Playable Front-End:** The JavaScript engine (`gossamer/app_gossamer.js` and modular helpers) delivers an engaging, deep arcade game featuring atmospheric flight, three underwater thermal layers with acoustic stealth, caterpillar drive, and an orbital space flight layer.
+* **The "Jumping Sub" Defect:** Root-caused and permanently fixed. The primary cause was an unbalanced canvas `save()`/`restore()` in `drawEvelCameratron()` that popped the camera transform. Secondary issues included unquantized variable-dt physics and camera lerp spikes on target switches.
+* **WASM Co-Processor Reality:** The previously committed WASM artifact was non-functional (returned all zeroes for initial state and trapped with out-of-bounds memory access after 96 steps due to an uncollected bump allocator). The WASM co-processor is now treated as an optional subsystem, with a bit-exact JS reference twin (`sim/shadow_ref.js`) and golden vectors (`sim/vectors/shadow_v1.json`) serving as the specification.
+* **Runtime Modernization:** Migrated from retired Deno tooling to **Bun** (the canonical estate JavaScript runtime per LANGUAGE-POLICY 2026-09-22). The entire blitz suite (276 tests) runs natively under `bun test` in under 10 seconds.
+* **Licensing Staging:** In accordance with Estate Doctrine 6 ("No automated licence edits — ever"), the repository's code remains under **AGPL-3.0-or-later** with documentation under **CC-BY-SA-4.0**. A complete, dry-run-tested migration tool to **MPL-2.0** has been created (`scripts/relicense-mpl2.js`) accompanied by `docs/decisions/ADR-0002-licence-mpl-2.0.adoc`, ready for owner execution.
+
+== 2. Codebase Inventory and Architecture
+
+[cols="2,1,4"]
+|===
+| Component | Lines | Role & Verified Status
+
+| `gossamer/app_gossamer.js`
+| ~6,700
+| Core game loop, input handling, weapon integration, and canvas rendering. Updated to 60 Hz fixed timestep with render interpolation.
+
+| `gossamer/enemies.js`
+| ~3,850
+| AI state machines for Sopwith/Red Baron, Su-47 Berkut, Lightning interceptors, Akula-Molot & Delfin submarines, destroyers, and Evel Knievel.
+
+| `gossamer/hud.js`
+| ~1,540
+| KITT-style digital dashboard, damage diagram, solar minimap, astrocompass, and multi-tier notification HUD.
+
+| `gossamer/orbital.js`
+| ~750
+| Keplerian solar orbits, gravitational N-body pull, asteroid belt, comets, space debris, and warp mechanics. O(1) loop-free helpers verified.
+
+| `gossamer/sfx.js`
+| ~650
+| Web Audio API procedural synthesizer for engines, sonar pings, torpedo launches, and explosions. Zero audio samples required.
+
+| `src/main.affine`
+| ~510
+| AffineScript simulation kernel (ABI v1: 29 state fields, 5 input fields). Defines affine resource types.
+
+| `sim/shadow_ref.js`
+| ~115
+| Pure integer reference twin of the AffineScript kernel. The executable oracle.
+
+| `server/ass-server.js`
+| ~180
+| Hardened Bun HTTP server. Enforces static path allowlists, loopback host validation, and same-origin mutation guards.
+
+| `tray/src/main.rs`
+| ~335
+| System tray binary using `ksni` (KDE StatusNotifierItem) for native desktop integration.
+|===
+
+== 3. RSR and Standards Compliance Audit
+
+The repository has been restructured to adhere strictly to the Rhodium Standard Repository (RSR) specification:
+
+1. **Root Shape Hygiene:** Root-level documentation sprawl has been organized into dedicated directories (`docs/architecture/`, `docs/design/`, `docs/governance/`, `docs/release/`). The root allowlist (`.machine_readable/root-allow.txt`) enforces this bidirectional boundary.
+2. **Package Policy:** Removed deprecated `deno.json`, `deno.lock`, and empty `node_modules/`. Established private, zero-dependency `package.json` for Bun. Added `build/guix.scm` satisfying the estate's Guix packaging requirement.
+3. **Tooling Alignment:** Rewrote `mise.toml` to list exclusively valid registry tools (`bun`, `just`, `zig`, `rust`, `shellcheck`), eliminating startup warnings.
+4. **CI/CD Hardening:** Updated `.github/workflows/actions.lock` to full transitive closure. Pinned `github/codeql-action` to v4.38.0 to protect against the upstream v4.38.1 startup failure. Replaced broken Ddraig Pages workflow with static deployment (`scripts/build-pages.sh`).

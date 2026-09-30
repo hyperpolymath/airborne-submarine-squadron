@@ -129,6 +129,30 @@ const BUOYANCY = 0.10;  // Reduced — sub has neutral buoyancy, doesn't constan
 const SURFACE_DAMPING = 0.92;
 const WATER_DRAG = 0.96;
 const CAMERA_SMOOTH = 0.08;
+const CAMERA_MAX_PAN = 14;            // px per sim step: caps the catch-up pan when the follow target switches
+                                      // (eject / embark / diver). Normal flight needs <= ~9; the old lerp lurched 43-46.
+// -- Fixed timestep (see gossamer/fixed_step.js; same invariant as enaction-time) --
+const SIM_HZ = 60;                    // the rate the game was tuned at: every display now plays exactly like a 60 Hz one
+const SIM_STEP_MS = 1000 / SIM_HZ;
+const SIM_DT = SIM_STEP_MS / 16;      // update() takes dt in 16 ms units -> 1.0416.. per step
+const SIM_MAX_STEPS_PER_FRAME = 5;    // spiral-of-death guard
+const INTERP_CUT_PX = 48;             // a per-step move bigger than this is a cut (teleport/warp), never blended
+
+// -- Simulation RNG (see gossamer/rng.js) --
+// Simulation randomness (terrain, spawns, AI, damage, hazards) comes from a SEEDED stream that only
+// update()/initWorld() advance; cosmetic randomness (particles, draw*) stays on Math.random().
+// Rendering cadence therefore can never change what happens in the world, and a (seed, inputs)
+// pair fully determines a run: daily challenges, replays, verifiable leaderboards, lockstep netcode.
+let _simRng = window.GossamerRNG.mulberry32(1);
+function seedSim(seed) { const s = seed >>> 0; _simRng = window.GossamerRNG.mulberry32(s); return s; }
+function simRand() { return _simRng(); }
+/** Seed for a NEW world: ?seed=... (shareable / daily challenge) else fresh entropy. */
+function pickSeed() {
+  let q = null;
+  try { q = window.__ASS_SEED ?? new URLSearchParams(window.location.search).get('seed'); } catch (_) { /* no location */ }
+  const parsed = window.GossamerRNG.parseSeed(q);
+  return parsed !== null ? parsed : ((simRand() * 4294967296) >>> 0);
+}
 const TERRAIN_LENGTH = 16000;
 const START_TORPEDOES = 24;
 const START_MISSILES = 12;
@@ -410,8 +434,8 @@ function createAmmoStations() { return []; }
 
 function spawnSupplyDrop() {
   // Drop near the sub's area (slightly ahead of camera)
-  const dropX = world.cameraX + 100 + Math.random() * (W - 200);
-  const floats = Math.random() < SUPPLY_DROP_FLOAT_CHANCE;
+  const dropX = world.cameraX + 100 + simRand() * (W - 200);
+  const floats = simRand() < SUPPLY_DROP_FLOAT_CHANCE;
   return {
     x: dropX,
     y: -20,
@@ -420,7 +444,7 @@ function spawnSupplyDrop() {
     state: 'falling', // falling, floating, landed, sunk, collected
     floats,
     age: 0,
-    pulse: Math.random() * Math.PI * 2,
+    pulse: simRand() * Math.PI * 2,
     landedIsland: null,
   };
 }
@@ -434,7 +458,7 @@ function collectSupply(sub, isSeabed) {
       { type: 'repair', msg: 'Seabed cache: HULL REPAIR KIT' },
       { type: 'mega', msg: 'Seabed cache: FULL RESUPPLY' },
     ];
-    const pick = specials[Math.floor(Math.random() * specials.length)];
+    const pick = specials[Math.floor(simRand() * specials.length)];
     if (pick.type === 'railgun') {
       sub.railgunAmmo = Math.min(RAILGUN_MAX_AMMO, (sub.railgunAmmo || 0) + 3);
     } else if (pick.type === 'bbomb') {
@@ -473,7 +497,7 @@ function updateAmmoStations(world, dt) {
     if (!world.supplyDropTimer) world.supplyDropTimer = SUPPLY_DROP_INTERVAL * freq.interval * 0.3;
     world.supplyDropTimer -= dt;
     if (world.supplyDropTimer <= 0) {
-      world.supplyDropTimer = (SUPPLY_DROP_INTERVAL + Math.random() * 200) * freq.interval;
+      world.supplyDropTimer = (SUPPLY_DROP_INTERVAL + simRand() * 200) * freq.interval;
       world.ammoStations.push(spawnSupplyDrop());
     }
   }
@@ -697,9 +721,7 @@ function drawAmmoStations(world) {
 // showing a zoomed view of him mid-leap. Purely cosmetic, adds drama.
 function drawEvelCameratron() {
   const cam = world._evelCameratron;
-  if (!cam || !cam.active) return;
-  cam.timer += 1;
-  if (cam.timer > cam.maxTimer) { cam.active = false; return; }
+  if (!cam || !cam.active) return;      // cam.timer is advanced by tickUiTimers(), once per sim step
   const evel = cam.evel;
   if (!evel || (!evel.alive && !evel.swimming)) { cam.active = false; return; }
 
@@ -731,9 +753,13 @@ function drawEvelCameratron() {
   const centerX = fx + fw / 2;
   const centerY = fy + fh / 2;
 
+  // The frame is always centred on Evel, so the world->frame mapping is just
+  // "centre + zoom": everything below is drawn relative to Evel (0,0).
+  // (This used to read `translate(-evel.x*0 - toScreen(evel.x) + toScreen(evel.x), 0)`,
+  // which is identically translate(0, 0) — a leftover from an abandoned attempt to
+  // follow Evel in world space. Removed; flagged by pons-asinorum's dead-work class.)
   ctx.translate(centerX, centerY);
   ctx.scale(zoom, zoom);
-  ctx.translate(-evel.x * 0 - toScreen(evel.x) + toScreen(evel.x), 0);
 
   // Simple representation of Evel in the frame
   const evelDir = evel.vx >= 0 ? 1 : -1;
@@ -793,7 +819,13 @@ function drawEvelCameratron() {
     ctx.fillText('REC', fx + 14, fy + 11);
   }
 
-  ctx.restore();
+  // NOTE: no trailing ctx.restore() here.  This function performs exactly two
+  // save() calls — the frame (popped by "Undo zoom transform") and Evel himself
+  // (popped right after the cape).  A third restore() used to live here; with the
+  // caller's camera transform on top of the stack it popped THAT instead, so
+  // everything drawn afterwards (squadron, bullets, the player's sub) lost the
+  // camera Y offset and "jumped" by exactly cameraY pixels whenever Evel's
+  // cameratron was on screen.  Guarded by test/jump_test.js.
 }
 
 function generateMines(terrain) {
@@ -821,27 +853,27 @@ function generateMines(terrain) {
       // Mix of island-anchored and open-water mines. Open-water mines spread
       // the field along the whole corridor instead of clumping near islands.
       let x;
-      const openWater = Math.random() < 0.35 || islandCount === 0;
+      const openWater = simRand() < 0.35 || islandCount === 0;
       if (openWater) {
-        x = 400 + Math.random() * Math.max(800, TERRAIN_LENGTH - 800);
+        x = 400 + simRand() * Math.max(800, TERRAIN_LENGTH - 800);
       } else {
-        const isl = terrain.islands[Math.floor(Math.random() * islandCount)];
+        const isl = terrain.islands[Math.floor(simRand() * islandCount)];
         const spread = Math.max(140, isl.baseW * 1.6);
-        x = isl.x + (Math.random() - 0.5) * spread;
+        x = isl.x + (simRand() - 0.5) * spread;
       }
       const seaFloorY = groundYFromTerrain(terrain, x);
       // Mine zone determines chain length and difficulty:
       // - Middle zone (thermocline): longer chains, easier to detach
       // - Deep zone: shorter chains anchored near floor, harder to cut
       // - Shallow: typical WW2 harbour mine
-      const zoneRoll = Math.random();
+      const zoneRoll = simRand();
       let chainLen;
       if (zoneRoll < 0.35) {
-        chainLen = 100 + Math.random() * 80;  // long chains, up into thermocline
+        chainLen = 100 + simRand() * 80;  // long chains, up into thermocline
       } else if (zoneRoll < 0.65) {
-        chainLen = 15 + Math.random() * 30;   // short, deep
+        chainLen = 15 + simRand() * 30;   // short, deep
       } else {
-        chainLen = 45 + Math.random() * 55;   // standard shallow
+        chainLen = 45 + simRand() * 55;   // standard shallow
       }
       const anchorY = seaFloorY - 4;
       const floatY = Math.max(WATER_LINE + 12, anchorY - chainLen);
@@ -850,11 +882,11 @@ function generateMines(terrain) {
         x, y: floatY,
         anchorY,
         chainLength: chainLen,
-        swayPhase: Math.random() * Math.PI * 2,
-        swaySpeed: 0.015 + Math.random() * 0.015,
-        swayAmplitude: 3 + Math.random() * 5,
+        swayPhase: simRand() * Math.PI * 2,
+        swaySpeed: 0.015 + simRand() * 0.015,
+        swayAmplitude: 3 + simRand() * 5,
         active: true,
-        pulse: Math.random() * Math.PI * 2,
+        pulse: simRand() * Math.PI * 2,
         chainCut: false,
         freed: false,
         floatVy: 0,
@@ -1054,7 +1086,7 @@ function triggerMine(world, mine) {
     const dx = other.x - mine.x;
     const dy = other.y - mine.y;
     if (dx * dx + dy * dy <= MINE_CHAIN_RADIUS * MINE_CHAIN_RADIUS) {
-      other.chainFuse = MINE_CHAIN_FUSE_BASE + Math.random() * MINE_CHAIN_FUSE_JITTER;
+      other.chainFuse = MINE_CHAIN_FUSE_BASE + simRand() * MINE_CHAIN_FUSE_JITTER;
     }
   }
 }
@@ -1154,7 +1186,7 @@ function createParts() {
 function damageRandomPart(parts, amount) {
   const totalWeight = SUB_PARTS.reduce((s, p) => s + (parts[p.id] > 0 ? p.weight : 0), 0);
   if (totalWeight <= 0) return null;
-  let roll = Math.random() * totalWeight;
+  let roll = simRand() * totalWeight;
   for (const def of SUB_PARTS) {
     if (parts[def.id] <= 0) continue;
     roll -= def.weight;
@@ -1163,7 +1195,7 @@ function damageRandomPart(parts, amount) {
       // Commander takes injury on heavy hits (hull or tower) or critical damage
       if (world && world.sub && world.sub.commanderHp > 0) {
         const injuryChance = amount >= 40 ? 0.5 : amount >= 20 ? 0.2 : 0;
-        if ((def.id === 'hull' || def.id === 'tower') && Math.random() < injuryChance) {
+        if ((def.id === 'hull' || def.id === 'tower') && simRand() < injuryChance) {
           world.sub.commanderHp--;
           world.caveMessage = { text: `COMMANDER HIT — ${commanderStatusLabel(world.sub.commanderHp)}`, timer: 100 };
           SFX.damage();
@@ -1327,7 +1359,7 @@ function startPlanetWarp(target = null) {
   world.currentDestination = destination;
   world.hasWarped = true;
   world.terrain = generateTerrain(TERRAIN_LENGTH);
-  const baseX = Math.random() * (TERRAIN_LENGTH - 200) + 100;
+  const baseX = simRand() * (TERRAIN_LENGTH - 200) + 100;
   world.sub.worldX = baseX;
   world.sub.y = -150;
   world.sub.vx = 0;
@@ -1554,7 +1586,7 @@ function spawnHostages(count) {
   const islands = world.terrain.islands;
   if (islands.length === 0) return [];
   // Pick distinct islands — shuffle and take first N
-  const shuffled = [...islands].sort(() => Math.random() - 0.5);
+  const shuffled = [...islands].sort(() => simRand() - 0.5);
   const chosen = shuffled.slice(0, Math.min(count, shuffled.length));
   return chosen.map(isl => ({
     x: isl.x,
@@ -1562,7 +1594,7 @@ function spawnHostages(count) {
     island: isl,
     rescued: false,
     rescueAnim: 0,                // Fade-out animation timer after rescue
-    flareTimer: Math.random() * HOSTAGE_FLARE_INTERVAL, // Staggered flares
+    flareTimer: simRand() * HOSTAGE_FLARE_INTERVAL, // Staggered flares
   }));
 }
 
@@ -1944,14 +1976,18 @@ function handleSunBurn(dt) {
 }
 
 // --- World init ---
-function initWorld() {
+function initWorld(seed) {
+  const simSeed = seedSim(seed === undefined ? pickSeed() : seed);   // BEFORE any simRand() use
   const terrain = generateTerrain(TERRAIN_LENGTH);
   const settings = loadSettings();
   return {
+    seed: simSeed,     // (seed, per-step inputs) fully determine a run
     tick: 0,
     mode: 'atmosphere',
-    cameraX: 0,        // World X at left screen edge
-    cameraY: 0,        // World Y at top screen edge (0 = sky view)
+    // Camera starts ALREADY framed on the sub (same target as update()'s follow), so the
+    // first frames -- and every restart -- don't swoop in from (0,0).
+    cameraX: clamp(terrain.startPort.x - W * 0.4, 0, TERRAIN_LENGTH - W),   // World X at left screen edge
+    cameraY: Math.max(0, (WATER_LINE - 15) - H * 0.45),                      // World Y at top screen edge (0 = sky view)
     levelComplete: false,
     settings,
     leaderboard: loadLeaderboard(),
@@ -2153,11 +2189,54 @@ async function init() {
   }
 }
 
+// ── Main loop: FIXED TIMESTEP + render-only interpolation ─────────────────────────
+// Invariant (shared with metadatastician/enaction-engine): the simulation advances only in
+// whole, equal steps; render interpolation never feeds simulation state.  update() is
+// called with the constant SIM_DT, 60 times per real second, on every display.
+// See test/fixed_step_test.js: the same flight used to end 254 px apart at 30 Hz vs 240 Hz.
+const _simClock = new window.GossamerFixedStep.FixedStep({ hz: SIM_HZ, maxSteps: SIM_MAX_STEPS_PER_FRAME });
+const _lerp = window.GossamerFixedStep.lerp;
+let _frameEma = SIM_STEP_MS;   // smoothed real frame time (ms): detects a ~60 Hz display
+let _renderPrev = null;        // continuous values captured just before the LAST sim step
+
+/** Continuous, draw-visible values that are safe to blend between two completed steps. */
+function _interpTargets(w) {
+  const s = w.sub;
+  const t = [[w, 'cameraX'], [w, 'cameraY'], [s, 'worldX'], [s, 'y']];
+  if (s.disembarked) t.push([s, 'pilotX'], [s, 'pilotY']);
+  const ej = w.airEject;
+  if (ej && !ej.dead && !ej.landed) t.push([ej, 'pilotX'], [ej, 'pilotY']);
+  return t;
+}
+function _snapRender() {
+  const targets = _interpTargets(world);
+  return { world, targets, values: targets.map(([o, k]) => o[k]) };
+}
+
+/**
+ * draw() with camera / sub / pilot blended between the previous and current COMPLETED step.
+ * Continuous values only; discrete state is always read from the current step.  The real
+ * values are restored immediately, so nothing leaks back into the simulation.  Cuts
+ * (teleport, warp, cave, restart, structure change) are never blended.
+ */
+function drawInterpolated(alpha) {
+  const p = _renderPrev, w = world;
+  if (alpha >= 1 || !p || p.world !== w || w.mode !== 'atmosphere' || w.paused || w.gameOver) { draw(); return; }
+  const t = _interpTargets(w);
+  if (t.length !== p.targets.length || t.some(([o, k], i) => o !== p.targets[i][0] || k !== p.targets[i][1])) { draw(); return; }
+  const cur = t.map(([o, k]) => o[k]);
+  if (cur.some((v, i) => !Number.isFinite(v) || !Number.isFinite(p.values[i]) || Math.abs(v - p.values[i]) > INTERP_CUT_PX)) { draw(); return; }
+  t.forEach(([o, k], i) => { o[k] = _lerp(p.values[i], cur[i], alpha); });
+  try { draw(); } finally { t.forEach(([o, k], i) => { o[k] = cur[i]; }); }
+}
+
 let lastTime = 0;
 let _splashCleared = false;
 function gameLoop(ts) {
-  const dt = Math.min(ts - lastTime, 32);
+  if (lastTime === 0) lastTime = ts;           // no catch-up burst on the very first frame
+  const frameMs = ts - lastTime;
   lastTime = ts;
+  if (frameMs > 0 && frameMs < 100) _frameEma += (frameMs - _frameEma) * 0.1;
 
   // Don't process game input while the splash screen is still covering the canvas.
   // Keys pressed to dismiss the splash would otherwise register as game thrust/fire,
@@ -2173,10 +2252,30 @@ function gameLoop(ts) {
     for (const k in keyJustPressed) delete keyJustPressed[k];
   }
 
-  if (!splashActive && !world.gameOver && !world.paused) update(dt / 16);
-  else if (world.paused) updatePauseMenu();
-  draw();
-  for (const k in keyJustPressed) delete keyJustPressed[k];
+  // One-shot key edges (keyJustPressed) must be seen by EXACTLY ONE sim step: not lost on a
+  // frame that simulates nothing (display faster than 60 Hz), not seen twice on a frame that
+  // simulates two (display slower than 60 Hz).
+  let consumeEdges = true;
+  let alpha = 1;
+  if (!splashActive && !world.gameOver && !world.paused) {
+    const steps = _simClock.advance(frameMs);
+    consumeEdges = steps > 0;
+    for (let i = 0; i < steps; i++) {
+      _renderPrev = _snapRender();
+      update(SIM_DT);
+      if (i === 0) for (const k in keyJustPressed) delete keyJustPressed[k];
+      if (world.gameOver || world.paused) break;   // state changed mid-frame: stop simulating
+    }
+    // On a ~60 Hz display steps and frames coincide: show the latest state (zero added latency).
+    // Anywhere else, blend between the last two completed steps (one step of latency, smooth motion).
+    const aligned = Math.abs(_frameEma - SIM_STEP_MS) < SIM_STEP_MS * 0.06;
+    alpha = aligned ? 1 : _simClock.alpha;
+  } else {
+    _simClock.reset();
+    if (world.paused) updatePauseMenu();
+  }
+  drawInterpolated(alpha);
+  if (consumeEdges) for (const k in keyJustPressed) delete keyJustPressed[k];
   requestAnimationFrame(gameLoop);
 }
 
@@ -2630,7 +2729,7 @@ function updateAirEject(dt) {
   for (const enemy of world.enemies) {
     const dist = Math.hypot(enemy.worldX - ej.pilotX, enemy.y - ej.pilotY);
     // Enemies take potshots at the descending commander
-    if (dist < 120 && !ej.dead && Math.random() < (ej.chuteOpen ? 0.008 : 0.002) * dt) {
+    if (dist < 120 && !ej.dead && simRand() < (ej.chuteOpen ? 0.008 : 0.002) * dt) {
       ej.hp--;
       addParticles(ej.pilotX, ej.pilotY, 3, '#e74c3c');
       if (ej.hp <= 0) {
@@ -2812,6 +2911,7 @@ function updateDiverMode(sub, dt) {
 function update(dt) {
   const sub = world.sub;
   world.tick++;
+  tickUiTimers();   // notification / shake / popup timers count SIM steps, never display frames
 
   // --- Advance WASM physics co-processor ---
   // Map the current JS key state onto the WASM Input type and call step_state.
@@ -2880,12 +2980,12 @@ function update(dt) {
   const camFollowX = ejecting ? ejecting.pilotX : sub.disembarked ? sub.pilotX : sub.worldX;
   const camFollowY = ejecting ? ejecting.pilotY : sub.disembarked ? sub.pilotY : sub.y;
   const targetCamX = camFollowX - W * 0.4;
-  world.cameraX += (targetCamX - world.cameraX) * CAMERA_SMOOTH * dt * 4;
+  world.cameraX += clamp((targetCamX - world.cameraX) * CAMERA_SMOOTH * dt * 4, -CAMERA_MAX_PAN * dt, CAMERA_MAX_PAN * dt);
   world.cameraX = Math.max(0, Math.min(TERRAIN_LENGTH - W, world.cameraX));
 
   // Vertical camera: follow sub (or pilot), keeping roughly in the middle
   const targetCamY = camFollowY - H * 0.45;
-  world.cameraY += (targetCamY - world.cameraY) * CAMERA_SMOOTH * dt * 4;
+  world.cameraY += clamp((targetCamY - world.cameraY) * CAMERA_SMOOTH * dt * 4, -CAMERA_MAX_PAN * dt, CAMERA_MAX_PAN * dt);
   world.cameraY = Math.max(0, world.cameraY); // Don't go above sky
 
   // --- Disembarked ---
@@ -3216,8 +3316,8 @@ function update(dt) {
         sub.angle += (sub.angle < 0.3 ? 0.04 : 0.01) * dt; // Force nose down
         sub.vy += 0.06 * dt; // Extra gravity (stall sink)
         // Stall buffet — slight random wobble
-        sub.vx += (Math.random() - 0.5) * 0.04 * dt;
-        sub.angle += (Math.random() - 0.5) * 0.02 * dt;
+        sub.vx += (simRand() - 0.5) * 0.04 * dt;
+        sub.angle += (simRand() - 0.5) * 0.02 * dt;
         if (world.tick % 30 === 0) {
           actionIcon('2b07Fe0f', 30, '#ef4444'); hudFlash('STALL — INCREASE SPEED', 30);
         }
@@ -3271,12 +3371,12 @@ function update(dt) {
       const intensity = Math.min(1, (fwdSpeed - 1.0) / 3.0); // 0..1 by speed
       const count = 2 + Math.floor(intensity * 3);
       for (let k = 0; k < count; k++) {
-        const jx = (Math.random() - 0.5) * 8;
-        const jy = (Math.random() - 0.2) * 4;
+        const jx = (simRand() - 0.5) * 8;
+        const jy = (simRand() - 0.2) * 4;
         addParticles(rearX + jx, WATER_LINE + jy, 1, '#bfe6ff');
       }
       // Occasional bigger droplet for visual punch
-      if (Math.random() < 0.25) {
+      if (simRand() < 0.25) {
         addParticles(rearX - Math.sign(sub.vx) * 6, WATER_LINE - 2, 1, '#85c1e9');
       }
     }
@@ -3564,7 +3664,7 @@ function update(dt) {
 
   // SLOT 1: Machine gun — default, infinite ammo, rapid fire
   if (wantFire && world.selectedWeapon === 1 && wc[1] <= 0) {
-    const spread = (Math.random() - 0.5) * 0.12;
+    const spread = (simRand() - 0.5) * 0.12;
     const aimAngle = sub.angle + spread;
     world.subMgBullets.push({
       worldX: sub.worldX + sub.facing * 16, y: sub.y,
@@ -3578,8 +3678,8 @@ function update(dt) {
   // SLOT 2: Torpedo (including LGT and rogue variants)
   if (wantFire && world.selectedWeapon === 2 && wc[2] <= 0 && canFireTorpedo(sub.parts) && (sub.torpedoAmmo > 0 || unlimitedAmmo)) {
     if (!unlimitedAmmo) sub.torpedoAmmo--;
-    const isLGT = Math.random() < 0.05;
-    const isRogue = !isLGT && Math.random() < 0.1;
+    const isLGT = simRand() < 0.05;
+    const isRogue = !isLGT && simRand() < 0.1;
     world.torpedoes.push({
       worldX: sub.worldX + sub.facing * 15, y: sub.y + 5,
       vx: sub.vx * 0.5 + sub.facing * 1, vy: isLGT ? 0 : 1.5,
@@ -3834,8 +3934,8 @@ function update(dt) {
 
     for (const chaff of world.chaffs) {
       if (Math.hypot(m.worldX - chaff.x, m.y - chaff.y) < CHAFF_RADIUS && !m.distracted) {
-        m.vx += (Math.random() - 0.5) * CHAFF_DEFLECT_FORCE;
-        m.vy += (Math.random() - 0.3) * CHAFF_DEFLECT_FORCE;
+        m.vx += (simRand() - 0.5) * CHAFF_DEFLECT_FORCE;
+        m.vy += (simRand() - 0.3) * CHAFF_DEFLECT_FORCE;
         m.distracted = true;
         m.target = null;
         addParticles(m.worldX, m.y, 4, CHAFF_COLOR);
@@ -3912,7 +4012,7 @@ function update(dt) {
     if (r.tier === 2 && r.cooldown <= 0) {
       // Multi-launch silo: fires salvo of unguided rockets at sub, targets hull
       const angle = Math.atan2(sub.y - r.y, sub.worldX - r.x);
-      const rocketCount = 2 + Math.floor(Math.random() * 2); // 2-3 rockets
+      const rocketCount = 2 + Math.floor(simRand() * 2); // 2-3 rockets
       for (let b = 0; b < rocketCount; b++) {
         const spread = (b - (rocketCount - 1) / 2) * 0.12;
         world.missiles.push({
@@ -4010,7 +4110,7 @@ function update(dt) {
     for (const r of world.terrain.radars) {
       if (r.destroyed) continue;
       if (Math.abs(m.worldX - r.x) < 15 && Math.abs(m.y - r.y) < 20) {
-        if (r.tier === 3 && Math.random() < 0.35) {
+        if (r.tier === 3 && simRand() < 0.35) {
           // Tier 3 REFLECTS the missile back at you!
           m.vx = -m.vx * 1.2;
           m.vy = -m.vy * 0.8;
@@ -4428,7 +4528,7 @@ function updateSquadron(dt) {
       }
       // Fire
       if (w.fireCooldown <= 0 && distToTarget < SQUADRON_ENGAGE_RANGE) {
-        const spread = (Math.random() - 0.5) * 0.1;
+        const spread = (simRand() - 0.5) * 0.1;
         w.bullets.push({
           worldX: w.x, y: w.y,
           vx: Math.cos(angleToTarget + spread) * SQUADRON_BULLET_SPEED,
@@ -4618,7 +4718,7 @@ function updateEnemies(dt) {
     } else {
       // Aircraft — fly in air only, never go below water
       e.y += e.vy * dt;
-      e.vy += (Math.random()-0.5)*0.1;
+      e.vy += (simRand()-0.5)*0.1;
       e.vy = Math.max(-1, Math.min(1, e.vy));
       // Ceiling
       if (e.y < 30) { e.y = 30; e.vy = Math.abs(e.vy); }
@@ -4852,6 +4952,32 @@ function updateEffects(dt) {
   });
 }
 
+/**
+ * All notification / popup / shake timers live here and count SIMULATION steps.
+ * They used to be decremented inside draw(), i.e. once per DISPLAY frame, so on a 240 Hz
+ * monitor every banner vanished 4x too fast (and 2x too slow at 30 Hz).
+ * Called exactly once per update().
+ */
+function tickUiTimers() {
+  if (world._screenShake > 0) world._screenShake -= 1;
+  const cm = world.caveMessage;
+  if (cm && cm.timer > 0) cm.timer--;
+  const n = world._notifications;
+  if (n) {
+    if (n.hudFlash && n.hudFlash.timer > 0) n.hudFlash.timer--;
+    for (let i = n.ticker.length - 1; i >= 0; i--) {
+      n.ticker[i].timer--;
+      if (n.ticker[i].timer <= 0) n.ticker.splice(i, 1);
+    }
+    if (n.actionIcon && n.actionIcon.timer > 0) n.actionIcon.timer--;
+  }
+  const cam = world._evelCameratron;
+  if (cam && cam.active) {
+    cam.timer += 1;
+    if (cam.timer > cam.maxTimer) cam.active = false;
+  }
+}
+
 // ── Notification helpers — four tiers ──
 // midNotice(text, timer)   — big centre-screen banner for critical events
 // hudFlash(text, timer, color) — pulsing warning in bottom-left HUD
@@ -4956,7 +5082,7 @@ function draw() {
   // Screen shake (railgun recoil, big explosions)
   let shakeX = 0, shakeY = 0;
   if (world._screenShake > 0) {
-    world._screenShake -= 1;
+    // (decremented in tickUiTimers(): draw() must not advance simulation-visible timers)
     const intensity = world._screenShake * 0.6;
     shakeX = (Math.random() - 0.5) * intensity;
     shakeY = (Math.random() - 0.5) * intensity;
@@ -5944,9 +6070,8 @@ function draw() {
     ctx.restore();
   }
 
-  // Cave message notification
+  // Cave message notification (timer advanced by tickUiTimers())
   if (world.caveMessage && world.caveMessage.timer > 0) {
-    world.caveMessage.timer--;
     const alpha = Math.min(1, world.caveMessage.timer / 30);
     ctx.globalAlpha = alpha;
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -5956,6 +6081,11 @@ function draw() {
     ctx.fillText(world.caveMessage.text, W/2, H/2 + 5);
     ctx.globalAlpha = 1;
   }
+
+  // Notification tiers 2-4 (HUD flash, ticker, action icon). These used to be drawn ONLY by
+  // drawOrbitScene(), so in atmosphere/water every STALL warning and weapon-select ticker
+  // was silently invisible. Shared with orbit mode via hud.js.
+  drawNotificationTiers();
 
   // --- Altitude / Depth gauge (right side) ---
   // Always visible — shows altitude above water OR depth below it

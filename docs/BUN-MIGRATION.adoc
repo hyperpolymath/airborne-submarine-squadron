@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= Technical Architecture: Bun Runtime Migration
+:toc: macro
+:icons: font
+
+toc::[]
+
+== 1. Context and Motivation
+
+Per the estate-wide architecture decision record `ADR-2026-BUN-AFFINESCRIPT-TRANSITION` and `0-canon/rsr/LANGUAGE-POLICY.adoc` (owner ruling 2026-09-22), **Bun** is designated as the sole Tier-1 JavaScript runtime and package manager across all repositories, while Deno has been retired.
+
+Airborne Submarine Squadron previously maintained strict Deno-only invariants and rejected `package.json`. This migration aligns the repository with estate doctrine, eliminates tooling fragmentation, and leverages Bun's built-in test runner.
+
+== 2. Architectural Changes
+
+=== Package Management
+* **Manifest:** Introduced a minimal, private `package.json` (`"type": "module"`, `"private": true`) with zero external runtime dependencies.
+* **Lockfiles:** Removed `deno.lock`. The project relies exclusively on Bun built-in APIs (`bun:test`, `Bun.serve`, `Bun.file`, `Bun.spawn`).
+
+=== Game Server Modernization
+* The legacy launcher embedded heredoc server scripts that used Deno APIs. These have been replaced by a clean, modular server implementation in `server/ass-server.js` executed via `bun run run.js`.
+* **Security Hardening:**
+  - Implemented strict static path allowlisting (`resolveStatic()`). Dotfiles, `.git/`, and build metadata are unreachable.
+  - Enforced loopback host validation (`hostAllowed()`) to protect against DNS rebinding attacks.
+  - Added same-origin guards (`originOk()`) for state-mutating endpoints (`/shutdown`, `/crash-report`, `/room/*`).
+  - Implemented payload size limits (crash reports capped at 256 KiB, signalling messages at 64 KiB, disk logs limited to 50 entries).
+  - Integrated Groove discovery endpoint responding at `GET /.well-known/groove` with `application/groove+json`.
+
+=== Launcher Protocol (`run.js`)
+* Switched process execution and environment handling from `Deno.*` to `Bun.spawn` and `process.*`.
+* Stale server detection now uses an explicit HTTP identity probe (`GET /__ass/identity`) and graceful shutdown request (`POST /shutdown`) instead of blindly executing `fuser -k` against port ranges.
+* Made the post-launch git cycle opt-in via `--git-cycle`. Ordinary launches never touch git branches.
+
+=== Test Suite Migration
+* Migrated the 12 legacy blitz test suites from `Deno.test` and `jsr:@std/assert` to `bun:test` via compatibility shims in `test/lib/assert.js` and `test/lib/rt.js`.
+* Test execution time dropped from over 30 seconds across separate Deno processes to under 10 seconds for the entire 276-test suite under `bun test`.
