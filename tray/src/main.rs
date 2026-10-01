@@ -11,6 +11,11 @@ use ksni::blocking::TrayMethods;
 use ksni::menu::StandardItem;
 
 /// Resolve the same runtime directory as launcher.sh's _XDG_RUNTIME_BASE.
+///
+/// Append `launch-scaffolder/airborne-submarine-squadron` to the first non-empty
+/// `XDG_RUNTIME_DIR` or `XDG_STATE_HOME`, falling back to `$HOME/.local/state`.
+/// Return `None` if neither XDG variable is usable and `HOME` is unset.
+/// This only constructs the path; it does not create or validate the directory.
 fn runtime_dir() -> Option<PathBuf> {
     std::env::var_os("XDG_RUNTIME_DIR")
         .filter(|value| !value.is_empty())
@@ -33,13 +38,22 @@ fn launcher_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("./launcher.sh"))
 }
 
-/// Check whether the game server is currently running.
+/// Probe the PID stored in the runtime directory's `server.pid`.
+///
+/// Return `false` if the directory cannot be resolved or the PID cannot be
+/// successfully probed; see [`is_server_running_at`].
 fn is_server_running() -> bool {
     runtime_dir()
         .map(|dir| is_server_running_at(&dir.join("server.pid")))
         .unwrap_or(false)
 }
 
+/// Probe the trimmed, signed PID read from `pid_path` without sending a signal.
+///
+/// Return `false` if the file is missing, unreadable or invalid UTF-8, its contents
+/// cannot be parsed as an `i32`, or `kill(pid, 0)` fails, including permission errors.
+/// Zero and negative values retain `kill`'s special process-selection semantics.
+/// A successful probe does not verify that the process is the game server.
 fn is_server_running_at(pid_path: &Path) -> bool {
     if !pid_path.exists() {
         return false;
@@ -56,11 +70,18 @@ fn is_server_running_at(pid_path: &Path) -> bool {
     }
 }
 
-/// Read the current server port, if running.
+/// Read the runtime directory's `server.port` without checking whether the server runs.
+///
+/// Return `None` if the directory cannot be resolved or the port cannot be read
+/// and parsed; see [`server_port_at`].
 fn server_port() -> Option<u16> {
     server_port_at(&runtime_dir()?.join("server.port"))
 }
 
+/// Read a decimal port from `port_path`, ignoring surrounding whitespace.
+///
+/// Accept values from 0 to 65535 inclusive. Return `None` for file-read errors,
+/// invalid UTF-8 or contents that cannot be parsed as a `u16`.
 fn server_port_at(port_path: &Path) -> Option<u16> {
     std::fs::read_to_string(port_path)
         .ok()

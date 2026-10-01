@@ -71,13 +71,13 @@ warmup_affinescript_compiler() {
     fi
 }
 
-# Reuse the managed server or start the Bun game server on a free port.
+# Reuse the managed server or start the Bun game server on a selected port.
 # Takes no arguments. Reads PID_FILE and PORT_FILE to reuse a running server;
-# otherwise clears stale state, releases previous game servers' ports, and
+# otherwise clears stale state, requests previous game servers' shutdown, and
 # records the new PID and port. Redirects server output to LOG_FILE in the
 # XDG state directory. Prints the port to stdout and diagnostics to stderr.
-# Returns 0 on reuse or successful startup, or 1 if Bun is missing or exits
-# during the startup check.
+# Returns 0 on reuse or if the new process survives the 0.3-second startup check,
+# or 1 if Bun is missing or the process cannot be probed after that check.
 start_server() {
     if is_server_running; then
         local port
