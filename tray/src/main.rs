@@ -189,8 +189,10 @@ mod tests {
     use std::fs;
     use std::io::Write;
 
-    fn test_pid_file(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("airborne-tray-{}-{name}.pid", std::process::id()))
+    fn test_pid_file(name: &str) -> (tempfile::TempDir, PathBuf) {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let pid_file = temp_dir.path().join(format!("{name}.pid"));
+        (temp_dir, pid_file)
     }
 
     // ===== Unit tests for pure utility functions =====
@@ -223,15 +225,14 @@ mod tests {
 
     #[test]
     fn test_server_not_running_when_no_pid_file() {
-        let pid_file = test_pid_file("missing");
-        let _ = fs::remove_file(&pid_file);
+        let (_temp_dir, pid_file) = test_pid_file("missing");
         assert!(!is_server_running_at(&pid_file));
     }
 
     #[test]
     fn test_server_port_returns_none_when_no_port_file() {
-        let port_file = test_pid_file("missing-port").with_extension("port");
-        let _ = fs::remove_file(&port_file);
+        let (_temp_dir, pid_file) = test_pid_file("missing-port");
+        let port_file = pid_file.with_extension("port");
         assert!(server_port_at(&port_file).is_none());
     }
 
@@ -262,11 +263,10 @@ mod tests {
 
     #[test]
     fn test_server_not_running_with_invalid_pid() {
-        let pid_file = test_pid_file("invalid");
+        let (_temp_dir, pid_file) = test_pid_file("invalid");
         let mut f = fs::File::create(&pid_file).unwrap();
         writeln!(f, "not-a-pid").unwrap();
         assert!(!is_server_running_at(&pid_file));
-        let _ = fs::remove_file(pid_file);
     }
 
     // ===== Property tests =====
@@ -290,8 +290,7 @@ mod tests {
 
     #[test]
     fn test_server_running_consistent_when_no_file() {
-        let pid_file = test_pid_file("consistent-missing");
-        let _ = fs::remove_file(&pid_file);
+        let (_temp_dir, pid_file) = test_pid_file("consistent-missing");
         // 10 consecutive calls with no PID file should all return false
         for _ in 0..10 {
             assert!(!is_server_running_at(&pid_file));
@@ -336,13 +335,12 @@ mod tests {
     #[test]
     fn test_server_not_running_with_negative_pid() {
         // Negative PID is invalid, parse should fail so server is not running
-        let pid_file = test_pid_file("negative");
+        let (_temp_dir, pid_file) = test_pid_file("negative");
         let mut f = fs::File::create(&pid_file).unwrap();
         writeln!(f, "-999999").unwrap();
         // -999999 as i32 is valid but kill(-999999, 0) fails (no such group)
         // We can't assert definitively, but it must not panic
         let _ = is_server_running_at(&pid_file);
-        let _ = fs::remove_file(pid_file);
     }
 
     #[test]
