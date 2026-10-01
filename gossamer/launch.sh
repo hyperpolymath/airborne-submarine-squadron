@@ -18,8 +18,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GAME_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 GOSSAMER_DIR="$SCRIPT_DIR"
-GOSSAMER_PID_FILE="/tmp/airborne-gossamer.pid"
-GOSSAMER_SERVER_PID_FILE="/tmp/airborne-gossamer-server.pid"
+# CWE-377: a predictable /tmp pid path lets another local user choose which PID
+# gets killed. Byte-identical to the _XDG_RUNTIME_BASE launcher.sh computes, so
+# `./launcher.sh --stop` finds what this script wrote.
+_XDG_RUNTIME_BASE="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}}/launch-scaffolder/airborne-submarine-squadron"
+mkdir -p "$_XDG_RUNTIME_BASE"
+chmod 0700 "$_XDG_RUNTIME_BASE"
+GOSSAMER_PID_FILE="$_XDG_RUNTIME_BASE/gossamer.pid"
+GOSSAMER_SERVER_PID_FILE="$_XDG_RUNTIME_BASE/gossamer-server.pid"
 
 REPOS_ROOT="$(cd "$GAME_ROOT/.." && pwd)"
 EPHAPAX="${REPOS_ROOT}/developer-ecosystem/nextgen-languages/ephapax/target/release/ephapax"

@@ -18,6 +18,7 @@ dependencies = [
  "criterion",
  "ksni",
  "libc",
+ "tempfile",
 ]
 
 [[package]]
