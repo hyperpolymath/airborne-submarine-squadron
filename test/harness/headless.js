@@ -184,7 +184,12 @@ export async function createGame(opts = {}) {
   }
 
   // init() is async (it awaits a fetch that rejects offline); let it settle.
-  for (let i = 0; i < 5 && !rafCallback; i++) await new Promise((r) => setImmediate(r));
+  // rafCallback is set asynchronously by the sandbox's requestAnimationFrame
+  // stub; the loop is bounded by i alone so static analysis can see it ends.
+  for (let i = 0; i < 5; i++) {
+    if (rafCallback) break;
+    await new Promise((r) => setImmediate(r));
+  }
 
   const ev = (code) => vm.runInContext(code, sandbox);
   const booted = ev("typeof world !== 'undefined' && world !== null") && typeof rafCallback === "function";
