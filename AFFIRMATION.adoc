@@ -1,0 +1,438 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= AFFIRMATION — Airborne Submarine Squadron, as of 2026-10-07
+Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+:toc: macro
+:toclevels: 2
+:icons: font
+:repo-url: https://github.com/hyperpolymath/airborne-submarine-squadron
+:anchor-sha: 69655e2a8d769bc215f09220acd122746fc61d03
+:permalink: {repo-url}/tree/{anchor-sha}
+:pages-url: https://hyperpolymath.github.io/airborne-submarine-squadron/
+
+_What we affirm was true and checkable at one stamped commit. Nothing more._
+
+[NOTE]
+====
+An *affirmation* is a solemn declaration of the truth of a statement, made by
+someone who declines to swear an oath. This file is the third of the
+README / EXPLAINME / AFFIRMATION trio:
+
+[cols="1,3,2",options="header"]
+|===
+| File | Answers | Tense
+| `README.adoc` | Where is this going, and why? | future / aspirational
+| `docs/EXPLAINME.adoc` | How is it built, and what is the evidence? |
+  descriptive / mechanism
+| `AFFIRMATION.adoc` (this file) | What can we honestly affirm was true and
+  checkable at a stamped moment? | a frozen instant, falsifiable
+|===
+
+This file is optional. Delete it rather than carry an affirmation nobody has
+re-verified. A stale affirmation is worse than none.
+====
+
+toc::[]
+
+== What this is, and how it works
+
+*What it is.* A short, dated, signed record of what can honestly be claimed
+about *Airborne Submarine Squadron* (ASS) at one exact commit. ASS is a
+Sopwith-style arcade game in which an attack submarine also flies. It has a
+plain-JavaScript engine (`gossamer/`), a small Bun game server (`run.js`,
+`server/ass-server.js`), and an AffineScript core (`src/main.affine`) that is
+meant to compile to an optional WASM co-processor. It is published as a static
+site through GitHub Pages.
+
+*How it stays trustworthy.*
+
+. *Ground truth, not memory.* Every claim below comes from running the project's
+  own checks in the session that wrote this file. Where a status document
+  disagrees with a live run, the live run wins and the document is named as
+  stale.
+. *A frozen anchor.* The exact commit, time window, working-tree delta and
+  toolchain are recorded in <<verifiable-anchor>>.
+. *A real signature.* The file is landed by a signed git commit. That signature
+  over this content, with the anchor as its parent, is the affirmation. The
+  prose alone is not.
+
+== The epistemic contract
+
+This file records a best belief at the timestamp below. It is not a guarantee
+of correctness. The only guarantee is that nothing is overclaimed on purpose. A
+claim that later turns out false is an error to fix, not a lie.
+
+You may conclude:
+
+* Each claim in <<solid>> was produced by running the command named beside it,
+  in this session, and the counts are the ones that command printed.
+* Where a status document and a run disagreed, both are recorded here.
+
+You may *not* conclude:
+
+* That anything is true at any commit other than the anchor.
+* That anything not listed passes. Silence is not a claim.
+* That GitHub Actions was green at the anchor. CI run results were *not
+  checked*: the GitHub API was rate-limited for this session (see
+  <<outstanding>>).
+
+*Standing invitation to refute.* Re-run <<reproduce>> and bring a counter-
+example.
+
+[#verifiable-anchor]
+== Verifiable anchor
+
+[cols="1,3",options="header"]
+|===
+| Field | Value
+
+| Repo
+| `hyperpolymath/airborne-submarine-squadron`
+
+| Branch
+| `main` (fetched from `origin`; checks ran on a detached checkout of the
+  commit below)
+
+| Commit (HEAD)
+| `69655e2a8d769bc215f09220acd122746fc61d03`
+
+| Permalink
+| {permalink}
+
+| Verified (UTC)
+| Check window `2026-10-07T10:45Z` to `2026-10-07T10:59:10Z`
+
+| Working-tree delta at verification
+| `clean` in both trees (`git status --short --ignored` printed nothing in the
+  full clone after every check, because `build.sh` deleted its own
+  non-conforming artifact). Two trees were used: a `git worktree` of the clone
+  (one full `bun test` run) and a full local clone at the same SHA (all other
+  checks). The full clone was needed because one contract test asserts that
+  `.git` is a directory, and in a worktree it is a file. See <<nuance>>.
+
+| Toolchain
+| `bun 1.4.2`, `just 1.56.0`, `mise 2026.10.3`, `git 2.47.3`,
+  `bash 5.2.37`, `curl 8.14.1`, `asciidoctor 2.0.26`,
+  `affinescript 0.1.1` (local build from an `affinescript` checkout at
+  `fefac21f935551581e60915c204a49ecec1c142e`, which had uncommitted changes),
+  Linux 6.18.33.2-microsoft-standard-WSL2 (Debian 13, 20 CPUs).
+
+| Machine load during checks
+| Load average observed between 18 and 54 on 20 CPUs during the session.
+  Load was not recorded per run. This matters for the timing results in
+  <<nuance>>.
+
+| Affirmed by
+| Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+|===
+
+[IMPORTANT]
+====
+*Never anchor to a tag.* Tags move, and a moved tag silently invalidates every
+claim in this file.
+
+If you are reading this at a later commit, the claims may have drifted. Re-run
+<<reproduce>> and write a fresh affirmation. Do not trust a stale one.
+====
+
+== Companion documents and repo metadata (cross-check)
+
+Read these against this file, including the ones that contradict it.
+
+* `README.adoc`: the aspirations. Its *Status* section says plainly that the
+  AffineScript/WASM core is not yet functional, and this session's build agrees.
+  Its *Play* table says the game is deployed to GitHub Pages. This session
+  *refutes* that for the check window (see <<outstanding>>).
+* `docs/EXPLAINME.adoc`: *stale*. It cites `src/main.as`,
+  `dist/airborne-submarine-squadron.wasm`, `test_types.as`, a root
+  `contractiles/`, `READINESS.md`, a Deno dev server, and a `build.sh` that
+  copies a pre-built artifact. None of those paths exist at the anchor
+  (checked with `test -e`). The source is `src/main.affine`, the server is Bun,
+  and `build.sh` copies nothing.
+* `docs/governance/READINESS.adoc`: the source of the README's "CRG C" badge.
+  It is a self-assessment dated 2026-04-04. Its evidence comes from before the
+  Bun migration (see <<outstanding>>).
+* `.machine_readable/descriptiles/STATE.a2ml`, `0-AI-MANIFEST.a2ml`: repo
+  metadata, in A2ML. Under estate ruling D308 that format is retired in favour
+  of a `<repo>_chora.deed`, which this repo does not have yet. The manifest
+  names Jonathan D.A. Jewell as author and Joshua Jewell as co-author.
+* `coordination.k9`: begins with the `K9!` magic (checked). Its conformance to
+  any k9 grammar version was *not* checked.
+* `.github/workflows/codeql-analysis.yml` and `.github/dependabot.yml`: each
+  contradicts the action pins in the same file (see <<outstanding>>).
+
+== The honest state (one breath)
+
+At the anchor, ASS's JavaScript engine and Bun server pass the project's own
+288-test suite. The run was clean in a full clone, with three gated WASM tests
+skipped. The server serves the game locally. The AffineScript core type-checks,
+but its compiled WASM does not match the reference twin. Two of CI's own
+commands fail on a heavily loaded machine because tests hit their 5-second
+timeout. The public GitHub Pages URL returned 404.
+
+[#solid]
+=== What is solid (and how we checked)
+
+[cols="3,1,4",options="header"]
+|===
+| Claim | Status | Evidence (command, and what it printed)
+
+| The full test suite passes in a full clone
+| affirmed
+| `bun test`: `285 pass`, `3 skip`, `0 fail`, `Ran 288 tests across 19 files`
+  in 21.85 s; it printed `Mutation score: 10/10 killed (100%)` and
+  `Equivalent: 2/12 documented`.
+
+| The CI benchmark step runs against the real engine
+| affirmed
+| `bun run bench`: rc=0. Printed tables for five file and launcher latencies
+  and four real `update()`/`gameLoop` benchmarks. For example, a 60 Hz frame
+  averaged 1.197 ms (p99 14.888 ms) under the load above. These are timings
+  on one loaded machine, not baselines.
+
+| Coverage, when tests are not time-limited
+| affirmed, with a flag
+| `bun test --coverage --timeout 60000`: `285 pass`, `3 skip`, `0 fail`,
+  `All files` 85.84 % functions, 94.70 % lines. The `--timeout` flag is
+  *not* what CI runs (see <<nuance>>).
+
+| Every tracked `.js` file outside `archive/` parses
+| affirmed
+| The CI lint loop of `bun build --no-bundle` over `git ls-files '*.js'`:
+  52 files, 0 failures.
+
+| No TypeScript; K9 magic present; root shape matches the allowlist
+| affirmed
+| `git ls-files '*.ts' '*.tsx'` gave 0. `head -1 coordination.k9` gave `K9!`.
+  `bash scripts/check-root-shape.sh .` gave `PASS: root matches allowlist
+  (46 entries; 46 required, 0 optional)`.
+
+| Golden vectors are current
+| affirmed
+| `just vectors-check`: `vectors up to date`.
+
+| AffineScript sources type-check
+| affirmed
+| `just check` and `affinescript check src/main.affine` both gave
+  `Type checking passed`. So did `affinescript check
+  test/affine/types_smoke.affine`.
+
+| SPDX headers present on the source globs `must-spdx` covers
+| affirmed
+| `just must-spdx`: `PASS: SPDX headers present`.
+
+| The local server serves the game
+| affirmed
+| `bun run run.js --no-open --pid-file ...`, then `curl
+  http://127.0.0.1:6880/` returned HTTP 200, 26041 bytes,
+  `<title>Airborne Submarine Squadron</title>`.
+  `/gossamer/app_gossamer.js` returned 200. The server was stopped with
+  `kill`, and port 6880 was confirmed free afterwards.
+
+| The Pages site assembles locally
+| affirmed
+| `bash scripts/build-pages.sh <out>`: `site assembled ... (27 files)`, rc=0.
+  This says nothing about whether the site is deployed.
+
+| README's grade badge matches the readiness file
+| affirmed (as text only)
+| `just crg-grade` printed `C`. This reads the self-assessment in
+  `READINESS.adoc`. It does not re-grade the repo.
+|===
+
+[#nuance]
+=== The honest nuance you must not lose
+
+* *"The suite passes" depends on where and how you run it.* Here are the four
+  runs from this session, each at the anchor SHA:
++
+[cols="3,2,3",options="header"]
+|===
+| Command and tree | Result | Cause of each failure
+| `bun test`, git worktree
+| 282 pass, 3 skip, *3 fail*, rc=1, 50.42 s
+| 2 timeouts at 5000 ms in `test/fixed_step_test.js`. 1 contract test
+  (`.git exists — repo is standalone`), because a worktree's `.git` is a file.
+| `bun test`, full clone
+| 285 pass, 3 skip, 0 fail, rc=0, 21.85 s
+| none
+| `bun test --coverage` (exactly what CI runs), full clone
+| 278 pass, 3 skip, *7 fail*, rc=1, 90.94 s
+| all 7 were 5000 ms timeouts, in the frame-rate-independence, camera-lurch,
+  redraw-independence and seeded-world tests
+| `bun test --coverage --timeout 60000`, full clone
+| 285 pass, 3 skip, 0 fail, rc=0, 30.20 s
+| none
+|===
++
+`test/fixed_step_test.js` run alone in the worktree gave 22 pass, 0 fail in
+8.51 s. Every failure seen was a timeout or the worktree `.git` assumption. No
+assertion about game behaviour failed in any run. But CI's own `bun test
+--coverage` step *did* fail on this machine. So these tests are sensitive to
+load, and on a slow or busy runner they can fail without any code defect.
+* *The two AffineScript type-check tests in `test/smoke_test.js` only check
+  something when a compiler is present.* Without one they print `[skip]` and
+  return, which counts as a pass. A compiler was present here
+  (`/usr/local/bin/affinescript`), so they checked for real. `test.yml`
+  installs no AffineScript compiler, so in CI those two tests pass without
+  checking anything. This is an inference from reading `test.yml`. No CI log
+  was read.
+* *The 3 skips* are the `skipIf` tests that need a built WASM artifact, in
+  `wasm_artifact_test.js`, `compatibility_test.js` and `smoke_test.js`. They
+  skip because no conforming artifact exists (see <<fenced>>).
+* *The benchmark figures are timings from one loaded machine.* They are not
+  baselines. The baselines in `READINESS.adoc` were taken under Deno 2.7.7 on
+  different hardware.
+
+[#fenced]
+=== Known-incomplete but honestly fenced
+
+* *The WASM co-processor does not conform.* `./build.sh` compiled
+  `src/main.affine` and verified the output with `sim/verify_artifact.js`.
+  That verifier rejected it: `init_state differs from reference at tick
+  (artifact 29, reference 0)`; all five scenarios differed at step 0; and
+  `soak: trapped after 141 calls (Out of bounds memory access ...)`. The
+  script then *deleted the artifact and exited 2*. The guard that makes this
+  loud is `build.sh` together with `sim/verify_artifact.js`. The game runs
+  without the co-processor, and README's *Status* says so. This session does
+  not say whether the defect lies in `src/main.affine` or in the local
+  compiler build (`fefac21`, uncommitted changes). Both are possible.
+* *Three WASM-artifact tests are skipped, not passed.* `bun test` reports them
+  as skips, so they cannot be mistaken for passes.
+
+[#outstanding]
+=== Outstanding / weak / refuted (no spin)
+
+* *Refuted this session: the GitHub Pages URL serves the game.* At
+  `2026-10-07T10:57:52Z`, `curl` of {pages-url}
+  returned *HTTP 404* (`Site not found · GitHub Pages`). So did the URL
+  without its trailing slash and `/index.html`. Positive controls in the same
+  minute both returned 200: `https://pages.github.com/` and
+  `https://hyperpolymath.github.io/`. The probe works, so the 404 is real for
+  that window. Why the site is missing (Pages disabled, a failed deploy, or a
+  missing environment) was *not* determined.
+* *Not checked: CI run conclusions at the anchor.* The GitHub API was
+  rate-limited (HTTP 403) when this session queried the anchor's workflow runs.
+  No claim is made about any Actions run, CodeQL included.
+* *`codeql-analysis.yml` contradicts its own pins.* Lines 49 and 50 say
+  "v4.38.1+ are rejected at workflow STARTUP ... pinned to the
+  estate-validated v4.38.0". Yet `init`, `autobuild` and `analyze` are all
+  pinned to `2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2`. The anchor
+  commit is itself the Dependabot bump "github/codeql-action/analyze from
+  4.38.0 to 4.38.2 (#119)". So either the comment is stale or the pin
+  startup-fails. That could only be settled from run conclusions, which were
+  not checked.
+* *`dependabot.yml` contradicts the same pin.* It ignores
+  `dependency-name: "github/codeql-action"` and leaves it out of the grouped
+  update, yet a Dependabot bump of `github/codeql-action/analyze` landed. A
+  likely cause, inferred and not tested, is that the ignore key does not
+  match the sub-action path.
+* *`READINESS.adoc` is stale (the CRG C self-assessment).* It records "94
+  tests, 0 failures, 8 test files", Deno 2.7.7 benchmarks, `hypatia-scan.yml`
+  as missing, no headless end-to-end tests, chaos testing as N/A, and
+  Linux+macOS CI as a step on the path to B. At the anchor there are 288 tests
+  in 19 files, `.github/workflows/hypatia-scan.yml` is present,
+  `test/chaos_test.js` and a headless harness (`test/harness/`) exist, and
+  `test.yml` runs an `ubuntu-latest` + `macos-latest` matrix. The grade
+  itself was not re-assessed. It stands only as the file's own claim.
+* *`STATE.a2ml` is stale and contradicts itself.* It gives version `0.5.0` at
+  the top but `(version "0.7.0")` in its metadata. It records "276 tests across
+  18 test files ... in <10 seconds", while live runs gave 288 tests in 19 files
+  in 21.85 to 90.94 s. It records `(monorepo "games & trivia")` while
+  `test/contract_test.js` asserts the repo is standalone. It records
+  `(completion-percentage 95)` while README says the WASM core is not yet
+  functional. `package.json`, `CITATION.cff` and the `Justfile` all say
+  `0.5.0`.
+* *`docs/EXPLAINME.adoc` is stale* in every path listed in the companion
+  section above.
+* *A2ML is still enforced by a test.* `test/contract_test.js` requires
+  `.machine_readable/` to contain `.a2ml` files. Estate ruling D308 retires
+  A2ML in favour of a chora deed. The test will need to change when the
+  migration lands.
+* *The worktree assumption.* The contract test `.git exists — repo is
+  standalone` fails in any `git worktree`. It checks for a `.git` directory,
+  not a git repository.
+* *Root placement needs an allowlist entry.* `scripts/check-root-shape.sh`
+  enforces `.machine_readable/root-allow.txt` in both directions, and it is a
+  step in the Test Suite lint job. A root `AFFIRMATION.adoc` alone makes it
+  fail (`FAIL: 1 root entries are not on the allowlist: AFFIRMATION.adoc`).
+  It must land in the same commit as an `AFFIRMATION.adoc` line in that
+  allowlist.
+* *Unsigned until landed.* This file is a draft until the owner commits it
+  with `-S` on top of the anchor.
+
+[IMPORTANT]
+====
+Never delete a refuted claim. Mark it refuted and say what refuted it.
+====
+
+[#reproduce]
+== Reproduce it yourself
+
+Use a *full clone*, not a `git worktree`: one contract test requires `.git` to
+be a directory. Bun 1.4.2 is pinned in `mise.toml`.
+
+[source,bash]
+----
+git clone https://github.com/hyperpolymath/airborne-submarine-squadron
+cd airborne-submarine-squadron
+git checkout 69655e2a8d769bc215f09220acd122746fc61d03
+bun test
+# expect: 285 pass / 3 skip / 0 fail, "Ran 288 tests across 19 files"
+#         (on a loaded machine, fixed_step tests may time out at 5000 ms)
+bun run bench                     # expect: rc=0, two benchmark tables
+bun test --coverage --timeout 60000
+# expect: 0 fail; All files 85.84 % funcs, 94.70 % lines
+bash scripts/check-root-shape.sh .
+# expect: PASS: root matches allowlist (46 entries; ...)
+just vectors-check                # expect: vectors up to date
+just check        # needs affinescript; expect: Type checking passed
+./build.sh                        # with affinescript 0.1.1 (fefac21):
+# expect: FAIL ... tick (artifact 29, reference 0); artifact deleted; exit 2
+bun run run.js --no-open &        # then, in another shell:
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:6880/   # expect: 200
+curl -s -o /dev/null -w '%{http_code}\n' \
+  https://hyperpolymath.github.io/airborne-submarine-squadron/
+# observed 2026-10-07T10:57:52Z: 404
+----
+
+== One-line characterisation (quote this)
+
+> At `69655e2`, ASS's JavaScript engine and Bun server pass their own 288-test
+> suite and serve locally, the AffineScript/WASM core does not yet match its
+> reference, and the public Pages URL returned 404.
+
+== Joint attestation
+
+We, the undersigned, assert that *to the best of our joint belief at the
+timestamp above, every claim in this file is true and was checked as
+described*. Nothing is overclaimed on purpose, and the open gaps are stated
+rather than hidden.
+
+* *Engineering party (AI):* `claude-opus-5-5` (Anthropic Claude Opus 5.5, via
+  Claude Code) ran the checks recorded here between `2026-10-07T10:45Z` and
+  `2026-10-07T10:59:10Z`. It stands behind the wording above as a faithful
+  report of those runs, including the ones that failed. It did not commit or
+  sign this file.
+* *Owner / maintainer:* Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk> signs by
+  committing this file with `-S`. The git commit signature over this content,
+  with the anchor SHA as the commit's parent, is the cryptographic form of
+  this affirmation.
+
+[source,bash]
+----
+git add AFFIRMATION.adoc .machine_readable/root-allow.txt
+git commit -S -s -m \
+  "docs: affirm state at 69655e2a8d769bc215f09220acd122746fc61d03"
+git log --show-signature -1
+----
+
+[WARNING]
+====
+Do not use `--no-verify`. The pre-commit hook enforces the SPDX header. An
+affirmation landed past its own repo's gates refutes itself.
+====
+
+_Landed by a signed git commit. Use `git log --show-signature` to verify that
+the anchor SHA above is the parent of the commit that introduced this
+affirmation. If it is not, this file is a *draft* and must be read as one._
