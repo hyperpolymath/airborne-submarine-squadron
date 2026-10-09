@@ -54,3 +54,4 @@ CODE_OF_CONDUCT.adoc
 GOVERNANCE.adoc
 MAINTAINERS.adoc
 SECURITY.adoc
+AFFIRMATION.adoc          # dated, signed affirmation (standards AFFIRMATION-STANDARD: root preferred; affirmation-check reads root)
